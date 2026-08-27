@@ -13,12 +13,15 @@ There is no `smolvm run` or `smolvm build` command.
 `machine run` creates a VM, runs the guest command, and cleans up the VM when the command exits:
 
 ```bash
-smolvm machine run --image alpine -- echo hello
+smolvm machine run --net --image alpine -- echo hello
 ```
 
 Filesystem changes do not carry into the next run. Use this mode for one-off jobs, tests, and untrusted commands.
 
-Networking is off by default. Enable it only when the workload needs network access:
+Networking is off by default; `--net` above lets the in-guest image pull reach
+the registry. An ephemeral run pulls every time unless you add `--oci-cache`,
+which keeps the image on the host for later runs to start from without a pull.
+Beyond the pull, enable networking only when the workload needs network access:
 
 ```bash
 smolvm machine run \

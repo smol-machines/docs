@@ -46,7 +46,7 @@ The npm package and Python wheel include the local runtime libraries, boot helpe
 import { Machine } from "smolmachines";
 
 const machine = await Machine.create(
-  { resources: { cpus: 2, memoryMb: 1024 } },
+  { resources: { cpus: 2, memoryMb: 1024, network: true } },
   { target: "local" },
 );
 ```
@@ -55,7 +55,7 @@ const machine = await Machine.create(
 from smol import ConnectOptions, Machine, MachineConfig, ResourceSpec
 
 machine = Machine.create(
-    MachineConfig(resources=ResourceSpec(cpus=2, memory_mb=1024)),
+    MachineConfig(resources=ResourceSpec(cpus=2, memory_mb=1024, network=True)),
     ConnectOptions(target="local"),
 )
 ```
@@ -80,7 +80,7 @@ result = machine.run(
 result.assert_success()
 ```
 
-Image pulls happen outside the guest. Enable `resources.network` only when the guest workload needs DNS or outbound network access; guest networking is off by default.
+The image pull runs inside the guest, so `run()` with an uncached registry image needs `resources.network` enabled. Beyond the pull, enable it only when the guest workload needs DNS or outbound network access; guest networking is off by default.
 
 ## Mount a host directory
 

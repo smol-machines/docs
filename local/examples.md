@@ -4,16 +4,19 @@ title: Local Examples
 
 # Local Examples
 
-These examples use the v1.7.1 nested CLI. Run `smolvm COMMAND --help` to check flags against the version installed on your host.
+Run `smolvm COMMAND --help` to check flags against the version installed on your host.
 
-## One-off command without networking
+## One-off command
 
 ```bash
-smolvm machine run --image alpine -- sh -c \
+smolvm machine run --net --image alpine -- sh -c \
   "printf 'isolated\n' && uname -a"
 ```
 
-The VM and its filesystem changes are removed when the command exits.
+The VM and its filesystem changes are removed when the command exits. `--net`
+lets the in-guest image pull reach the registry, which an ephemeral run repeats
+on every invocation — add `--oci-cache` to bake the pulled image into a
+reusable host artifact that later runs rehydrate from without pulling.
 
 ## Interactive Alpine shell
 

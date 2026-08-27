@@ -50,6 +50,7 @@ const machine = await Machine.create(
     resources: {
       cpus: 2,
       memoryMb: 1024,
+      network: true,
     },
   },
   { target: "local" },
@@ -74,6 +75,7 @@ config = MachineConfig(
     resources=ResourceSpec(
         cpus=2,
         memory_mb=1024,
+        network=True,
     )
 )
 
@@ -88,12 +90,12 @@ with Machine.create(config, ConnectOptions(target="local")) as machine:
 
 :::
 
-Guest networking is disabled by default. Image pulls happen outside the guest, so enable networking only when the workload itself needs outbound access.
+Guest networking is disabled by default, and the image pull runs inside the guest — `run()` with an uncached registry image needs `resources.network` enabled, as the examples above set. Beyond the pull, enable networking only when the workload itself needs outbound access.
 
 ## Complete examples
 
-- [TypeScript local machine](https://github.com/smol-machines/smol/blob/v1.7.1/sdk/node/examples/basic.ts)
-- [TypeScript cloud machine](https://github.com/smol-machines/smol/blob/v1.7.1/sdk/node/examples/cloud.ts)
-- [Python cloud machine](https://github.com/smol-machines/smol/blob/v1.7.1/sdk/python/examples/cloud.py)
+- [TypeScript local machine](https://github.com/smol-machines/smol/blob/v1.13.1/sdk/node/examples/basic.ts)
+- [TypeScript cloud machine](https://github.com/smol-machines/smol/blob/v1.13.1/sdk/node/examples/cloud.ts)
+- [Python cloud machine](https://github.com/smol-machines/smol/blob/v1.13.1/sdk/python/examples/cloud.py)
 
 See [Machine API](/docs/sdk/machine-api) for the released methods and configuration types.

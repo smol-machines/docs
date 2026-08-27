@@ -46,7 +46,7 @@ DELETE /v1/machines/{id}
 
 Machine creation accepts an OCI image or a `.smolmachine` registry reference as its source. Specify CPU, memory, network policy, environment, working directory, lifecycle limits, mounts, and other supported fields in the create request.
 
-When `resources` is omitted, a machine currently defaults to a blocked network, 4 vCPUs, and 8192 MB of memory. Larger machines cost more, so pass `resources` explicitly (for example `{"cpus": 1, "memoryMb": 256}`) rather than relying on the default. Disks can be configured up to 16 TiB where capacity is available. Check the OpenAPI document for the current request limits.
+When `resources` is omitted, a machine currently defaults to 4 vCPUs and 8192 MB of memory. When `network` is omitted, outbound access defaults to **open** — set `network.mode` explicitly (`blocked` or `allowCidrs`) when egress policy matters. Note a `blocked` machine also cannot pull its image, which runs in-guest, unless the image is already cached on its node. Larger machines cost more, so pass `resources` explicitly (for example `{"cpus": 1, "memoryMb": 256}`) rather than relying on the default. Disks can be configured up to 16 TiB where capacity is available. Check the OpenAPI document for the current request limits.
 
 ### Commands and sessions
 
@@ -97,7 +97,7 @@ The Cloud API also provides endpoints for:
 - Per-machine usage and cached images
 - Sharing a machine through scoped share links
 - Forking a forkable machine
-- Creating, listing, and restoring snapshots where snapshots are enabled
+- Exporting a machine to a `.smolmachine` artifact
 
 Use the OpenAPI document or Explorer to inspect the exact routes, request bodies, and feature availability for your account.
 
@@ -132,7 +132,7 @@ Stopping a machine preserves its stored state. Deleting it removes the machine. 
 
 ## Errors and request IDs
 
-Use the HTTP status code first. Error bodies may be plain text.
+Use the HTTP status code first. Error bodies may be plain text. For guest exit codes and SDK error patterns, see [Error handling](/docs/guides/error-handling).
 
 Common statuses include:
 
@@ -151,4 +151,4 @@ Every response includes `x-request-id`. A safe client-provided ID is echoed; oth
 
 ## Forks and snapshots
 
-Fork and snapshot routes are specialized cloud operations. They do not move a running local VM into cloud or provide a portable cross-architecture restore format. Snapshot availability depends on the cloud environment; handle an unavailable snapshot feature as a service response, not as a fallback for persistent data.
+Fork routes are specialized cloud operations. They do not move a running local VM into cloud or provide a portable cross-architecture restore format. Machine snapshots are not implemented in the cloud API: the snapshot routes return `501`. To capture a stopped machine's disk state, export it to a `.smolmachine` artifact instead (`POST /v1/machines/{id}/export`, or `smol cloud export`).
