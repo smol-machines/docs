@@ -141,7 +141,7 @@ Preserve the exit status in scripts:
 
 ```bash
 set +e
-smolvm machine run --image node:22-alpine -- npm test
+smolvm machine run --net --image node:22-alpine -- npm test
 status=$?
 set -e
 

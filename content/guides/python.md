@@ -11,11 +11,11 @@ Use the local CLI for shell commands and scripts. Use the Python SDK when a Pyth
 This starts an ephemeral microVM from the official Python image, prints the result, and deletes the machine when the command exits:
 
 ```bash
-smolvm machine run --image python:3.12-alpine -- \
+smolvm machine run --net --image python:3.12-alpine -- \
   python3 -c "print(2 ** 10)"
 ```
 
-Add `--net` only when the workload needs network access:
+`--net` above covers the in-guest image pull; workload egress such as a package install needs it too:
 
 ```bash
 smolvm machine run --net --image python:3.12-alpine -- \
@@ -52,7 +52,7 @@ The local transport embeds the smolvm engine in the Python process. It does not 
 from smol import ConnectOptions, Machine, MachineConfig, ResourceSpec
 
 config = MachineConfig(
-    resources=ResourceSpec(cpus=2, memory_mb=1024, network=False)
+    resources=ResourceSpec(cpus=2, memory_mb=1024, network=True)
 )
 
 with Machine.create(config, ConnectOptions(target="local")) as machine:
@@ -70,7 +70,7 @@ The context manager deletes the local machine on exit. For a cloud machine, pass
 Mount only the directory the guest needs:
 
 ```bash
-smolvm machine run --image python:3.12-alpine \
+smolvm machine run --net --image python:3.12-alpine \
   --volume "$PWD:/app:ro" -- \
   sh -c "cd /app && python3 main.py"
 ```

@@ -35,10 +35,10 @@ Guest and artifact architecture must match the host architecture.
 ```bash
 curl -sSL https://smolmachines.com/install.sh | bash
 smolvm --version
-smolvm machine run --image alpine -- uname -a
+smolvm machine run --net --image alpine -- uname -a
 ```
 
-The final command runs with networking disabled. Add `--net` only if the workload needs egress.
+The final command needs `--net` so the in-guest image pull can reach the registry. Once the image is cached on the host, workloads that need no egress can run without it.
 
 For production installation, pin a tested release and verify its published SHA-256 checksum. Release archives are not currently signed or accompanied by provenance attestations.
 

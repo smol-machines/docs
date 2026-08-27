@@ -11,7 +11,7 @@ Use the local CLI for scripts and development commands. Use the Node SDK when an
 This starts an ephemeral microVM from the official Node image and deletes it when the command exits:
 
 ```bash
-smolvm machine run --image node:22-alpine -- \
+smolvm machine run --net --image node:22-alpine -- \
   node -e "console.log(2 ** 10)"
 ```
 
@@ -54,7 +54,7 @@ import { Machine } from "smolmachines";
 
 const machine = await Machine.create(
   {
-    resources: { cpus: 2, memoryMb: 1024, network: false },
+    resources: { cpus: 2, memoryMb: 1024, network: true },
   },
   { target: "local" },
 );
@@ -78,7 +78,7 @@ For a cloud machine, pass `{ target: "cloud" }` as the second argument to `Machi
 Mount only the directory the guest needs:
 
 ```bash
-smolvm machine run --image node:22-alpine \
+smolvm machine run --net --image node:22-alpine \
   --volume "$PWD:/app:ro" -- \
   sh -c "cd /app && node index.js"
 ```

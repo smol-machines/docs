@@ -14,7 +14,7 @@ The VM boundary does not make a deliberately shared host resource safe. Treat ac
 
 ## Networking
 
-Local smolvm guest networking is off by default. OCI images are pulled by the host, so enable guest networking only when the workload must resolve DNS, call an external service, or accept published traffic.
+Local smolvm guest networking is off by default, and OCI images are pulled from inside the guest — so a machine created from a registry image needs `--net` for its first pull unless the image is already in the host cache. Beyond the pull, enable guest networking only when the workload must resolve DNS, call an external service, or accept published traffic. A cloud machine created without a `network` block gets open outbound access by default; set `network` explicitly when egress policy matters.
 
 Egress can be restricted with hostname and CIDR allowlists. A platform policy also blocks selected sensitive address ranges. There is no first-class deny-list configuration in the current shipped interface.
 

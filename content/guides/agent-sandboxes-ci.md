@@ -17,10 +17,12 @@ Give each agent task or CI job its own microVM. Choose the lifecycle based on wh
 
 ## Run an ephemeral job
 
-Network access is off unless enabled:
+Network access is off unless enabled. The first run still needs `--net` so the
+in-guest image pull can reach the registry; once the image is cached, runs that
+need no egress can drop it:
 
 ```bash
-smolvm machine run --image alpine:3.20 -- \
+smolvm machine run --net --image alpine:3.20 -- \
   sh -c "uname -a && echo isolated"
 ```
 
@@ -29,7 +31,7 @@ Mount the source tree read-only and give generated output a separate writable di
 ```bash
 mkdir -p artifacts
 
-smolvm machine run --image node:22-alpine \
+smolvm machine run --net --image node:22-alpine \
   --volume "$PWD:/workspace:ro" \
   --volume "$PWD/artifacts:/artifacts" -- \
   sh -c "cd /workspace && npm test > /artifacts/test.log"
