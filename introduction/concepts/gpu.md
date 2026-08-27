@@ -15,7 +15,7 @@ Vulkan support depends on the host graphics stack. It is not currently available
 Enable it with `--gpu`, `gpu = true` in a Smolfile, or `gpu: true` / `gpu=True` in the local SDK:
 
 ```bash
-smolvm machine run --gpu --image alpine -- vulkaninfo --summary
+smolvm machine run --gpu --net --image alpine -- vulkaninfo --summary
 ```
 
 On macOS, the release bundles virglrenderer and MoltenVK. On Linux, install virglrenderer and the Vulkan driver for the host GPU; for example:
