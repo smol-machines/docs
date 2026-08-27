@@ -4,7 +4,7 @@ title: Local Examples
 
 # Local Examples
 
-These examples use the v1.7.1 nested CLI. Run `smolvm COMMAND --help` to check flags against the version installed on your host.
+Run `smolvm COMMAND --help` to check flags against the version installed on your host.
 
 ## One-off command
 
