@@ -94,13 +94,35 @@ per page and `##` / `###` for everything below it.
 
 ### Callouts
 
+Use a callout for something a reader must not miss — a default that surprises,
+a limit, a difference between local and cloud. Three types:
+
 ```markdown
 ::: tip
 Networking is off by default; add `--net` when the workload needs it.
 :::
+
+::: warning Hosted cloud does not provide GPU machines
+The cloud create API has no GPU resource fields.
+:::
+
+::: info
+Optional background that is useful but not required reading.
+:::
 ```
 
-`tip`, `warning`, and `info` are supported.
+An optional title follows the type on the opening line, as in the `warning`
+above; with no title the type name is used. Close every callout with `:::`.
+
+- `tip` — a shortcut, a better default, a thing worth knowing.
+- `warning` — a constraint or a surprise. Something that will cost the reader
+  time if they miss it.
+- `info` — context that helps but is not required.
+
+Only these three render. `::: danger` and other types pass through as literal
+text. Keep callouts short and rare: a page where everything is a callout has no
+emphasis left. Prefer one per section at most, and never open a page with one —
+lead with a sentence that says what the page is.
 
 ### Code groups
 
@@ -116,6 +138,70 @@ pip install smolmachines
 ```
 :::
 ````
+
+The label in brackets names the tab. Keep labels consistent with the ones
+already in use: `[TypeScript / JavaScript]`, `[TypeScript]`, `[Python]`.
+
+### Blockquotes
+
+```markdown
+> Machines are the unit of isolation: one workload, one kernel.
+```
+
+Use a blockquote to set off quoted or definitional text. For a caveat, reach
+for a `warning` callout instead — it is the stronger signal and it is styled
+for the purpose.
+
+### Tables
+
+Tables are the house device for anything structured, and most reference pages
+are built from them. Follow the shapes already in use rather than inventing new
+ones:
+
+| Shape | Columns | Example |
+|---|---|---|
+| API routes | Method, Path, Description | `cloud/api-reference.md` |
+| SDK surface | TypeScript, Python, Target, Description | `sdk/machine-api.md` |
+| Support matrix | Host, Guest, Mechanism, Status | `introduction/concepts/supported-platforms.md` |
+| Codes | Code, Meaning | `guides/error-handling.md` |
+
+Keep cells short. A cell that needs a paragraph belongs in prose under the
+table.
+
+### Code fences
+
+Always tag a fence with a language. Ten are highlighted:
+
+```
+bash  javascript  typescript  json  toml  python  rust  text  shell  markdown
+```
+
+Anything outside that list — `yaml` and `http` included — **renders as
+unstyled plain text**. It does not fail the build and it looks fine in your
+editor, so it is easy to miss. Use `text` deliberately when no listed language
+fits, and open an issue if a language is worth adding.
+
+Keep commands copy-pasteable: no leading `$`, no shell prompt.
+
+### Headings and links
+
+Use `##` and `###` only. The corpus has no `####`; if a page needs one, it
+probably wants splitting.
+
+Every heading gets an automatic anchor, so link within a page with
+`[Cloud volumes](#cloud-volumes)`. The slug is the heading lowercased, with
+everything that is not a letter, number, space or hyphen removed, and spaces
+turned into hyphens — so ``### `Machine.create` `` becomes `#machinecreate`,
+not `#machine-create`. Link to another page with a site path
+(`/docs/sdk/machine-api`), never a `.md` filename.
+
+### What not to use
+
+Pages are plain Markdown so they stay portable. Do not add Svelte components,
+imports, or raw HTML — the one exception is the navigation-card markup in
+`index.md` and `introduction/concepts.md`, whose five classes (`doc-cards-lead`,
+`doc-cards`, `doc-card`, `doc-card-title`, `doc-card-desc`) are the entire
+vocabulary. Leave that markup as you find it.
 
 ## Adding a new page
 
