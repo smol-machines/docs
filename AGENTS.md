@@ -133,15 +133,23 @@ grep -rn --include='[a-z]*.md' "^title:" . | sort       # every page title
 ## Reading the format
 
 Pages open with YAML frontmatter carrying a `title`, followed by one `#`
-heading. Two non-standard blocks appear in the body and are content, not
+heading. Three non-standard blocks appear in the body and are content, not
 markup noise:
 
 - **Callouts** — `::: tip`, `::: warning`, `::: info`, closed by `:::`. These
   usually hold caveats that matter (a default that surprises, a platform that
   differs). Do not skip them.
 - **Code groups** — `::: code-group` wrapping several fenced blocks labelled
-  `[macOS]`, `[Linux]`, `[Node]`, `[Python]`. Pick the variant matching the
-  user's platform or language instead of quoting the first one.
+  `[TypeScript / JavaScript]`, `[TypeScript]`, or `[Python]`. Pick the variant
+  matching the user's language instead of quoting the first one.
+
+- **Navigation cards** — `index.md` and
+  `introduction/concepts.md` embed raw HTML card markup: a
+  `doc-cards-lead` paragraph and a `doc-cards` container holding `doc-card`
+  links, each with a `doc-card-title` and `doc-card-desc`. Those five class
+  names are the entire vocabulary; anything else renders unstyled. The cards
+  are navigation rendered by site CSS, so read them as a link list — and leave
+  the markup untouched when editing those two pages.
 
 Commands are written to be copy-pasteable, with no leading `$`.
 
@@ -154,7 +162,7 @@ Commands are written to be copy-pasteable, with no leading `$`.
   there is no way to build or preview the rendered site from here.
 - **The Cloud API Explorer.** `/docs/cloud/api-explorer` is an interactive page
   implemented in the site app; it has no Markdown source. For the endpoints
-  themselves, read `content/cloud/api-reference.md`.
+  themselves, read `cloud/api-reference.md`.
 
 ## Filing a fix
 

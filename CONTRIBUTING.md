@@ -104,15 +104,15 @@ Networking is off by default; add `--net` when the workload needs it.
 
 ### Code groups
 
-Use a code group when the same step differs per platform or language:
+Use a code group when the same step differs per language or platform:
 
 ````markdown
 ::: code-group
-```bash [macOS]
-brew install smolvm
+```bash [TypeScript / JavaScript]
+npm install smolmachines
 ```
-```bash [Linux]
-curl -fsSL https://smolmachines.com/install.sh | sh
+```bash [Python]
+pip install smolmachines
 ```
 :::
 ````
@@ -153,7 +153,9 @@ manual pass over the Markdown counts for a lot:
 - [ ] Exactly one `#` heading, matching the title.
 - [ ] Code fences are tagged with a language, and commands actually run as
       written.
-- [ ] Internal links point at real pages (`/docs/...` paths, not `.md` files).
+- [ ] Links use site paths — `/docs/...` for docs pages, and site-root paths
+      like `/pricing` or `/console` for the rest of the website. Never link a
+      `.md` filename.
 - [ ] New page? The PR description names its section, label, and summary.
 - [ ] The change is focused on one topic — it makes review much faster.
 
