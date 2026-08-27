@@ -298,7 +298,7 @@ Cloud authentication also reads `SMOL_CLOUD_TOKEN`. The base URL override is `SM
 |---|---|---|---|
 | `cpus` | `cpus` | Both | vCPU count; omitted values use the target's default |
 | `memoryMb` | `memory_mb` | Both | Memory in MiB; omitted values use the target's default |
-| `network` | `network` | Both | Guest outbound networking; default `false` |
+| `network` | `network` | Both | Guest outbound networking. Local default `false`. On cloud it only turns access **on**: omitting it and setting `false` both leave the control-plane default, which is open — restrict a cloud machine with `allowHosts` / `allowCidrs` instead |
 | `storageGb` | `storage_gb` | Both | Storage disk size in GiB; local SDK default `20` |
 | `overlayGb` | `overlay_gb` | Local | Overlay disk size in GiB; local SDK default `10` |
 | `allowHosts` | `allow_hosts` | Cloud | Enable networking restricted to these hostnames and subdomains |
@@ -362,7 +362,7 @@ It mirrors the synchronous API with awaitable I/O methods. `endpoint()` remains 
 
 ## Errors
 
-SDK errors derive from `SmolError` and include a machine-readable `code`.
+SDK errors derive from `SmolError` and include a machine-readable `code`. For handling patterns and exit-code semantics, see the [Error handling guide](/docs/guides/error-handling).
 
 - `ExecutionError`: a command assertion failed
 - `NotSupportedError`: the selected target does not support the operation
