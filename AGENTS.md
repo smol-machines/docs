@@ -133,20 +133,21 @@ grep -rn --include='[a-z]*.md' "^title:" . | sort       # every page title
 ## Reading the format
 
 Pages open with YAML frontmatter carrying a `title`, followed by one `#`
-heading. Three non-standard blocks are renderable in the body, and where they
-appear they are content, not markup noise:
+heading. Three non-standard blocks appear in the body and are content, not
+markup noise:
 
 - **Code groups** — `::: code-group` wrapping several fenced blocks labelled
   `[TypeScript / JavaScript]`, `[TypeScript]`, or `[Python]`. There are three
   in the corpus, in `sdk.md` and `sdk/with-cloud.md`. Pick the variant matching
   the user's language instead of quoting the first one.
 - **Callouts** — `::: tip`, `::: warning`, `::: info`, closed by `:::`, with an
-  optional title on the opening line. These are the repo's device for a caveat
-  that changes what a reader should do — a cloud/local difference, a limit, a
-  surprising default — so carry any you find into the answer you build from the
-  page. **No page uses one yet:** the convention is adopted (see
-  `CONTRIBUTING.md`) but the pages predate it, so do not read their absence as a
-  page missing its caveats.
+  optional title on the opening line. These hold caveats that change what a
+  reader should do — a cloud/local difference, a limit, a surprising default —
+  so carry them into any answer you build from the page. Four are in use:
+  `cloud/api-reference.md` (exec is metered at $0),
+  `introduction/concepts/gpu.md` (cloud has no GPU machines),
+  `sdk/machine-api.md` (host mounts are local only), and
+  `sdk/with-local.md` (`/workspace` mount priority).
 - **Navigation cards** — `index.md` and
   `introduction/concepts.md` embed raw HTML card markup: a
   `doc-cards-lead` paragraph and a `doc-cards` container holding `doc-card`

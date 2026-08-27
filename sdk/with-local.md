@@ -117,7 +117,14 @@ config = MachineConfig(
 
 Only mount paths the workload needs. Code in the machine can read or modify every writable path you expose.
 
-Mounting a host directory at `/workspace` replaces the machine's default storage-disk workspace for that path. Files written through a writable mount are created on the host with the ownership produced by the guest process, which may be root. Prefer a dedicated directory and a read-only mount when the workload does not need to modify it.
+::: tip `/workspace` and host mounts
+Every image-based machine exposes `/workspace` backed by the machine's storage
+disk, which persists across exec sessions and stop/start. Mounting a host
+directory at `/workspace` takes priority: your host directory is used instead of
+the storage-disk workspace. Any other mount target leaves `/workspace` intact.
+:::
+
+Files written through a writable mount are created on the host with the ownership produced by the guest process, which may be root. Prefer a dedicated directory and a read-only mount when the workload does not need to modify it.
 
 ## Local-only methods
 

@@ -327,6 +327,12 @@ MountSpec(
 )
 ```
 
+::: warning Host mounts are local only
+`MountSpec` binds a path on your own machine, so it applies to the local and
+self-hosted targets. Smol cloud has no host filesystem to bind from; use a named
+volume there instead. See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking).
+:::
+
 Set `readOnly` / `read_only` explicitly for every mount. Use read-only mounts for source code and writable mounts only for directories the guest must change.
 
 ### `PortSpec`

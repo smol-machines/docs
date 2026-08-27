@@ -45,4 +45,10 @@ GPU sharing is not hardware partitioning. Machines can contend for GPU memory an
 
 Only expose GPU access to workloads you trust under the host's GPU isolation model. The VM still isolates CPU, memory, and filesystem access, but the remoting daemon and shared GPU remain part of the trusted computing base.
 
-These GPU paths are documented for local smolvm. Hosted GPU availability in smol cloud is not currently a documented public product surface.
+::: warning Hosted cloud does not provide GPU machines
+Everything on this page applies to local smolvm and the embedded SDK target.
+The cloud create API has no GPU resource fields, and the SDK does not send
+`resources.gpu`, `resources.gpuVramMib`, or `resources.cuda` to that backend —
+setting them for a cloud machine has no effect. Run smolvm on your own GPU host
+instead.
+:::
