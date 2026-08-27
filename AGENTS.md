@@ -133,16 +133,20 @@ grep -rn --include='[a-z]*.md' "^title:" . | sort       # every page title
 ## Reading the format
 
 Pages open with YAML frontmatter carrying a `title`, followed by one `#`
-heading. Three non-standard blocks appear in the body and are content, not
-markup noise:
+heading. Three non-standard blocks are renderable in the body, and where they
+appear they are content, not markup noise:
 
-- **Callouts** — `::: tip`, `::: warning`, `::: info`, closed by `:::`. These
-  usually hold caveats that matter (a default that surprises, a platform that
-  differs). Do not skip them.
 - **Code groups** — `::: code-group` wrapping several fenced blocks labelled
-  `[TypeScript / JavaScript]`, `[TypeScript]`, or `[Python]`. Pick the variant
-  matching the user's language instead of quoting the first one.
-
+  `[TypeScript / JavaScript]`, `[TypeScript]`, or `[Python]`. There are three
+  in the corpus, in `sdk.md` and `sdk/with-cloud.md`. Pick the variant matching
+  the user's language instead of quoting the first one.
+- **Callouts** — `::: tip`, `::: warning`, `::: info`, closed by `:::`, with an
+  optional title on the opening line. These are the repo's device for a caveat
+  that changes what a reader should do — a cloud/local difference, a limit, a
+  surprising default — so carry any you find into the answer you build from the
+  page. **No page uses one yet:** the convention is adopted (see
+  `CONTRIBUTING.md`) but the pages predate it, so do not read their absence as a
+  page missing its caveats.
 - **Navigation cards** — `index.md` and
   `introduction/concepts.md` embed raw HTML card markup: a
   `doc-cards-lead` paragraph and a `doc-cards` container holding `doc-card`
