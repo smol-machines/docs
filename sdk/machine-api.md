@@ -4,7 +4,7 @@ title: Machine API
 
 # Machine API
 
-`Machine` controls a microVM through either the embedded local engine or smol cloud. This page covers the public SDK class in the current `smolmachines` 1.7.1 release. It is not the in-guest agent API or the standalone Cloud REST API.
+`Machine` controls a microVM through either the embedded local engine or smol cloud. This page covers the public SDK class in the current `smolmachines` release. It is not the in-guest agent API or the standalone Cloud REST API.
 
 TypeScript methods are asynchronous. Python's default `Machine` is synchronous; use `AsyncMachine` when one event loop needs to drive many machines concurrently.
 

@@ -177,8 +177,8 @@ repository. There is no CLA to sign.
 
 ## Notes for maintainers
 
-The docs pin the released version in several places — the Machine API
-introduction, the SDK quick start's example links, the local quick start's
-Windows step, and the local examples introduction. On a release, grep the old
-version and bump them together, alongside the curated `llms.txt` index in the
-site repository.
+The docs pin the released version in two places — the SDK quick start's three
+example links and the local quick start's Windows release link. On a release,
+grep the old version and bump them together, alongside the curated `llms.txt`
+index in the site repository. Keep prose un-pinned: a version number in a
+sentence goes stale silently.

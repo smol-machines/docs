@@ -94,8 +94,8 @@ Guest networking is disabled by default, and the image pull runs inside the gues
 
 ## Complete examples
 
-- [TypeScript local machine](https://github.com/smol-machines/smol/blob/v1.7.1/sdk/node/examples/basic.ts)
-- [TypeScript cloud machine](https://github.com/smol-machines/smol/blob/v1.7.1/sdk/node/examples/cloud.ts)
-- [Python cloud machine](https://github.com/smol-machines/smol/blob/v1.7.1/sdk/python/examples/cloud.py)
+- [TypeScript local machine](https://github.com/smol-machines/smol/blob/v1.13.1/sdk/node/examples/basic.ts)
+- [TypeScript cloud machine](https://github.com/smol-machines/smol/blob/v1.13.1/sdk/node/examples/cloud.ts)
+- [Python cloud machine](https://github.com/smol-machines/smol/blob/v1.13.1/sdk/python/examples/cloud.py)
 
 See [Machine API](/docs/sdk/machine-api) for the released methods and configuration types.
