@@ -178,7 +178,7 @@ curl --fail-with-body -X POST \
   }'
 ```
 
-The control plane pulls the source OCI image outside the guest. Add registry and package hosts only when software running inside the guest must reach them.
+The image pull runs inside the guest. When a hostname allow-list is in force, the image's own registry is folded into the enforced egress policy automatically, so you do not need to list it. Add registry or package hosts only when software running inside the guest must reach them at runtime — or when a registry serves its blobs from a different host than the one in the image reference, which the automatic fold does not cover.
 
 ## Create and mount a volume
 
