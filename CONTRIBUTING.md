@@ -258,9 +258,19 @@ A maintainer reviews the copy, builds it against the site to confirm it renders
 correctly, and wires up any navigation — so anything that only shows up in the
 rendered page gets caught on our side, not yours. If the change documents
 unreleased behavior, the pull request is held open until that feature ships,
-per [When your change gets merged](#when-your-change-gets-merged). Once merged, the change is mirrored into the site repository and
-ships on its next deploy — so there is a short delay between merge and the page
-appearing at smolmachines.com.
+per [When your change gets merged](#when-your-change-gets-merged).
+
+Once merged, the change is picked up by the website's twice-daily sync (00:00
+and 12:00 UTC) and deployed. So there is a delay of up to twelve hours between
+your pull request merging and the page changing at smolmachines.com. **If the
+page has not changed after that, it is worth reporting** — it means the sync
+failed rather than that it is still pending.
+
+The most likely cause of a failed sync is a new page that is not yet registered
+in the site's navigation: the sync runs a check that the nav and the Markdown
+agree, and an unregistered page fails it rather than shipping a URL that 404s.
+That is why the section, sidebar label and one-line summary asked for in your
+pull request description matter — they are what a maintainer registers it with.
 
 ## Licensing of contributions
 
