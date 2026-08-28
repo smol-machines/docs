@@ -15,8 +15,15 @@ If you are using an AI assistant to help write docs, point it at
 
 ## What belongs here
 
-- **Yes** — corrections, clearer explanations, missing detail, new guides,
-  reference pages, better examples, broken links, typos.
+- **Yes, as a pull request** — corrections, clearer explanations, missing
+  detail, new guides, reference pages, better examples, broken links, typos.
+- **Yes, as an issue** — anything about how the docs site *works* rather than
+  what it says: navigation and page ordering, search, the sidebar, layout,
+  readability, mobile, or anything you found hard to get to. The site itself is
+  a separate private application, so you cannot send a pull request for it —
+  but the feedback lands here and a maintainer implements it there. Say what
+  you were trying to find and where you expected it; that is more useful than a
+  proposed fix.
 - **No** — bugs or feature requests for the runtime. Those belong on
   [smolvm](https://github.com/smol-machines/smolvm/issues).
 

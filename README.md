@@ -111,7 +111,11 @@ A merge here goes live when the site bumps its submodule and deploys.
 
 ## Reporting problems
 
-- **Something wrong, unclear, or missing in the docs** — open an issue here.
+- **Something wrong, unclear, or missing in the docs** — open an issue here,
+  or send a pull request.
+- **Navigation, search, layout, or anything about how the site works** — open
+  an issue here too. The site is a separate private application, so it takes no
+  pull requests, but the feedback is acted on there.
 - **A bug or feature request for the runtime itself** — open it on
   [smolvm](https://github.com/smol-machines/smolvm/issues) instead.
 

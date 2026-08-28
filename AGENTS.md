@@ -172,6 +172,15 @@ Commands are written to be copy-pasteable, with no leading `$`.
 ## Filing a fix
 
 If you find something wrong, missing, or out of date, open an issue or a pull
-request on this repository — see [CONTRIBUTING.md](./CONTRIBUTING.md). Bugs in
-the runtime itself belong on
+request on this repository — see [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+Feedback about how the site *works* rather than what it says — navigation, page
+ordering, search, anything a reader could not get to — belongs here too, as an
+issue. The site is a separate private application, so it takes no pull
+requests; a maintainer implements the change there. This is worth watching for:
+if you had to search the tree to find a page a user expected to reach by
+browsing, that is a navigation defect they will never report themselves. Say
+what was being looked for and where it was expected.
+
+Bugs in the runtime itself belong on
 [smolvm](https://github.com/smol-machines/smolvm/issues) instead.
