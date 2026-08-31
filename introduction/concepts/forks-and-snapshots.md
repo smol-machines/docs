@@ -22,11 +22,25 @@ These mechanisms preserve different state:
 |---|---|---|---|
 | Fork | Yes, then copy-on-write | Yes | No |
 | Pack from VM | Yes | No | Yes, `.smolmachine` |
-| General portable snapshot | Intended to include restorable runtime state | Intended to restore later | Not currently available as a user-facing API |
+| Checkpoint | Yes | Yes | Yes, `.smolcheckpoint` |
 
 A pack from a VM requires the source VM to be stopped. It captures disk state and boots as a new machine later. It does not preserve running processes.
 
-A fork is tied to its running source. It is not an exportable snapshot that can be retained independently or restored across architectures.
+A fork is tied to its running source. It is not an exportable artifact that can be retained on its own.
+
+## Checkpoints
+
+A checkpoint captures a running machine, including guest RAM and processes, into a single `.smolcheckpoint` file. Unlike a fork it is an independent artifact: the source machine keeps running, and the file can be kept, copied, and restored later.
+
+Restoring one creates a machine that resumes from the captured instant rather than booting. That is the difference from a pack, which captures disk state only and starts the machine from the beginning.
+
+A checkpoint is portable between hosts, within limits the runtime checks before it restores:
+
+- The host operating system and architecture must match the ones that captured it. A checkpoint taken on macOS on Apple Silicon restores on macOS on Apple Silicon.
+- On Arm hosts, the host must also provide the CPU features the captured guest was given. A restore onto a host missing any of them fails and names the ones that are absent, rather than resuming a guest whose instructions the host cannot execute.
+- The checkpoint format and runtime interface are versioned. A file written by an incompatible runtime is refused with the version it needs.
+
+Restoring keeps the captured machine's shape. The CPU, memory, disk, and device topology come from the checkpoint, so they cannot be changed on the way in.
 
 ## Migration boundary
 

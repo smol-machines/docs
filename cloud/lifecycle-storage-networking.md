@@ -165,9 +165,23 @@ Set `public: true` only when the service should be reachable without the caller'
 
 Verify port and ingress fields in the API Explorer for the deployment you use.
 
-## Forks and snapshots
+## Forks and checkpoints
 
-Fork creates a copy-on-write child from a running forkable cloud machine. Snapshot operations may be unavailable in some environments. Neither feature provides general local-to-cloud live migration or a portable, cross-architecture restore format.
+Fork creates a copy-on-write child from a running forkable cloud machine. It does not provide local-to-cloud live migration.
+
+Machine snapshots are not implemented in the cloud API: the snapshot routes return `501`. To keep a stopped machine's disk state, export it to a `.smolmachine` artifact instead.
+
+Checkpoints capture a running machine, guest RAM and processes included, into durable cloud storage, and can be pulled down as a `.smolcheckpoint` artifact:
+
+```bash
+smol cloud checkpoint create myapp
+smol cloud checkpoint ls myapp
+smol cloud checkpoint download CHECKPOINT_ID -o ./myapp.smolcheckpoint
+smol cloud checkpoint restore CHECKPOINT_ID --name myapp-restored
+smol cloud checkpoint rm CHECKPOINT_ID
+```
+
+`restore` creates and starts a new machine from the checkpoint. A downloaded artifact can also be restored locally with `smolvm machine create --from`, subject to the host requirements in [Forks and Snapshots](/docs/introduction/concepts/forks-and-snapshots). Neither fork nor checkpoint provides a cross-architecture restore format.
 
 ## GPU
 
