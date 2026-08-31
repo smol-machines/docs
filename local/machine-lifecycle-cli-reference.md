@@ -72,6 +72,20 @@ If `--name` is omitted on commands that accept it, the default machine name is `
 smolvm machine exec --stream --name dev -- python3 train.py
 ```
 
+### Publish a port or a range of ports
+
+`--port` takes a single port, a `HOST:GUEST` pair, or a range on either side:
+
+```bash
+smolvm machine run --net -p 8080 --image nginx -- nginx -g "daemon off;"
+smolvm machine run --net -p 18080:80 --image nginx -- nginx -g "daemon off;"
+smolvm machine run --net -p 3000-3009:3000-3009 --image node:22-alpine -- node server.js
+```
+
+A bare port or range uses the same numbers on both sides. Ranges map one to one, so the host and guest sides must cover the same number of ports; `3000-3009:4000-4001` is rejected. A range start must not exceed its end, and port 0 is not valid.
+
+Publishing a port selects the virtio-net backend for the machine, because the default outbound-only backend cannot accept inbound connections.
+
 ### Copy files
 
 Use `machine:path` for the VM side:
