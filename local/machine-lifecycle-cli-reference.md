@@ -125,6 +125,23 @@ smolvm machine run \
 
 A mounted host directory is deliberately visible to the guest. Do not mount sensitive host paths into untrusted workloads.
 
+### Mount an S3 bucket
+
+The same flag mounts S3-compatible object storage when the source is an `s3://` URL. The full form is `SOURCE:GUEST_PATH[:ro]`, and the guest path must be absolute:
+
+```bash
+smolvm machine run --net \
+  --image python:3.12-alpine \
+  --env AWS_ACCESS_KEY_ID=... \
+  --env AWS_SECRET_ACCESS_KEY=... \
+  --volume "s3://my-bucket/prefix:/data:ro" \
+  -- python3 -c "import os; print(os.listdir('/data'))"
+```
+
+The bucket is mounted by the machine's agent from inside the guest, so the image needs no S3 or FUSE tooling. Credentials are read from the machine's environment, and `AWS_ENDPOINT_URL` points at an S3-compatible service such as R2 or MinIO. A bucket with no credentials is read anonymously.
+
+Remote volumes need egress to reach the bucket, so an ephemeral run without `--net` is rejected rather than started. `machine run` and `machine create` accept an `s3://` source; `machine update` and `pack run` do not.
+
 ## Common resource flags
 
 | Flag | Meaning |
@@ -136,7 +153,7 @@ A mounted host directory is deliberately visible to the guest. Do not mount sens
 | `--allow-cidr` | Allow egress to a CIDR |
 | `--cpus` | vCPU count |
 | `--mem` | Guest memory in MiB |
-| `--volume`, `-v` | Mount `HOST_DIR:GUEST_DIR` |
+| `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]` |
 | `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT` |
 | `--interactive`, `-i` | Keep stdin open |
 | `--tty`, `-t` | Allocate a TTY |

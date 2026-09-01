@@ -16,7 +16,13 @@ An ephemeral run is cleaned up when it exits. Use a persistent machine, a pack, 
 
 ## Volumes and mounts
 
-A volume maps storage into the guest. A host-directory mount shares a selected host path with the machine and therefore crosses the VM isolation boundary.
+A volume maps storage into the guest. It can come from two places.
+
+A host-directory mount shares a selected host path with the machine and therefore crosses the VM isolation boundary.
+
+A remote volume mounts S3-compatible object storage instead, using the same flag with an `s3://` source. The bucket is mounted inside the guest by the machine's agent, which speaks the S3 API and FUSE directly, so the image needs nothing installed: no rclone, no fuse3, not even a shell. A bucket can therefore be mounted into a distroless or scratch image. The mount is in place before the workload's first instruction runs, and it is re-established on every start.
+
+Credentials come from the machine's own environment: `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, with `AWS_ENDPOINT_URL` for S3-compatible services such as R2 or MinIO and `AWS_REGION` where it matters. Without them the bucket is read anonymously, which covers public datasets.
 
 Volumes are runtime attachments. A `.smolmachine` artifact does not make its external volume bindings portable or persistent. Re-specify the required volumes each time a packed artifact runs.
 
