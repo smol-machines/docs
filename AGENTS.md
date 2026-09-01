@@ -18,6 +18,12 @@ merged only once that feature is deployed to production or included in a
 release — until then it stays on a branch or in an open pull request. So
 anything you read on `main` is behavior that exists today, not a plan.
 
+`main` here is ahead of <https://smolmachines.com/docs/> for up to twelve hours.
+The site pins this repository at a commit and a scheduled job advances that pin
+twice a day. **This repository is the more current of the two**, which is another
+reason to read it rather than scrape the site. If the two disagree, `main` is
+what shipped or is about to.
+
 The flip side is that `main` moves whenever something ships, and a stale
 checkout will describe flags and endpoints that have since changed. Refresh
 before you rely on it:
@@ -133,20 +139,21 @@ grep -rn --include='[a-z]*.md' "^title:" . | sort       # every page title
 ## Reading the format
 
 Pages open with YAML frontmatter carrying a `title`, followed by one `#`
-heading. Three non-standard blocks are renderable in the body, and where they
-appear they are content, not markup noise:
+heading. Three non-standard blocks appear in the body and are content, not
+markup noise:
 
 - **Code groups** — `::: code-group` wrapping several fenced blocks labelled
   `[TypeScript / JavaScript]`, `[TypeScript]`, or `[Python]`. There are three
   in the corpus, in `sdk.md` and `sdk/with-cloud.md`. Pick the variant matching
   the user's language instead of quoting the first one.
 - **Callouts** — `::: tip`, `::: warning`, `::: info`, closed by `:::`, with an
-  optional title on the opening line. These are the repo's device for a caveat
-  that changes what a reader should do — a cloud/local difference, a limit, a
-  surprising default — so carry any you find into the answer you build from the
-  page. **No page uses one yet:** the convention is adopted (see
-  `CONTRIBUTING.md`) but the pages predate it, so do not read their absence as a
-  page missing its caveats.
+  optional title on the opening line. These hold caveats that change what a
+  reader should do — a cloud/local difference, a limit, a surprising default —
+  so carry them into any answer you build from the page. Four are in use:
+  `cloud/api-reference.md` (exec is metered at $0),
+  `introduction/concepts/gpu.md` (cloud has no GPU machines),
+  `sdk/machine-api.md` (host mounts are local only), and
+  `sdk/with-local.md` (`/workspace` mount priority).
 - **Navigation cards** — `index.md` and
   `introduction/concepts.md` embed raw HTML card markup: a
   `doc-cards-lead` paragraph and a `doc-cards` container holding `doc-card`
@@ -171,6 +178,15 @@ Commands are written to be copy-pasteable, with no leading `$`.
 ## Filing a fix
 
 If you find something wrong, missing, or out of date, open an issue or a pull
-request on this repository — see [CONTRIBUTING.md](./CONTRIBUTING.md). Bugs in
-the runtime itself belong on
+request on this repository — see [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+Feedback about how the site *works* rather than what it says — navigation, page
+ordering, search, anything a reader could not get to — belongs here too, as an
+issue. The site is a separate private application, so it takes no pull
+requests; a maintainer implements the change there. This is worth watching for:
+if you had to search the tree to find a page a user expected to reach by
+browsing, that is a navigation defect they will never report themselves. Say
+what was being looked for and where it was expected.
+
+Bugs in the runtime itself belong on
 [smolvm](https://github.com/smol-machines/smolvm/issues) instead.

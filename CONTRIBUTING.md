@@ -15,8 +15,15 @@ If you are using an AI assistant to help write docs, point it at
 
 ## What belongs here
 
-- **Yes** — corrections, clearer explanations, missing detail, new guides,
-  reference pages, better examples, broken links, typos.
+- **Yes, as a pull request** — corrections, clearer explanations, missing
+  detail, new guides, reference pages, better examples, broken links, typos.
+- **Yes, as an issue** — anything about how the docs site *works* rather than
+  what it says: navigation and page ordering, search, the sidebar, layout,
+  readability, mobile, or anything you found hard to get to. The site itself is
+  a separate private application, so you cannot send a pull request for it —
+  but the feedback lands here and a maintainer implements it there. Say what
+  you were trying to find and where you expected it; that is more useful than a
+  proposed fix.
 - **No** — bugs or feature requests for the runtime. Those belong on
   [smolvm](https://github.com/smol-machines/smolvm/issues).
 
@@ -251,9 +258,19 @@ A maintainer reviews the copy, builds it against the site to confirm it renders
 correctly, and wires up any navigation — so anything that only shows up in the
 rendered page gets caught on our side, not yours. If the change documents
 unreleased behavior, the pull request is held open until that feature ships,
-per [When your change gets merged](#when-your-change-gets-merged). Once merged, the change is mirrored into the site repository and
-ships on its next deploy — so there is a short delay between merge and the page
-appearing at smolmachines.com.
+per [When your change gets merged](#when-your-change-gets-merged).
+
+Once merged, the change is picked up by the website's twice-daily sync (00:00
+and 12:00 UTC) and deployed. So there is a delay of up to twelve hours between
+your pull request merging and the page changing at smolmachines.com. **If the
+page has not changed after that, it is worth reporting** — it means the sync
+failed rather than that it is still pending.
+
+The most likely cause of a failed sync is a new page that is not yet registered
+in the site's navigation: the sync runs a check that the nav and the Markdown
+agree, and an unregistered page fails it rather than shipping a URL that 404s.
+That is why the section, sidebar label and one-line summary asked for in your
+pull request description matter — they are what a maintainer registers it with.
 
 ## Licensing of contributions
 

@@ -105,6 +105,12 @@ Use the OpenAPI document or Explorer to inspect the exact routes, request bodies
 
 Use `/v1/usage` for usage over a time range and `GET /v1/machines/{id}/usage` for one machine's totals and cost. The API also exposes account and billing-meter endpoints where enabled. Plan limits and pricing can change; use the [pricing page](/pricing) for current public rates.
 
+::: tip
+`exec` calls are never charged. They are metered for the event timeline but
+priced at $0, so they do not appear among the priced usage dimensions. They are
+still subject to the per-tenant rate limit, so a burst can return `429`.
+:::
+
 Metering semantics to build billing on:
 
 - Uptime, base, and disk accrue in near real time. CPU and memory accrue through a metering rollup that samples every few minutes, so a mid-life `/usage` read is a lower bound on the eventual cost — not the settled number.

@@ -107,11 +107,21 @@ request:
   new pages. Say where a new page belongs in your PR description and it gets
   handled during review.
 
-A merge here goes live when the site bumps its submodule and deploys.
+A merge here does not appear on the site immediately. The website pins this
+repository at an exact commit, so the two are joined by a scheduled job that
+moves that pin to `main` and redeploys — currently **twice a day, at 00:00 and
+12:00 UTC**. A page merged just after a run waits for the next one.
+
+The pin is why an unrelated website deploy never publishes docs by accident, and
+why a rollback of the site rolls the docs back with it.
 
 ## Reporting problems
 
-- **Something wrong, unclear, or missing in the docs** — open an issue here.
+- **Something wrong, unclear, or missing in the docs** — open an issue here,
+  or send a pull request.
+- **Navigation, search, layout, or anything about how the site works** — open
+  an issue here too. The site is a separate private application, so it takes no
+  pull requests, but the feedback is acted on there.
 - **A bug or feature request for the runtime itself** — open it on
   [smolvm](https://github.com/smol-machines/smolvm/issues) instead.
 
