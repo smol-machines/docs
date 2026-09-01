@@ -13,6 +13,8 @@ smolvm machine run -s Smolfile
 smolvm machine create --name my-machine --smolfile ./deploy/Smolfile
 ```
 
+Smolfile rejects unknown fields. A misspelled or unsupported key is a parse error, rather than an ignored setting.
+
 ## Minimal example
 
 ```toml
@@ -175,6 +177,16 @@ TLS_KEY = { from_file = "/absolute/path/to/tls.key" }
 ```
 
 `from_env` reads a host environment variable and `from_file` reads an absolute host file path at workload launch. The resolved plaintext is injected into the guest, while the reference is stored in the machine record and packed artifact so it can be resolved again on a trusted local host. See [Isolation, networking, and credentials](/docs/introduction/concepts/isolation-networking-credentials).
+
+## Service metadata
+
+`[service]` describes the port a deployed service listens on inside the VM.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `port` | integer | Guest listening port. |
+| `listen` | integer | Alias for `port`. |
+| `protocol` | string | `"http"` or `"tcp"`. |
 
 ## Configuration precedence
 
