@@ -107,6 +107,94 @@ smolvm machine fork --golden browser-golden --name browser-worker-1
 
 Forks stay on the same host and CPU architecture as the golden. Use a `.smolmachine` pack when you need a portable cold browser environment.
 
+## Run an interactive Linux desktop
+
+A machine can run a real desktop and serve it from the host, so the guest needs
+no VNC server, no capture tool, and no compositor-specific screencopy protocol.
+Two environment variables turn it on, and both must be set:
+
+```bash
+SMOLVM_DISPLAY=1280x800 SMOLVM_VNC=127.0.0.1:5900 \
+  smolvm machine run --net --gpu --cpus 4 --mem 6144 \
+    --image archlinux:latest -- bash /in/run.sh
+```
+
+`SMOLVM_DISPLAY=WIDTHxHEIGHT` adds a virtio-gpu scanout. Without it, `--gpu`
+gives the guest rendering only: `/dev/dri/card0` is a render node with no
+connector, and a DRM compositor refuses to start because it is not a KMS
+device. Each dimension must be between 1 and 16384.
+
+`SMOLVM_VNC` chooses where the display is served. A bare port such as `5900`
+binds loopback only. A `host:port` pair binds that address. A bare host uses
+port 5900.
+
+Both variables are read by the process that boots the machine, so exporting
+them in the shell or prefixing the command both work.
+
+## Open the desktop
+
+The port speaks two protocols, chosen per connection. Point a VNC client at it,
+or open the same port in a browser:
+
+```text
+http://127.0.0.1:5900/
+```
+
+The browser client is served by smolvm itself and upgrades to a WebSocket
+carrying the same RFB stream, so nothing needs installing. It is also what lets
+a desktop traverse an ingress or an authenticating proxy, which a raw RFB
+socket cannot.
+
+::: warning The display port has no authentication
+The server implements RFB 3.8 with no authentication. Anyone who can reach the
+port can watch the desktop and, when input is attached, control it. A bare port
+number binds loopback for that reason. Put an authenticating proxy in front of
+it before exposing it beyond the host.
+:::
+
+Input is attached when the host's libkrun provides the input feature: smolvm
+adds a virtio keyboard and an absolute pointer, and client key and pointer
+events are injected into the guest. Without that feature the session still
+displays, but it is view-only and events are discarded.
+
+## What the guest has to provide
+
+The host supplies the framebuffer and the input devices. The guest still has to
+run something that drives a KMS display, such as Hyprland, sway, or GNOME, and
+a container guest needs two gaps bridged before the compositor starts:
+
+- `/dev` is not devtmpfs, so the evdev nodes the kernel registers never appear.
+  Create them with `mknod` from `/sys/class/input/event*/dev`.
+- libinput only adopts devices classified in the udev database. Write
+  `/run/udev/data` entries by hand with `E:ID_INPUT=1` and a device type.
+
+The guest also needs `seatd` on a seat that is not VT-bound, because a workload
+container has no VT:
+
+```bash
+SEATD_VTBOUND=0 seatd -g wheel &
+```
+
+The `examples/desktop` directory in the smolvm repository carries a working
+setup script for an Arch guest, including both bridges above.
+
+## Stream the desktop as H.264
+
+Raw RFB sends uncompressed framebuffer updates, which is fine over loopback and
+expensive over a network. Set `SMOLVM_VIDEO` alongside the two display
+variables to encode the stream instead:
+
+```bash
+SMOLVM_DISPLAY=1280x800 SMOLVM_VNC=5900 SMOLVM_VIDEO=1 \
+  smolvm machine run --net --gpu --image archlinux:latest -- bash /in/run.sh
+```
+
+Encoding runs in an external `ffmpeg` process, so smolvm neither links nor
+bundles codec libraries. `SMOLVM_VIDEO_FPS` (default 60) and
+`SMOLVM_VIDEO_BITRATE_MBIT` (default 20) tune it, and `SMOLVM_FFMPEG` points at
+a specific binary. If the encoder cannot start, the session falls back to Raw
+RFB rather than failing.
+
 ## Drive the browser
 
 An agent inside the guest can connect to Chromium's DevTools endpoint on `127.0.0.1:9222`. Use Puppeteer, Playwright, or another CDP client for browser control.
