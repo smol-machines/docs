@@ -61,6 +61,7 @@ Package installs, file writes, and configuration changes made through `machine e
 | Delete a machine | `smolvm machine delete --name NAME` |
 | Check one machine | `smolvm machine status --name NAME` |
 | List machines | `smolvm machine ls` |
+| Checkpoint a running machine | `smolvm machine checkpoint --name NAME -o PATH` |
 
 If `--name` is omitted on commands that accept it, the default machine name is `default`.
 
@@ -83,6 +84,25 @@ smolvm machine cp dev:/workspace/result.json ./result.json
 ```
 
 `/workspace` persists across `exec` sessions and stop/start cycles. For files larger than the copy limit, mount a directory with `--volume`.
+
+### Checkpoint and restore a running machine
+
+`machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.smolcheckpoint` file. The machine keeps running:
+
+```bash
+smolvm machine checkpoint --name dev -o ./dev.smolcheckpoint
+```
+
+Restore it through `machine create`, which accepts a checkpoint wherever it accepts a pack:
+
+```bash
+smolvm machine create --name dev-restored --from ./dev.smolcheckpoint
+smolvm machine start --name dev-restored
+```
+
+The restored machine resumes from the captured instant instead of booting. Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
+
+See [Forks and Snapshots](/docs/introduction/concepts/forks-and-snapshots) for what a checkpoint preserves and where it can be restored.
 
 ### Update a stopped machine
 
