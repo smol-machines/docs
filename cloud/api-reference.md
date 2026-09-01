@@ -134,6 +134,8 @@ The plaintext value of a newly created key is shown once.
 
 Do not treat `state: "started"` as application readiness. Poll `GET /v1/machines/{id}` until `ready` is `true` before executing dependent work or connecting to a published service. `ready` flips once the machine answers a probe — its published port accepts connections, or, for machines with no published port, its guest agent responds — normally within a few seconds of start; `readyAt` records when. Exec does not require readiness: it auto-starts a stopped machine and waits for the agent itself.
 
+Starting a machine blocks until the boot completes, which normally takes a few seconds. Pass `?detach=true` to return `202 Accepted` immediately and boot in the background, then poll `GET /v1/machines/{id}` until the state is `started` or `error`. Under a burst this keeps a client's own request timeout from cancelling a start that is still queued. `exec` has the same option under a different name: `background` in the request body.
+
 Stopping a machine preserves its stored state. Deleting it removes the machine. See the lifecycle page for billing and storage details.
 
 ## Errors and request IDs
