@@ -149,13 +149,15 @@ markup noise:
 - **Callouts** — `::: tip`, `::: warning`, `::: info`, closed by `:::`, with an
   optional title on the opening line. These hold caveats that change what a
   reader should do — a cloud/local difference, a limit, a surprising default —
-  so carry them into any answer you build from the page. Five are in use:
+  so carry them into any answer you build from the page. Six are in use:
   `cloud/api-reference.md` (exec is metered at $0),
   `introduction/concepts/gpu.md` (cloud has no GPU machines),
   `sdk/machine-api.md` (host mounts are local only),
-  `sdk/with-local.md` (`/workspace` mount priority), and
+  `sdk/with-local.md` (`/workspace` mount priority),
   `guides/headless-browser-computer-use.md` (the desktop port has no
-  authentication).
+  authentication), and
+  `introduction/concepts/persistent-state-volumes-resources.md` (the DAX option
+  takes effect on x86_64 guests only).
 - **Navigation cards** — `index.md` and
   `introduction/concepts.md` embed raw HTML card markup: a
   `doc-cards-lead` paragraph and a `doc-cards` container holding `doc-card`
