@@ -80,7 +80,7 @@ The guest can read and write the mounted host directory. Do not use sensitive ho
 ## Copy code into a persistent machine
 
 ```bash
-smolvm machine create --name job --image python:3.12-alpine
+smolvm machine create --name job --net --image python:3.12-alpine
 smolvm machine start --name job
 smolvm machine cp ./job.py job:/workspace/job.py
 smolvm machine exec --name job -- python3 /workspace/job.py
