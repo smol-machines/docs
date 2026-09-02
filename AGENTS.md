@@ -18,11 +18,12 @@ merged only once that feature is deployed to production or included in a
 release — until then it stays on a branch or in an open pull request. So
 anything you read on `main` is behavior that exists today, not a plan.
 
-`main` here is ahead of <https://smolmachines.com/docs/> for up to twelve hours.
-The site pins this repository at a commit and a scheduled job advances that pin
-twice a day. **This repository is the more current of the two**, which is another
-reason to read it rather than scrape the site. If the two disagree, `main` is
-what shipped or is about to.
+`main` here can be ahead of <https://smolmachines.com/docs/>. The site pins this
+repository at a commit, and a merge advances that pin and redeploys within a few
+minutes, with a twice-daily job behind it as a failsafe that bounds the gap at
+twelve hours. **This repository is the more current of the two**, which is
+another reason to read it rather than scrape the site. If the two disagree,
+`main` is what shipped or is about to.
 
 The flip side is that `main` moves whenever something ships, and a stale
 checkout will describe flags and endpoints that have since changed. Refresh
