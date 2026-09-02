@@ -185,8 +185,11 @@ TLS_KEY = { from_file = "/absolute/path/to/tls.key" }
 | Field | Type | Description |
 | --- | --- | --- |
 | `port` | integer | Guest listening port. |
-| `listen` | integer | Alias for `port`. |
-| `protocol` | string | `"http"` or `"tcp"`. |
+| `listen` | integer | A separate field, not resolved into `port`. Setting only `listen` leaves `port` unset. |
+| `protocol` | string | Free text. `"http"` and `"tcp"` are the intended values, but the value is not checked. |
+
+Only the key names in this table are constrained. A misspelled key such as
+`protocl` fails the parse, while a misspelled value such as `"htpp"` does not.
 
 ## Configuration precedence
 
