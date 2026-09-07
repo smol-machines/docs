@@ -280,8 +280,19 @@ repository. There is no CLA to sign.
 
 ## Notes for maintainers
 
-The docs pin the released version in two places — the SDK quick start's three
-example links and the local quick start's Windows release link. On a release,
-grep the old version and bump them together, alongside the curated `llms.txt`
-index in the site repository. Keep prose un-pinned: a version number in a
-sentence goes stale silently.
+The docs pin the released version in exactly four links, in two files:
+
+| File | What is pinned |
+|---|---|
+| `local.md` | the Windows release zip on the smolvm release page |
+| `sdk.md` | three example links into the `smol` repository, at that repo's tag |
+
+On a release, `grep -rn "v1\." local.md sdk.md` finds all four, and each target
+has to exist at the new tag before the link is bumped: the smolvm release has to
+carry a Windows asset, and the `smol` repository has to have a matching tag of
+its own, which is a separate repository and can lag. Bump them together with the
+curated `llms.txt` index in the site repository.
+
+Keep prose un-pinned. A version number in a sentence goes stale silently, which
+is why the version was removed from the Machine API introduction and the local
+examples introduction rather than being carried forward.
