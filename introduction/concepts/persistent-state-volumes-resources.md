@@ -97,6 +97,8 @@ smolvm machine exec --name dev -- grep virtiofs /proc/mounts
 
 CPU and memory are assigned when the machine is configured. The local CLI defaults are 4 vCPUs and 8 GiB of memory when no Smolfile overrides them. Smolfile defaults may differ, so set values explicitly when reproducibility matters.
 
+`--cpus` and `--mem` on the command line beat a Smolfile or a packed artifact's baked values, including when the value given equals the default. Passing `--cpus 4` to a machine whose Smolfile asks for 8 gets 4, not 8.
+
 Memory uses virtio ballooning. The configured amount is the guest-visible capacity; the host can reclaim unused guest memory. A high configured limit does not mean the host permanently commits that full amount.
 
 Available cloud sizes and limits are service-specific. Do not infer hosted limits from local defaults.
