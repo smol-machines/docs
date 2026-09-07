@@ -165,6 +165,28 @@ Set `public: true` only when the service should be reachable without the caller'
 
 Verify port and ingress fields in the API Explorer for the deployment you use.
 
+## Running a command as a chosen user
+
+`smol cloud exec` takes `--user`, a name from the image or a numeric `uid[:gid]`,
+which overrides the image's `USER` for that command:
+
+```bash
+smol cloud exec -n myapp --user 1000:1000 -- id
+```
+
+The control plane has to carry the field for this to mean anything, and an older
+one drops unknown fields silently, which would run the command as the image's
+default account with nothing to show it was ignored. The CLI therefore checks
+that the control plane echoed the user back, and refuses rather than guessing:
+
+```text
+the control plane did not honour --user 1000:1000: it predates that field and
+would have run the command as the image's default account. It needs upgrading
+before --user can be used on cloud machines.
+```
+
+Seeing that means the deployment is behind, not that the flag is wrong.
+
 ## Forks and checkpoints
 
 Fork creates a copy-on-write child from a running forkable cloud machine. It does not provide local-to-cloud live migration.

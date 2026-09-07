@@ -41,6 +41,7 @@ These fields describe the machine and its workload. All are optional.
 | `cmd` | string array | Default arguments. Overrides the image's `CMD`. |
 | `env` | string array | Environment variables written as `KEY=VALUE`. |
 | `workdir` | string | Working directory inside the VM. |
+| `user` | string | User the workload runs as: a name from the image's passwd database, or a numeric `uid[:gid]`. Overrides the image's `USER`. |
 | `cpus` | integer | Number of vCPUs. Default: `4`. |
 | `memory` | integer | Memory in MiB. Default: `8192`. |
 | `storage` | integer | Storage disk size in GiB. |
@@ -55,6 +56,28 @@ These fields describe the machine and its workload. All are optional.
 
 `entrypoint` and `cmd` follow Docker/OCI semantics. If they are omitted, the image's built-in values are used. A command supplied after `--` replaces both Smolfile fields.
 
+### Choosing the workload user
+
+`user` sets the account the workload runs as, in the same form `docker run --user`
+takes. The usual reason to set it is a mounted host directory: an image built for
+`root` writes files the host user then cannot edit, and naming the mount's owner
+here avoids that.
+
+```toml
+image = "python:3.12-alpine"
+user = "1000:1000"
+```
+
+It overrides the image's own `USER`. The CLI equivalent is `--user` on
+`machine run` and `machine create`, and a flag beats the Smolfile when both are
+given.
+
+::: warning Init commands always run as root
+`init` provisions the machine, so it runs as root whatever `user` says and
+whatever the image's `USER` is. That is deliberate: package installs and mounts
+need the privilege. Only the workload runs as `user`.
+:::
+
 ## Development profile
 
 `[dev]` contains local-development settings. It is used by machine run/create workflows and is not included in packed artifacts.
@@ -64,8 +87,9 @@ These fields describe the machine and its workload. All are optional.
 | `volumes` | string array | Host bind mounts, such as `"./src:/app"`. |
 | `ports` | string array | Port mappings, such as `"8080:8080"`. |
 | `env` | string array | Development-only `KEY=VALUE` variables. |
-| `init` | string array | Commands run on every VM start. |
+| `init` | string array | Commands run once, on first start. |
 | `workdir` | string | Development-only working directory. |
+| `user` | string | Development-only user override, in the same form as the top-level `user`. |
 
 ```toml
 [dev]

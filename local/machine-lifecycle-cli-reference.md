@@ -87,6 +87,28 @@ A bare port or range uses the same numbers on both sides. Ranges map one to one,
 
 Publishing a port selects the virtio-net backend for the machine, because the default outbound-only backend cannot accept inbound connections.
 
+### Run the workload as a chosen user
+
+`--user` takes a name from the image or a numeric `uid[:gid]`, in the same form
+as `docker run --user`, and overrides the image's `USER`:
+
+```bash
+smolvm machine run --net --user 1000:1000 --image python:3.12-alpine \
+  --volume "$PWD:/app" -- python3 /app/main.py
+```
+
+It is accepted on `machine run`, `machine create`, and `machine exec`. On
+`create` it becomes the machine's configured user, and `exec` defaults to that,
+falling back to the image's `USER` when the machine has none. Passing `--user`
+to `exec` overrides both for that command.
+
+The common reason to set it is a mounted host directory: the guest writes as
+whatever account the workload runs under, so matching the mount's owner keeps
+the files editable on the host afterwards.
+
+Init commands are the exception. They provision the machine, so they run as root
+regardless of `--user` or the image's `USER`.
+
 ### Copy files
 
 Use `machine:path` for the VM side:
@@ -169,6 +191,7 @@ Remote volumes need egress to reach the bucket, so an ephemeral run without `--n
 | `--mem` | Guest memory in MiB |
 | `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]` |
 | `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT` |
+| `--user`, `-u` | Run the workload as a name or `uid[:gid]` |
 | `--interactive`, `-i` | Keep stdin open |
 | `--tty`, `-t` | Allocate a TTY |
 | `--smolfile`, `-s` | Read configuration from a Smolfile |
