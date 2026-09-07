@@ -36,7 +36,7 @@ These fields describe the machine and its workload. All are optional.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `image` | string | OCI image reference. Omit it for a bare Alpine VM. |
+| `image` | string | OCI image reference, or a path to a local `docker save` archive or unpacked rootfs. Omit it for a bare Alpine VM. |
 | `entrypoint` | string array | Executable and fixed arguments. Overrides the image's `ENTRYPOINT`. |
 | `cmd` | string array | Default arguments. Overrides the image's `CMD`. |
 | `env` | string array | Environment variables written as `KEY=VALUE`. |
@@ -54,6 +54,25 @@ These fields describe the machine and its workload. All are optional.
 | `rosetta` | boolean | Enable Rosetta 2 translation for x86_64 binaries on Apple Silicon macOS. |
 | `docker_socket` | boolean | Expose the guest Docker socket to the host as a Unix socket. |
 | `net_backend` | string | Networking backend: `"tsi"` or `"virtio-net"`. |
+
+`image` resolves the same way as the `--image` flag, so it takes a locally built
+archive as well as a registry reference:
+
+```toml
+image = "./myapp.tar"
+```
+
+A bare name is always a registry reference. A path, or a name ending in an
+archive suffix, is read as a `docker save` archive, and an existing directory is
+read as an unpacked rootfs. `file://` is not a supported prefix and is rejected
+with a message telling you to give the path directly.
+
+At import the archive's architecture is checked against the guest: an archive
+built for another CPU is refused with a message naming both, and on Apple
+Silicon an `amd64` archive is accepted when Rosetta is enabled.
+
+A local archive needs no networking to start, which is the offline path for a
+machine built elsewhere.
 
 `entrypoint` and `cmd` follow Docker/OCI semantics. If they are omitted, the image's built-in values are used. A command supplied after `--` replaces both Smolfile fields.
 
