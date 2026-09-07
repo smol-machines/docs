@@ -102,6 +102,30 @@ workdir = "/app"
 
 The legacy top-level `volumes`, `ports`, and `init` fields are also accepted. Prefer the `[dev]` fields for new Smolfiles.
 
+### When init runs
+
+`init` runs once, on the machine's first start, not on every start. Later starts
+skip it and say so:
+
+```text
+Init already completed, skipping 3 command(s)
+```
+
+That is why init is the place for provisioning that should happen once, such as
+installing packages, and not for anything a restart needs to redo. A machine
+restored from a checkpoint counts as already initialized, because the restored
+memory already contains the provisioned guest.
+
+For an ephemeral run, `image` plus `init` is baked once into a cached artifact
+and later runs of the same pair start from it. Files init wrote under the
+working directory are captured with it, so a cached run does not start with them
+missing. Pass `--no-init-cache` when init depends on live volume contents and
+cannot safely be reused, or `--rebuild-init-cache` to rebuild it once.
+
+The same commands can be given on the command line with `--init`, which is
+accepted on `machine run` as well as `machine create`. The flag wins when a
+Smolfile also sets `init`.
+
 ## Network policy
 
 `[network]` narrows outbound access. Both fields imply networking when they contain entries.
