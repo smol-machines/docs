@@ -40,7 +40,58 @@ spec:
       command: ["sh", "-c", "uname -a && sleep 3600"]
 ```
 
-This mode changes the pod runtime. It does not place the Kubernetes control plane inside a microVM. The shim was introduced in smolvm v1.6.0 and validated with k3s. Treat it as an integration to evaluate in a test cluster before production: verify the release notes and shim deployment instructions for the exact containerd configuration supported by your installed version.
+This mode changes the pod runtime. It does not place the Kubernetes control plane inside a microVM. The shim was introduced in smolvm v1.6.0 and validated with k3s.
+
+### Installing the shim on a node
+
+The Linux release carries the shim and the manifests, so there is nothing to
+build. Extract the tarball on each node that should run microVM pods, which
+needs KVM, and install from inside it:
+
+```bash
+sudo ./kubernetes/install-k8s-runtime.sh --runtime-dir .
+sudo systemctl restart containerd
+kubectl label node <node> smolvm-runtime=true
+```
+
+`--runtime-dir` points at a directory holding the smolvm runtime artifacts,
+which is the extracted release itself. Without it the script stops with
+`install incomplete` rather than leaving a half-installed node. The script also
+prints the containerd configuration to apply, registering the runtime under the
+name `smolvm` with `runtime_type = io.containerd.smolvm.v2`.
+
+Then register the class and run the example pod:
+
+```bash
+kubectl apply -f kubernetes/runtimeclass.yaml
+kubectl apply -f kubernetes/example-pod.yaml
+kubectl logs smolvm-hello
+```
+
+The pod prints the guest's own kernel, which is what shows it is a real VM. The
+shipped `RuntimeClass` also carries a `nodeSelector` for `smolvm-runtime=true`
+and a per-pod overhead of 250m CPU and 160Mi memory, so the scheduler accounts
+for the VM.
+
+::: warning Two node conditions stop pods from starting
+The released shim cannot start a sandbox on containerd 2.3 or later, so the pod
+stays pending with a shim error; the node has to be on an earlier containerd.
+On a node that enforces AppArmor, the shipped example pod fails with
+`AppArmor is not initialized correctly`, because containerd stamps the node's
+profile into a spec the guest kernel cannot honour. A pod that opts out of the
+host profile runs as expected on such a node:
+
+```yaml
+metadata:
+  annotations:
+    container.apparmor.security.beta.kubernetes.io/hello: unconfined
+```
+
+The microVM remains the isolation boundary either way. Both conditions are
+open in smolvm.
+:::
+
+Treat this as an integration to evaluate in a test cluster before production.
 
 ## Cluster in one machine
 
