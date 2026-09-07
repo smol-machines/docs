@@ -37,6 +37,13 @@ Egress can be restricted with hostname and CIDR allowlists. A platform policy al
 
 Published ports and outbound access are separate choices. Grant only the routes and ports a workload needs.
 
+A workload that builds its own network interface, such as a VPN client running
+in kernel mode, needs the guest's tunnel device. An image workload gets
+`/dev/net/tun` inside its container by default, because the microVM is the
+isolation boundary and the workload runs VM-grade. Adding `--unprivileged` moves
+the workload to a reduced device view that does not include it, so a tunnel
+client and `--unprivileged` are mutually exclusive.
+
 ## Secrets and SSH keys
 
 Secret injection resolves a host environment variable or file and places the value inside the guest. The value is plaintext from the guest's perspective. Code running in the machine can read it.

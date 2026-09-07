@@ -42,6 +42,25 @@ The practical rule is to mount the source and keep the generated directories
 inside the machine. `node_modules`, `target`, `.venv`, and build output belong
 on the machine's storage disk, not on a mounted host path.
 
+### Running a mount from a guest-local copy
+
+A `:staged` mount is the other answer to the round-trip cost. Instead of serving
+every operation from the host, the guest takes a local copy of the directory,
+runs against that, and copies it back:
+
+```bash
+smolvm machine run --net --image node:22-alpine \
+  --volume "$PWD:/app:staged" -- sh -c "cd /app && npm install && npm test"
+```
+
+The copy back happens on `machine sync` and on a graceful stop. That is the
+trade: metadata-heavy work runs at guest-disk speed, and the host directory is
+stale until one of those two points, so nothing else may write to the host copy
+while the machine is running.
+
+Use `:staged` for the work the round-trip cost hurts most, a dependency install
+or a build, and a plain mount when the host side has to stay live.
+
 ### Mapping mounted files into guest memory
 
 `SMOLVM_MOUNT_DAX=1` is an experimental option that gives each host mount a
