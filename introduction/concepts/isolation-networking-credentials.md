@@ -31,11 +31,18 @@ An explicitly set variable always wins, so `SMOLVM_SECCOMP=off` remains the esca
 
 ## Networking
 
-Local smolvm guest networking is off by default, and OCI images are pulled from inside the guest — so a machine created from a registry image needs `--net` to pull it. An ephemeral run pulls each time unless `--oci-cache` keeps the image on the host; a persistent machine pulls once, when it is created. Beyond the pull, enable guest networking only when the workload must resolve DNS, call an external service, or accept published traffic. A cloud machine created without a `network` block gets open outbound access by default; set `network` explicitly when egress policy matters.
+Local smolvm guest networking is off by default, and OCI images are pulled from inside the guest, so a machine created from a registry image needs `--net` to pull it. An ephemeral run pulls each time unless `--oci-cache` keeps the image on the host. A persistent machine pulls once too, but on its first start rather than at create: `machine create` records the configuration and starts nothing. Beyond the pull, enable guest networking only when the workload must resolve DNS, call an external service, or accept published traffic. A cloud machine created without a `network` block gets open outbound access by default; set `network` explicitly when egress policy matters.
 
 Egress can be restricted with hostname and CIDR allowlists. A platform policy also blocks selected sensitive address ranges. There is no first-class deny-list configuration in the current shipped interface.
 
 Published ports and outbound access are separate choices. Grant only the routes and ports a workload needs.
+
+A workload that builds its own network interface, such as a VPN client running
+in kernel mode, needs the guest's tunnel device. An image workload gets
+`/dev/net/tun` inside its container by default, because the microVM is the
+isolation boundary and the workload runs VM-grade. Adding `--unprivileged` moves
+the workload to a reduced device view that does not include it, so a tunnel
+client and `--unprivileged` are mutually exclusive.
 
 ## Secrets and SSH keys
 

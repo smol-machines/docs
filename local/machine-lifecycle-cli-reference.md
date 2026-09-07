@@ -61,6 +61,7 @@ Package installs, file writes, and configuration changes made through `machine e
 | Delete a machine | `smolvm machine delete --name NAME` |
 | Check one machine | `smolvm machine status --name NAME` |
 | List machines | `smolvm machine ls` |
+| List machine names only | `smolvm machine ls --quiet` |
 | Checkpoint a running machine | `smolvm machine checkpoint --name NAME -o PATH` |
 
 If `--name` is omitted on commands that accept it, the default machine name is `default`.
@@ -72,6 +73,18 @@ If `--name` is omitted on commands that accept it, the default machine name is `
 ```bash
 smolvm machine exec --stream --name dev -- python3 train.py
 ```
+
+### List machines for a script
+
+`machine ls` prints machine names in full; long names are not truncated. For
+scripting, `--quiet` prints one name per line and nothing else, in the same
+shape as `docker ps -q`:
+
+```bash
+smolvm machine ls --quiet | xargs -I{} smolvm machine stop --name {}
+```
+
+`--json` gives the full records when a script needs more than the name.
 
 ### Publish a port or a range of ports
 
@@ -87,6 +100,28 @@ A bare port or range uses the same numbers on both sides. Ranges map one to one,
 
 Publishing a port selects the virtio-net backend for the machine, because the default outbound-only backend cannot accept inbound connections.
 
+### Run the workload as a chosen user
+
+`--user` takes a name from the image or a numeric `uid[:gid]`, in the same form
+as `docker run --user`, and overrides the image's `USER`:
+
+```bash
+smolvm machine run --net --user 1000:1000 --image python:3.12-alpine \
+  --volume "$PWD:/app" -- python3 /app/main.py
+```
+
+It is accepted on `machine run`, `machine create`, and `machine exec`. On
+`create` it becomes the machine's configured user, and `exec` defaults to that,
+falling back to the image's `USER` when the machine has none. Passing `--user`
+to `exec` overrides both for that command.
+
+The common reason to set it is a mounted host directory: the guest writes as
+whatever account the workload runs under, so matching the mount's owner keeps
+the files editable on the host afterwards.
+
+Init commands are the exception. They provision the machine, so they run as root
+regardless of `--user` or the image's `USER`.
+
 ### Copy files
 
 Use `machine:path` for the VM side:
@@ -101,7 +136,15 @@ smolvm machine cp dev:/workspace/result.json ./result.json
 
 ### Checkpoint and restore a running machine
 
-`machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.smolcheckpoint` file. The machine keeps running:
+`machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.smolcheckpoint` file. The machine keeps running.
+
+The machine has to have been started branchable, because a checkpoint reads the same copy-on-write guest memory a branch does. Start it with `--branchable`, which the engine also accepts as `--forkable`:
+
+```bash
+smolvm machine start --name dev --branchable
+```
+
+Then capture it:
 
 ```bash
 smolvm machine checkpoint --name dev -o ./dev.smolcheckpoint
@@ -169,6 +212,7 @@ Remote volumes need egress to reach the bucket, so an ephemeral run without `--n
 | `--mem` | Guest memory in MiB |
 | `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]` |
 | `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT` |
+| `--user`, `-u` | Run the workload as a name or `uid[:gid]` |
 | `--interactive`, `-i` | Keep stdin open |
 | `--tty`, `-t` | Allocate a TTY |
 | `--smolfile`, `-s` | Read configuration from a Smolfile |

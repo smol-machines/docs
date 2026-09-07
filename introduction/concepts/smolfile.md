@@ -36,11 +36,12 @@ These fields describe the machine and its workload. All are optional.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `image` | string | OCI image reference. Omit it for a bare Alpine VM. |
+| `image` | string | OCI image reference, or a path to a local `docker save` archive or unpacked rootfs. Omit it for a bare Alpine VM. |
 | `entrypoint` | string array | Executable and fixed arguments. Overrides the image's `ENTRYPOINT`. |
 | `cmd` | string array | Default arguments. Overrides the image's `CMD`. |
 | `env` | string array | Environment variables written as `KEY=VALUE`. |
 | `workdir` | string | Working directory inside the VM. |
+| `user` | string | User the workload runs as: a name from the image's passwd database, or a numeric `uid[:gid]`. Overrides the image's `USER`. |
 | `cpus` | integer | Number of vCPUs. Default: `4`. |
 | `memory` | integer | Memory in MiB. Default: `8192`. |
 | `storage` | integer | Storage disk size in GiB. |
@@ -52,8 +53,50 @@ These fields describe the machine and its workload. All are optional.
 | `auto_graph` | boolean | Ask compatible CUDA frameworks to capture safe graph regions. Implies `cuda`. |
 | `rosetta` | boolean | Enable Rosetta 2 translation for x86_64 binaries on Apple Silicon macOS. |
 | `docker_socket` | boolean | Expose the guest Docker socket to the host as a Unix socket. |
+| `net_backend` | string | Networking backend: `"tsi"` or `"virtio-net"`. |
+
+`image` resolves the same way as the `--image` flag, so it takes a locally built
+archive as well as a registry reference:
+
+```toml
+image = "./myapp.tar"
+```
+
+A bare name is always a registry reference. A path, or a name ending in an
+archive suffix, is read as a `docker save` archive, and an existing directory is
+read as an unpacked rootfs. `file://` is not a supported prefix and is rejected
+with a message telling you to give the path directly.
+
+At import the archive's architecture is checked against the guest: an archive
+built for another CPU is refused with a message naming both, and on Apple
+Silicon an `amd64` archive is accepted when Rosetta is enabled.
+
+A local archive needs no networking to start, which is the offline path for a
+machine built elsewhere.
 
 `entrypoint` and `cmd` follow Docker/OCI semantics. If they are omitted, the image's built-in values are used. A command supplied after `--` replaces both Smolfile fields.
+
+### Choosing the workload user
+
+`user` sets the account the workload runs as, in the same form `docker run --user`
+takes. The usual reason to set it is a mounted host directory: an image built for
+`root` writes files the host user then cannot edit, and naming the mount's owner
+here avoids that.
+
+```toml
+image = "python:3.12-alpine"
+user = "1000:1000"
+```
+
+It overrides the image's own `USER`. The CLI equivalent is `--user` on
+`machine run` and `machine create`, and a flag beats the Smolfile when both are
+given.
+
+::: warning Init commands always run as root
+`init` provisions the machine, so it runs as root whatever `user` says and
+whatever the image's `USER` is. That is deliberate: package installs and mounts
+need the privilege. Only the workload runs as `user`.
+:::
 
 ## Development profile
 
@@ -64,8 +107,9 @@ These fields describe the machine and its workload. All are optional.
 | `volumes` | string array | Host bind mounts, such as `"./src:/app"`. |
 | `ports` | string array | Port mappings, such as `"8080:8080"`. |
 | `env` | string array | Development-only `KEY=VALUE` variables. |
-| `init` | string array | Commands run on every VM start. |
+| `init` | string array | Commands run once, on first start. |
 | `workdir` | string | Development-only working directory. |
+| `user` | string | Development-only user override, in the same form as the top-level `user`. |
 
 ```toml
 [dev]
@@ -77,6 +121,30 @@ workdir = "/app"
 ```
 
 The legacy top-level `volumes`, `ports`, and `init` fields are also accepted. Prefer the `[dev]` fields for new Smolfiles.
+
+### When init runs
+
+`init` runs once, on the machine's first start, not on every start. Later starts
+skip it and say so:
+
+```text
+Init already completed, skipping 3 command(s)
+```
+
+That is why init is the place for provisioning that should happen once, such as
+installing packages, and not for anything a restart needs to redo. A machine
+restored from a checkpoint counts as already initialized, because the restored
+memory already contains the provisioned guest.
+
+For an ephemeral run, `image` plus `init` is baked once into a cached artifact
+and later runs of the same pair start from it. Files init wrote under the
+working directory are captured with it, so a cached run does not start with them
+missing. Pass `--no-init-cache` when init depends on live volume contents and
+cannot safely be reused, or `--rebuild-init-cache` to rebuild it once.
+
+The same commands can be given on the command line with `--init`, which is
+accepted on `machine run` as well as `machine create`. The flag wins when a
+Smolfile also sets `init`.
 
 ## Network policy
 
@@ -96,6 +164,33 @@ allow_cidrs = ["10.0.0.0/8"]
 ```
 
 Hostnames are resolved when the VM starts. Use an allowlist instead of unrestricted `net = true` when the workload only needs a few destinations.
+
+### Choosing a networking backend
+
+`net_backend` picks how the guest reaches the network. It takes the same two
+values as the `--net-backend` flag, and the flag and the field are parsed by the
+same code, so the spellings cannot drift apart.
+
+| Value | What it is |
+| --- | --- |
+| `tsi` | libkrun's transparent socket layer. Outbound connections only. |
+| `virtio-net` | A virtual interface served by the host-side network stack. |
+
+`tsi` is the default and is enough for a workload that only makes outbound
+connections. Choose `virtio-net` when the guest needs a real network interface
+and a default route of its own, which is what anything doing its own routing
+requires: a kernel-mode VPN client such as Tailscale is the usual case.
+
+```toml
+image = "alpine"
+net = true
+net_backend = "virtio-net"
+```
+
+Publishing a port needs `virtio-net` too: with `tsi` the engine refuses a
+published port rather than switching backends, because TSI is outbound only.
+So set it both when publishing and when the guest needs the interface without
+publishing anything.
 
 ## Artifact profile
 
