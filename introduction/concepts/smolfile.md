@@ -53,6 +53,7 @@ These fields describe the machine and its workload. All are optional.
 | `auto_graph` | boolean | Ask compatible CUDA frameworks to capture safe graph regions. Implies `cuda`. |
 | `rosetta` | boolean | Enable Rosetta 2 translation for x86_64 binaries on Apple Silicon macOS. |
 | `docker_socket` | boolean | Expose the guest Docker socket to the host as a Unix socket. |
+| `net_backend` | string | Networking backend: `"tsi"` or `"virtio-net"`. |
 
 `entrypoint` and `cmd` follow Docker/OCI semantics. If they are omitted, the image's built-in values are used. A command supplied after `--` replaces both Smolfile fields.
 
@@ -144,6 +145,33 @@ allow_cidrs = ["10.0.0.0/8"]
 ```
 
 Hostnames are resolved when the VM starts. Use an allowlist instead of unrestricted `net = true` when the workload only needs a few destinations.
+
+### Choosing a networking backend
+
+`net_backend` picks how the guest reaches the network. It takes the same two
+values as the `--net-backend` flag, and the flag and the field are parsed by the
+same code, so the spellings cannot drift apart.
+
+| Value | What it is |
+| --- | --- |
+| `tsi` | libkrun's transparent socket layer. Outbound connections only. |
+| `virtio-net` | A virtual interface served by the host-side network stack. |
+
+`tsi` is the default and is enough for a workload that only makes outbound
+connections. Choose `virtio-net` when the guest needs a real network interface
+and a default route of its own, which is what anything doing its own routing
+requires: a kernel-mode VPN client such as Tailscale is the usual case.
+
+```toml
+image = "alpine"
+net = true
+net_backend = "virtio-net"
+```
+
+Publishing a port needs `virtio-net` too: with `tsi` the engine refuses a
+published port rather than switching backends, because TSI is outbound only.
+So set it both when publishing and when the guest needs the interface without
+publishing anything.
 
 ## Artifact profile
 
