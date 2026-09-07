@@ -136,7 +136,15 @@ smolvm machine cp dev:/workspace/result.json ./result.json
 
 ### Checkpoint and restore a running machine
 
-`machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.smolcheckpoint` file. The machine keeps running:
+`machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.smolcheckpoint` file. The machine keeps running.
+
+The machine has to have been started branchable, because a checkpoint reads the same copy-on-write guest memory a branch does. Start it with `--branchable`, which the engine also accepts as `--forkable`:
+
+```bash
+smolvm machine start --name dev --branchable
+```
+
+Then capture it:
 
 ```bash
 smolvm machine checkpoint --name dev -o ./dev.smolcheckpoint

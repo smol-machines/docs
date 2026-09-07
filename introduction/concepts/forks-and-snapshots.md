@@ -30,7 +30,7 @@ A fork is tied to its running source. It is not an exportable artifact that can 
 
 ## Checkpoints
 
-A checkpoint captures a running machine, including guest RAM and processes, into a single `.smolcheckpoint` file. Unlike a fork it is an independent artifact: the source machine keeps running, and the file can be kept, copied, and restored later.
+A checkpoint captures a running machine, including guest RAM and processes, into a single `.smolcheckpoint` file. The machine must have been started branchable, with `--branchable` on `machine start`, which the engine also accepts as `--forkable`. A machine started without it can be stopped and started again with the flag. Unlike a fork it is an independent artifact: the source machine keeps running, and the file can be kept, copied, and restored later.
 
 Restoring one creates a machine that resumes from the captured instant rather than booting. That is the difference from a pack, which captures disk state only and starts the machine from the beginning.
 

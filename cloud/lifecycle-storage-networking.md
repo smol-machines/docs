@@ -193,7 +193,7 @@ Fork creates a copy-on-write child from a running forkable cloud machine. It doe
 
 Machine snapshots are not implemented in the cloud API: the snapshot routes return `501`. To keep a stopped machine's disk state, export it to a `.smolmachine` artifact instead.
 
-Checkpoints capture a running machine, guest RAM and processes included, into durable cloud storage, and can be pulled down as a `.smolcheckpoint` artifact:
+Checkpoints capture a running machine, guest RAM and processes included, into durable cloud storage, and can be pulled down as a `.smolcheckpoint` artifact. As locally, the machine has to be branchable before it can be captured:
 
 ```bash
 smol cloud checkpoint create myapp
