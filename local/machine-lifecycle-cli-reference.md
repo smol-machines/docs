@@ -61,6 +61,7 @@ Package installs, file writes, and configuration changes made through `machine e
 | Delete a machine | `smolvm machine delete --name NAME` |
 | Check one machine | `smolvm machine status --name NAME` |
 | List machines | `smolvm machine ls` |
+| List machine names only | `smolvm machine ls --quiet` |
 | Checkpoint a running machine | `smolvm machine checkpoint --name NAME -o PATH` |
 
 If `--name` is omitted on commands that accept it, the default machine name is `default`.
@@ -72,6 +73,18 @@ If `--name` is omitted on commands that accept it, the default machine name is `
 ```bash
 smolvm machine exec --stream --name dev -- python3 train.py
 ```
+
+### List machines for a script
+
+`machine ls` prints machine names in full; long names are not truncated. For
+scripting, `--quiet` prints one name per line and nothing else, in the same
+shape as `docker ps -q`:
+
+```bash
+smolvm machine ls --quiet | xargs -I{} smolvm machine stop --name {}
+```
+
+`--json` gives the full records when a script needs more than the name.
 
 ### Publish a port or a range of ports
 
