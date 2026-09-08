@@ -196,7 +196,7 @@ Use `##` and `###` only. The corpus has no `####`; if a page needs one, it
 probably wants splitting.
 
 Every heading gets an automatic anchor, so link within a page with
-`[Cloud volumes](#cloud-volumes)`. The slug is the heading lowercased, with
+`[Machine storage](#machine-storage)`. The slug is the heading lowercased, with
 everything that is not a letter, number, space or hyphen removed, and spaces
 turned into hyphens — so ``### `Machine.create` `` becomes `#machinecreate`,
 not `#machine-create`. Link to another page with a site path
