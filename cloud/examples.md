@@ -180,41 +180,6 @@ curl --fail-with-body -X POST \
 
 The image pull runs inside the guest. When a hostname allow-list is in force, the image's own registry is folded into the enforced egress policy automatically, so you do not need to list it. Add registry or package hosts only when software running inside the guest must reach them at runtime — or when a registry serves its blobs from a different host than the one in the image reference, which the automatic fold does not cover.
 
-## Create and mount a volume
-
-Create a volume:
-
-```bash
-export VOLUME_NAME="example-data"
-
-curl --fail-with-body -X POST \
-  "$SMOL_CLOUD_URL/v1/volumes" \
-  -H "Authorization: Bearer $SMOL_CLOUD_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"name\":\"$VOLUME_NAME\",\"sizeGb\":10}"
-```
-
-Mount it when creating a machine:
-
-```bash
-curl --fail-with-body -X POST \
-  "$SMOL_CLOUD_URL/v1/machines" \
-  -H "Authorization: Bearer $SMOL_CLOUD_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"name\": \"with-volume\",
-    \"source\": {\"type\": \"image\", \"reference\": \"alpine\"},
-    \"network\": {\"mode\": \"blocked\"},
-    \"mounts\": [
-      {
-        \"volume\": \"$VOLUME_NAME\",
-        \"mountPath\": \"/data\",
-        \"readonly\": false
-      }
-    ]
-  }"
-```
-
 ## List and inspect machines
 
 List every machine on the account:
@@ -255,5 +220,3 @@ curl --fail-with-body -X DELETE \
   "$SMOL_CLOUD_URL/v1/machines/$WEB_MACHINE_ID" \
   -H "Authorization: Bearer $SMOL_CLOUD_TOKEN"
 ```
-
-Delete any separately managed volume by its returned volume ID after all attached machines are removed.
