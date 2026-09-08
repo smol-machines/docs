@@ -185,7 +185,7 @@ config = MachineConfig(
 )
 ```
 
-`MountSpec` maps host directories into local machines. Cloud persistent volumes use the Cloud API.
+`MountSpec` maps host directories into local machines. A cloud machine has no host to map from and keeps its data on its own filesystem.
 
 `run()`, `pullImage()` / `pull_image()`, and `listImages()` / `list_images()` are local-only. Create a cloud machine from an image and use `exec()` instead.
 
