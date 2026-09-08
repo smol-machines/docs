@@ -155,4 +155,4 @@ curl --fail-with-body -X DELETE \
   -H "Authorization: Bearer $SMOL_CLOUD_TOKEN"
 ```
 
-See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking) before using volumes, ingress, or restricted egress.
+See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking) before using ingress or restricted egress.
