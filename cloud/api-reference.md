@@ -10,7 +10,7 @@ The Cloud API is the hosted REST interface for smol cloud.
 - Generated OpenAPI: [smolmachines.com/openapi.json](/openapi.json)
 - Interactive client: [API Explorer](/docs/cloud/api-explorer)
 
-Use the generated OpenAPI document for the routes and schemas it includes. Specialized operations and newly added fields can land ahead of the website's generated snapshot, so use this page and the linked lifecycle guides for behavior that the schema does not yet describe.
+Use the generated OpenAPI document for the routes and schemas it includes. It is generated from the service, so it still lists volume routes; those are not a supported part of the API and a machine created with a `mounts` field comes up without the storage. Specialized operations and newly added fields can land ahead of the website's generated snapshot, so use this page and the linked lifecycle guides for behavior that the schema does not yet describe.
 
 ## Authentication
 
@@ -44,7 +44,7 @@ POST   /v1/machines/{id}/stop
 DELETE /v1/machines/{id}
 ```
 
-Machine creation accepts an OCI image or a `.smolmachine` registry reference as its source. Specify CPU, memory, network policy, environment, working directory, lifecycle limits, mounts, and other supported fields in the create request.
+Machine creation accepts an OCI image or a `.smolmachine` registry reference as its source. Specify CPU, memory, network policy, environment, working directory, lifecycle limits, and other supported fields in the create request.
 
 When `resources` is omitted, a machine currently defaults to 4 vCPUs and 8192 MB of memory. When `network` is omitted, outbound access defaults to **open** — set `network.mode` explicitly (`blocked` or `allowCidrs`) when egress policy matters. Note a `blocked` machine also cannot pull its image, which runs in-guest, unless the image is already cached on its node. Larger machines cost more, so pass `resources` explicitly (for example `{"cpus": 1, "memoryMb": 256}`) rather than relying on the default. Disks can be configured up to 16 TiB where capacity is available. Check the OpenAPI document for the current request limits.
 
@@ -74,19 +74,6 @@ DELETE /v1/machines/{id}/sessions/{sessionId}
 The API supports file upload and download for a machine. Use the current OpenAPI or API Explorer for the path shape and request encoding.
 
 Upload targets follow the machine's filesystem layout. Write to `/workspace` or another path on the storage disk when the file must survive a stop and start; `/tmp` is memory-backed and is empty after the machine restarts. An upload whose target resolves through a symlink into a memory-backed path fails instead of writing the file. See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking).
-
-### Volumes
-
-Cloud volumes are managed resources:
-
-```text
-GET    /v1/volumes
-POST   /v1/volumes
-GET    /v1/volumes/{id}
-DELETE /v1/volumes/{id}
-```
-
-Attach a volume through the machine create request. See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking).
 
 ### Operational endpoints
 

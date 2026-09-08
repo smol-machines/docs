@@ -4,7 +4,7 @@ title: Cloud Lifecycle, Storage, and Networking
 
 # Cloud Lifecycle, Storage, and Networking
 
-Cloud machines keep their filesystem across commands and stop/start cycles. Network access, published ports, and additional volumes are explicit parts of the machine configuration.
+Cloud machines keep their filesystem across commands and stop/start cycles. Network access and published ports are explicit parts of the machine configuration.
 
 The command examples assume `SMOL_CLOUD_TOKEN` and `SMOL_CLOUD_URL` are set as shown in [Cloud Quick Start](/docs/cloud).
 
@@ -33,7 +33,7 @@ Current public pricing states that stopped machines have no base, CPU, or memory
 
 ### Delete
 
-`DELETE /v1/machines/{id}` removes the machine. Export any required data first. Deleting the machine ends billing for its machine storage; separately managed volumes must be deleted separately.
+`DELETE /v1/machines/{id}` removes the machine. Export any required data first. Deleting the machine ends billing for its machine storage.
 
 ### Automatic cleanup
 
@@ -63,49 +63,7 @@ Write anything that must survive a restart to `/workspace` or another path on th
 
 Credentials and configuration are a common case. A configuration path that is a symlink into `/tmp` is emptied whenever the machine stops, so a long-running agent that re-reads it after an idle stop finds nothing there. Keep those files on the machine filesystem instead.
 
-Stopping is not a backup. Delete removes the machine, and infrastructure failures can still affect machine-local state. Keep important source data and outputs in an external system or a supported volume workflow.
-
-## Cloud volumes
-
-Cloud volumes are managed by the Cloud API:
-
-```bash
-curl --fail-with-body -X POST "$SMOL_CLOUD_URL/v1/volumes" \
-  -H "Authorization: Bearer $SMOL_CLOUD_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"project-data","sizeGb":10}'
-```
-
-Attach a volume when creating a machine:
-
-```json
-{
-  "source": {"type": "image", "reference": "alpine"},
-  "mounts": [
-    {
-      "volume": "project-data",
-      "mountPath": "/data",
-      "readonly": false
-    }
-  ]
-}
-```
-
-Cloud volumes are different from local bind mounts:
-
-- A local bind mount maps a host path into a local smolvm
-- A cloud volume is a cloud-managed resource attached by name
-- A cloud machine cannot mount an arbitrary path from your laptop
-
-Current attachment constraints:
-
-- A volume is placed on one node. A machine with attached volumes is placed on that node.
-- All volumes attached to one machine must be on the same node; otherwise start fails with `422`.
-- A volume can be attached to only one machine at a time; an attachment conflict returns `409`.
-- Referencing a missing volume returns `400`.
-- Deleting a machine detaches its volumes but does not delete them. Delete each volume separately when its data is no longer needed.
-
-Cloud volumes are persistent storage attachments, not backups. Keep critical source data and outputs in an external backup or system of record.
+Stopping is not a backup. Delete removes the machine, and infrastructure failures can still affect machine-local state. Keep important source data and outputs in an external system of record.
 
 ## Outbound networking
 
