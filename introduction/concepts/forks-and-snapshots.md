@@ -26,7 +26,8 @@ These mechanisms preserve different state:
 
 A pack from a VM requires the source VM to be stopped. It captures disk state and boots as a new machine later. It does not preserve running processes.
 
-A fork is tied to its running source. It is not an exportable artifact that can be retained on its own.
+A branch is host-local, not an exportable artifact. Use a checkpoint when you
+need a file to retain or transfer independently of the live machine lifecycle.
 
 ## Checkpoints
 
