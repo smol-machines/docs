@@ -157,4 +157,4 @@ On local machines, binding `/storage/docker` to `/var/lib/docker` also works, bu
 
 Containers inside the nested cluster can receive the capabilities Kubernetes needs because the hypervisor is the security boundary. Root inside the cluster still receives every mount, port, network route, socket, and credential explicitly passed to the machine.
 
-Use `machine run` for a one-off cluster job. Use a persistent machine when cluster state should survive stop and start. For repeated CI jobs, prepare one cluster, start it as forkable, and fork clean workers from that golden state. A fork is tied to the same host and architecture; use a `.smolmachine` pack for a portable cold artifact.
+Use `machine run` for a one-off cluster job. Use a persistent machine when cluster state should survive stop and start. For repeated CI jobs, prepare one cluster, start it as branchable, and branch clean workers from that source state. A branch is tied to the same host and architecture; use a `.smolmachine` pack for a portable cold artifact.

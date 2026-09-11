@@ -17,7 +17,7 @@ checks four branches for isolation, saves a checkpoint, restores it, and cleans 
 | Ephemeral run | Creates a machine, runs one command, then deletes it | Untrusted scripts, CI jobs, one agent turn |
 | Persistent machine | Keeps disk state across stop and start | Development agents and jobs that need later inspection |
 | Pack | Prebuilds dependencies into a portable `.smolmachine` artifact | Repeated jobs on compatible hosts |
-| Fork | Clones a running golden machine with copy-on-write RAM and disk | Many short workers from one warm state |
+| Branch | Clones a running source machine with copy-on-write RAM and disk | Many short workers from one warm state |
 
 ## Run an ephemeral job
 
@@ -100,16 +100,16 @@ Packs avoid repeating image pulls and setup. They are cold artifacts and require
 For repeated jobs, prepare and start a persistent source machine as branchable:
 
 ```bash
-smolvm machine create --name agent-golden --net --image alpine
-smolvm machine start --name agent-golden --branchable
-smolvm machine exec --name agent-golden -- apk add git
-smolvm machine branch --from agent-golden --name agent-1
-smolvm machine branch --from agent-golden --name agent-2
+smolvm machine create --name agent-source --net --image alpine
+smolvm machine start --name agent-source --branchable
+smolvm machine exec --name agent-source -- apk add git
+smolvm machine branch --from agent-source --name agent-1
+smolvm machine branch --from agent-source --name agent-2
 smolvm machine exec --name agent-1 -- git --version
 smolvm machine exec --name agent-2 -- git --version
 smolvm machine delete --name agent-1 --force
 smolvm machine delete --name agent-2 --force
-smolvm machine delete --name agent-golden --force
+smolvm machine delete --name agent-source --force
 ```
 
 Each branch gets copy-on-write RAM and disk; the source continues after a brief
