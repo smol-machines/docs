@@ -99,7 +99,9 @@ checks that this is a live checkpoint rather than just a disk image.
 These are sequential single-child branches, not a parallel batch benchmark.
 Replace the file checks with your tests or agent commands after preparing
 dependencies in the source. Use `machine exec` for subsequent commands in
-each child; delete the child when its task ends.
+each child; delete the child when its task ends. For larger same-state fan-out,
+use one batch as described under
+[generations, disk layers, and sibling count](/docs/introduction/concepts/forks-and-snapshots#generations-disk-layers-and-sibling-count).
 
 ## Know the boundary
 

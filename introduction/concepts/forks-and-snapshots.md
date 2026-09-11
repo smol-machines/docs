@@ -14,6 +14,38 @@ Copy-on-write avoids duplicating all memory and disk data at fork time. The sour
 
 Fork support is host and feature dependent. Native Windows does not currently support VM fork.
 
+### Generations, disk layers, and sibling count
+
+SmolVM limits a live branch lineage and its QCOW2 disk backing chain to 32
+levels. This is not a limit of 32 children.
+
+A **lineage generation** is one parent-to-child step. If `source` branches into
+`child`, the child is one generation deep. If that branchable child branches
+again, its child is two generations deep. A tree can have many siblings at the
+same depth; host CPU, memory, and storage capacity determine how many can run.
+
+A **disk layer** is a copy-on-write boundary. Reads fall through unchanged
+blocks to older backing layers, while writes land in the machine's newest
+private overlay. Bounding the chain prevents disk reads and lifecycle work from
+walking an indefinitely long history.
+
+The two counts usually move together for nested branches, but repeated fresh
+branches from one continuing source can also add disk layers to that source.
+When many workers should start from exactly the same state, use one batch:
+
+```bash
+smolvm machine branch --from source --count 100 --name-prefix worker --parallel 16
+```
+
+That command captures one generation and creates 100 sibling children from it;
+it does not create 100 nested generations. By contrast, running 100 separate
+single-child branch commands captures the source's current state each time and
+can advance its disk backing chain.
+
+SmolVM refuses an operation before either chain would exceed 32 levels. Stop
+and pack the desired machine into a new root before continuing from a long
+history. Automatic live disk-chain compaction is not currently available.
+
 ## Forks, packs, and snapshots
 
 These mechanisms preserve different state:
