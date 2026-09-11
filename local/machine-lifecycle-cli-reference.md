@@ -220,3 +220,5 @@ Remote volumes need egress to reach the bucket, so an ephemeral run without `--n
 Defaults are 4 vCPUs, 8192 MiB of guest memory, 20 GiB of storage, and a 2 GiB overlay. Memory is elastic: the host commits and reclaims memory according to guest use.
 
 Run `smolvm machine COMMAND --help` against your installed version for the complete flag set.
+
+For a procedure that installs smolvm and proves the host boots a VM, and one that stops every machine a session started and proves the host is clean, see the [install](/docs/local/skills/install) and [teardown](/docs/local/skills/teardown) skill packets.

@@ -47,6 +47,8 @@ smolvm serve openapi
 
 The HTTP API covers common lifecycle, execution, file, image, volume, export, and fork operations. It does not have complete parity with every CLI command or interactive CLI behavior. Use the generated OpenAPI document as the wire-level reference for your installed release.
 
+The [local-api](/docs/local/skills/local-api) skill packet drives that lifecycle end to end and names the field and timing traps a client meets first.
+
 ## Choose an integration
 
 ### Recommended: embedded `smolmachines` SDK

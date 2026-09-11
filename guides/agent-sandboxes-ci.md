@@ -19,6 +19,8 @@ checks four branches for isolation, saves a checkpoint, restores it, and cleans 
 | Pack | Prebuilds dependencies into a portable `.smolmachine` artifact | Repeated jobs on compatible hosts |
 | Fork | Clones a running golden machine with copy-on-write RAM and disk | Many short workers from one warm state |
 
+The [sandbox](/docs/local/skills/sandbox) and [dev-env](/docs/local/skills/dev-env) skill packets are the first two rows as procedures, with the preflight, verification and cleanup steps each one needs.
+
 ## Run an ephemeral job
 
 Network access is off unless enabled — but the image pull runs inside the

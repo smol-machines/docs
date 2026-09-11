@@ -70,3 +70,5 @@ smolvm machine delete --name dev
 ```
 
 See [Machine Lifecycle and CLI Reference](/docs/local/machine-lifecycle-cli-reference) for the selected command reference and [Examples](/docs/local/examples) for more local workflows.
+
+For task-scoped procedures an agent can load, including installing smolvm and proving the host boots, see [Skill Packets](/docs/local/skills).

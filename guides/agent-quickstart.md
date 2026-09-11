@@ -121,6 +121,10 @@ or cloud execution; cloud requires an account and API key and incurs usage
 charges. Follow the [cloud quickstart](/docs/cloud) for hosted machines rather
 than assuming every local CLI flag is a cloud API field.
 
+For the same tasks as procedures rather than a single runnable block, with a
+preflight that checks the host first and a cleanup that proves it afterwards,
+see [Skill Packets](/docs/local/skills).
+
 Agents can discover the documentation through [/llms.txt](/llms.txt) and
 [/docs/llms.txt](/docs/llms.txt), and cloud schemas through
 [/openapi.json](/openapi.json). Read plain Markdown from the
