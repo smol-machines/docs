@@ -138,7 +138,7 @@ smolvm machine cp dev:/workspace/result.json ./result.json
 
 `machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.smolcheckpoint` file. The machine keeps running.
 
-The machine has to have been started branchable, because a checkpoint reads the same copy-on-write guest memory a branch does. Start it with `--branchable`, which the engine also accepts as `--forkable`:
+The machine has to have been started branchable, because a checkpoint reads the same copy-on-write guest memory a branch does. Start it with `--branchable`:
 
 ```bash
 smolvm machine start --name dev --branchable
@@ -159,7 +159,7 @@ smolvm machine start --name dev-restored
 
 The restored machine resumes from the captured instant instead of booting. Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
 
-See [Forks and Snapshots](/docs/introduction/concepts/forks-and-snapshots) for what a checkpoint preserves and where it can be restored.
+See [Branches and Snapshots](/docs/introduction/concepts/forks-and-snapshots) for what a checkpoint preserves and where it can be restored.
 
 ### Update a stopped machine
 
