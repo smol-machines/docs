@@ -29,7 +29,7 @@ Boot time is only part of the wait before a workload can do useful work. Pulling
 
 A pack moves that preparation into the artifact. Use one when repeated setup dominates the time before an agent, developer, or job can begin work.
 
-A pack is different from a [fork](/docs/introduction/concepts/forks-and-snapshots). A fork clones a live machine, including running process state, through copy-on-write. A pack is a disk-based artifact that can outlive the source process.
+A pack is different from a [branch](/docs/introduction/concepts/forks-and-snapshots). A branch clones a live machine, including running process state, through copy-on-write. A pack is a disk-based artifact that can outlive the source process.
 
 ## Compatibility
 
