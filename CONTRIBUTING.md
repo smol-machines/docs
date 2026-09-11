@@ -280,18 +280,17 @@ repository. There is no CLA to sign.
 
 ## Notes for maintainers
 
-The docs pin the released version in exactly four links, in two files:
+Keep installation links current without hardcoding a latest version in prose:
 
 | File | What is pinned |
 |---|---|
-| `local.md` | the Windows release zip on the smolvm release page |
+| `local.md` | the latest smolvm release page, for the Windows zip |
 | `sdk.md` | three example links into the `smol` repository, at that repo's tag |
 
-On a release, `grep -rn "v1\." local.md sdk.md` finds all four, and each target
-has to exist at the new tag before the link is bumped: the smolvm release has to
+On a release, check the installation links and SDK example links: the smolvm release has to
 carry a Windows asset, and the `smol` repository has to have a matching tag of
 its own, which is a separate repository and can lag. Bump them together with the
-curated `llms.txt` index in the site repository.
+curated `llms.txt` index in the site repository if their URLs change.
 
 Keep prose un-pinned. A version number in a sentence goes stale silently, which
 is why the version was removed from the Machine API introduction and the local

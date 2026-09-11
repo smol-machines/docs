@@ -20,7 +20,7 @@ On macOS, the supported release path is Apple Silicon with macOS 11 or later. On
 ### Windows
 
 1. Enable [Windows Hypervisor Platform (WHP)](https://learn.microsoft.com/en-us/virtualization/api/).
-2. Download the `windows-x86_64` zip from the [v1.14.2 release](https://github.com/smol-machines/smolvm/releases/tag/v1.14.2).
+2. Download the `windows-x86_64` zip from the [latest smolvm release](https://github.com/smol-machines/smolvm/releases/latest).
 3. Extract the full archive so `smolvm.exe`, `krun.dll`, and `libkrunfw.dll` remain together.
 4. Run `smolvm.exe --help` from PowerShell.
 

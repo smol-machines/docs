@@ -71,6 +71,7 @@ page.
 | Page | Covers |
 |---|---|
 | `index.md` | What smol machines is, and where to start |
+| `guides/agent-quickstart.md` | Complete local install, four branches, isolation checks, checkpoint, restore, and cleanup |
 | `introduction/concepts.md` | Section overview |
 | `introduction/concepts/machines-and-lifecycle.md` | Ephemeral runs, persistent machines, lifecycle operations |
 | `introduction/concepts/isolation-networking-credentials.md` | The VM boundary, host access, egress policy, secrets |

@@ -6,6 +6,10 @@ title: Agent Sandboxes and CI
 
 Give each agent task or CI job its own microVM. Choose the lifecycle based on what must survive after the command finishes.
 
+For a complete example with no existing project, follow the
+[agent quickstart](/docs/guides/agent-quickstart): it prepares a machine,
+checks four branches for isolation, saves a checkpoint, restores it, and cleans up.
+
 ## Choose a lifecycle
 
 | Mode | Behavior | Use it for |
@@ -27,7 +31,9 @@ smolvm machine run --net --image alpine:3.20 -- \
   sh -c "uname -a && echo isolated"
 ```
 
-Mount the source tree read-only and give generated output a separate writable directory:
+For an existing Node project with a `test` script and dependencies already
+available to the guest, mount the source tree read-only and give generated
+output a separate writable directory (tests must not write into the source tree):
 
 ```bash
 mkdir -p artifacts
@@ -42,14 +48,17 @@ A mount deliberately exposes a host directory to guest code. Do not mount the re
 
 ## Restrict egress
 
-Enable only the destinations the job needs:
+Enable only the destinations the job needs. This standalone example checks
+the npm registry; it does not assume a project or lockfile exists in the image.
+Pre-pull the image with networking first, then reuse the host OCI cache so
+the restricted job does not need additional registry/auth/CDN hosts:
 
 ```bash
-smolvm machine run --net \
+smolvm machine run --net --oci-cache --image node:22-alpine -- node --version
+smolvm machine run --net --oci-cache \
   --allow-host registry.npmjs.org \
-  --allow-host github.com \
   --image node:22-alpine -- \
-  sh -c "npm ci && npm test"
+  npm ping --registry=https://registry.npmjs.org
 ```
 
 Hostname and CIDR allow lists reduce the network authority of compromised dependencies or prompt-injected agents. A first-class deny-list is not currently available; if a job needs broad internet access, apply host or fleet network controls as well.
@@ -59,7 +68,7 @@ Hostname and CIDR allow lists reduce the network authority of compromised depend
 ```bash
 smolvm machine create --name failed-job --net --image ubuntu:24.04
 smolvm machine start --name failed-job
-smolvm machine exec --name failed-job -- ./ci.sh
+smolvm machine exec --name failed-job -- sh -c 'echo "test failed" > /root/test.log; exit 1'
 ```
 
 If the job fails, inspect it before cleanup:
@@ -71,11 +80,15 @@ smolvm machine stop --name failed-job
 smolvm machine delete --name failed-job
 ```
 
-Stopping preserves disk state but loses RAM. smolvm does not currently expose a general portable RAM snapshot for failed jobs.
+Stopping preserves disk state but loses RAM. To retain RAM and process state,
+start the machine with `--branchable` before running the job and use
+`machine checkpoint` while it is still running; capture eligibility depends on
+the host and attachments. See the [checkpoint reference](/docs/introduction/concepts/forks-and-snapshots).
 
 ## Prebuild repeated environments
 
-Define dependencies in a Smolfile and create a pack:
+For an existing project whose Smolfile installs dependencies and includes
+`ci.sh`, create a pack:
 
 ```bash
 smolvm pack create -s Smolfile -o ci-worker
@@ -84,17 +97,24 @@ smolvm pack create -s Smolfile -o ci-worker
 
 Packs avoid repeating image pulls and setup. They are cold artifacts and require a compatible host architecture.
 
-For high fan-out jobs, prepare and start a persistent golden machine as forkable:
+For repeated jobs, prepare and start a persistent source machine as branchable:
 
 ```bash
 smolvm machine create --name agent-golden --net --image alpine
-smolvm machine start --name agent-golden --forkable
+smolvm machine start --name agent-golden --branchable
 smolvm machine exec --name agent-golden -- apk add git
-smolvm machine fork --golden agent-golden --name agent-1
-smolvm machine fork --golden agent-golden --name agent-2
+smolvm machine branch --from agent-golden --name agent-1
+smolvm machine branch --from agent-golden --name agent-2
+smolvm machine exec --name agent-1 -- git --version
+smolvm machine exec --name agent-2 -- git --version
+smolvm machine delete --name agent-1 --force
+smolvm machine delete --name agent-2 --force
+smolvm machine delete --name agent-golden --force
 ```
 
-Each fork gets copy-on-write RAM and disk while sharing the frozen base. Forks remain tied to the golden's host and architecture. Delete every worker when its task ends.
+Each branch gets copy-on-write RAM and disk; the source continues after a brief
+capture pause. Branches remain on the source's host and architecture. Delete
+every worker when its task ends.
 
 ## Handle secrets
 
@@ -103,8 +123,8 @@ Secret injection places plaintext in the guest:
 ```bash
 export API_TOKEN
 
-smolvm machine run --secret-env AGENT_TOKEN=API_TOKEN \
-  --image alpine:3.20 -- env
+smolvm machine run --net --secret-env AGENT_TOKEN=API_TOKEN \
+  --image alpine:3.20 -- sh -c 'test -n "$AGENT_TOKEN" && echo "token available"'
 ```
 
 Guest code can read `AGENT_TOKEN`. Use injection only when the whole guest workload is trusted with the value.
@@ -120,15 +140,16 @@ There is no shipped general HTTP credential broker or cloud-native secrets store
 
 ## Cleanup on every path
 
-Shell scripts should preserve the workload's exit code while still deleting persistent machines:
+For a previously created `ci-job` with `/root/ci.sh` installed, preserve the
+workload's exit code while still deleting the persistent machine:
 
 ```bash
 set +e
-smolvm machine exec --name ci-job -- ./ci.sh
+smolvm machine exec --name ci-job -- sh /root/ci.sh
 status=$?
 set -e
 
-smolvm machine delete --name ci-job
+smolvm machine delete --name ci-job --force
 exit "$status"
 ```
 
