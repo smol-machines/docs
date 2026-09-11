@@ -45,7 +45,7 @@ smolvm serve openapi
 | `GET` | `/api/v1/machines/:name/logs` | Stream logs over SSE |
 | `POST` | `/api/v1/machines/:name/images/pull` | Pull an OCI image |
 
-The HTTP API covers common lifecycle, execution, file, image, volume, export, and fork operations. It does not have complete parity with every CLI command or interactive CLI behavior. Use the generated OpenAPI document as the wire-level reference for your installed release.
+The HTTP API covers common lifecycle, execution, file, image, volume, export, and branch operations. It does not have complete parity with every CLI command or interactive CLI behavior. Use the generated OpenAPI document as the wire-level reference for your installed release.
 
 ## Choose an integration
 

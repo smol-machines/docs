@@ -233,28 +233,28 @@ with Machine.create(conn=ConnectOptions(target="local")) as machine:
     machine.exec(["echo", "work"])
 ```
 
-## Forking
+## Branching
 
-The SDK exposes `fork()` for cloud machines. Create the source machine with `forkable: true`, then clone its live state:
+The SDK exposes `branch()` for cloud machines. Create the source machine with `branchable: true`, then clone its live state:
 
 ```ts
-const clone = await golden.fork("clone-1");
+const clone = await source.branch("clone-1");
 ```
 
 ```python
-clone = golden.fork("clone-1")
+clone = source.branch("clone-1")
 ```
 
 Pass optional port mappings when a clone needs pinned host ports:
 
 ```ts
-const clone = await golden.fork("clone-1", [{ host: 18080, guest: 8080 }]);
+const clone = await source.branch("clone-1", [{ host: 18080, guest: 8080 }]);
 ```
 
 ```python
 from smol import PortSpec
 
-clone = golden.fork(
+clone = source.branch(
     "clone-1",
     ports=[PortSpec(host=18080, guest=8080)],
 )
@@ -262,7 +262,7 @@ clone = golden.fork(
 
 When ports are omitted, the control plane allocates fresh host ports so concurrent clones do not collide.
 
-Cloud forks are node-local and require a forkable source machine. They do not provide portable snapshots or live migration between local and cloud. For local forks, use the `smolvm` CLI.
+Cloud branches are node-local and require a branchable source machine. They do not provide portable snapshots or live migration between local and cloud. For local branching, use the `smolvm` CLI.
 
 ## Configuration types
 
@@ -288,7 +288,7 @@ Cloud authentication also reads `SMOL_CLOUD_TOKEN`. The base URL override is `SM
 | `persistent` | `persistent` | Local | Keep the local machine record |
 | `autoStopSeconds` | `auto_stop_seconds` | Cloud | Stop after an idle period |
 | `ttlSeconds` | `ttl_seconds` | Cloud | Delete after a fixed period |
-| `forkable` | `forkable` | Cloud | Prepare as a live fork base |
+| `branchable` | `branchable` | Cloud | Prepare as a live branch source |
 | `env` | `env` | Cloud | Workload environment at creation |
 | `workdir` | `workdir` | Cloud | Workload working directory at creation |
 

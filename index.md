@@ -31,7 +31,7 @@ For more guidance on choosing the most suitable smol machines product for your u
 
 `smolvm` is the open-source engine and CLI. It boots OCI images as Linux microVMs on a local macOS, Linux, or Windows host. Each machine has its own guest kernel and runs through the host's native virtualization interface.
 
-Use `smolvm` for local command-line workflows, self-managed infrastructure, portable `.smolmachine` artifacts, VM forks, and supported local GPU workloads. It does not require a Docker daemon.
+Use `smolvm` for local command-line workflows, self-managed infrastructure, portable `.smolmachine` artifacts, VM branching, and supported local GPU workloads. It does not require a Docker daemon.
 
 
 ## smol cloud

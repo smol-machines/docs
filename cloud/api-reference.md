@@ -83,7 +83,7 @@ The Cloud API also provides endpoints for:
 - Machine events and logs
 - Per-machine usage and cached images
 - Sharing a machine through scoped share links
-- Forking a forkable machine
+- Branching a branchable machine
 - Exporting a machine to a `.smolmachine` artifact
 
 Use the OpenAPI document or Explorer to inspect the exact routes, request bodies, and feature availability for your account.
@@ -144,6 +144,6 @@ Common statuses include:
 
 Every response includes `x-request-id`. A safe client-provided ID is echoed; otherwise the service generates one. Record it with the status and response body when reporting a failed request.
 
-## Forks and snapshots
+## Branches and snapshots
 
-Fork routes are specialized cloud operations. They do not move a running local VM into cloud or provide a portable cross-architecture restore format. Machine snapshots are not implemented in the cloud API: the snapshot routes return `501`. To capture a stopped machine's disk state, export it to a `.smolmachine` artifact instead (`POST /v1/machines/{id}/export`, or `smol cloud export`).
+Branch routes are specialized cloud operations. They do not move a running local VM into cloud or provide a portable cross-architecture restore format. Machine snapshots are not implemented in the cloud API: the snapshot routes return `501`. To capture a stopped machine's disk state, export it to a `.smolmachine` artifact instead (`POST /v1/machines/{id}/export`, or `smol cloud export`).

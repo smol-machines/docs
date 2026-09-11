@@ -30,7 +30,7 @@ These pages describe the model shared by local smolvm workflows, the `smolmachin
 		<span class="doc-card-desc">Declarative local machine configuration.</span>
 	</a>
 	<a class="doc-card" href="/docs/introduction/concepts/forks-and-snapshots">
-		<span class="doc-card-title">Forks and Snapshots</span>
+		<span class="doc-card-title">Branches and Snapshots</span>
 		<span class="doc-card-desc">Live copy-on-write clones, packs, and the current snapshot boundary.</span>
 	</a>
 	<a class="doc-card" href="/docs/introduction/concepts/gpu">

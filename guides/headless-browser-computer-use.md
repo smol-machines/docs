@@ -75,12 +75,12 @@ smolvm machine exec --name browser -- sh -c \
 
 Vulkan acceleration requires a supported host Vulkan stack. Native Windows does not currently support this path. These commands do not provision a GPU in smol cloud.
 
-## Pre-warm browser workers with fork
+## Pre-warm browser workers with branching
 
-Put Chromium in a Smolfile entrypoint so it is running when the golden machine is frozen:
+Put Chromium in a Smolfile entrypoint so it is running when the source machine is frozen:
 
 ```bash
-cat > browser-golden.smolfile <<'EOF'
+cat > browser-source.smolfile <<'EOF'
 image = "chromedp/headless-shell:latest"
 net = true
 workdir = "/headless-shell"
@@ -96,16 +96,16 @@ entrypoint = [
 ]
 EOF
 
-smolvm machine create --name browser-golden \
-  --smolfile browser-golden.smolfile
+smolvm machine create --name browser-source \
+  --smolfile browser-source.smolfile
 
-smolvm machine start --name browser-golden --forkable
-smolvm machine fork --golden browser-golden --name browser-worker-1
+smolvm machine start --name browser-source --branchable
+smolvm machine branch --from browser-source --name browser-worker-1
 ```
 
-`--no-zygote` is required for Chromium's process tree to survive the VM fork. Forked workers inherit the running browser, warmed libraries, and guest memory. Live network connections and host-side GPU renderer state do not survive the fork. Freeze the golden while it is idle.
+`--no-zygote` is required for Chromium's process tree to survive the VM branch. Branched workers inherit the running browser, warmed libraries, and guest memory. Live network connections and host-side GPU renderer state do not survive the branch. Freeze the source while it is idle.
 
-Forks stay on the same host and CPU architecture as the golden. Use a `.smolmachine` pack when you need a portable cold browser environment.
+Branches stay on the same host and CPU architecture as the source. Use a `.smolmachine` pack when you need a portable cold browser environment.
 
 ## Run an interactive Linux desktop
 
@@ -208,4 +208,4 @@ If browser control originates outside the VM, publish or proxy only the required
 - Mount the smallest possible host directory, preferably read-only
 - Treat downloads and screenshots as untrusted output
 - Do not inject account credentials into a browser task that can execute untrusted page or agent instructions
-- Delete ephemeral workers after each task. Use a clean golden or pack instead of reusing state across trust boundaries
+- Delete ephemeral workers after each task. Use a clean source or pack instead of reusing state across trust boundaries

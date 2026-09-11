@@ -77,7 +77,7 @@ is ignored without `--gpu`.
 
 The CUDA path does not pass an NVIDIA device into the VM. The guest has no NVIDIA driver and no `/dev/nvidia*` devices. Compatibility libraries implement the CUDA and NVML interfaces and send calls over vsock to a host daemon that owns the real NVIDIA driver and GPU.
 
-This design allows multiple machines to share a host GPU and lets a warm CUDA machine be forked. A fork reconnects to the host daemon and can reuse prepared GPU state.
+This design allows multiple machines to share a host GPU and lets a warm CUDA machine be branched. A branch reconnects to the host daemon and can reuse prepared GPU state.
 
 Enable this separate path with `--cuda` or `cuda: true` / `cuda=True` in the local SDK. The host needs a compatible NVIDIA GPU and driver with `libcuda.so.1` available. It works on Linux hosts and on Windows hosts with WHP, where it was verified on an RTX 4050 laptop. The guest image does not need an NVIDIA kernel driver.
 

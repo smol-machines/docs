@@ -112,7 +112,7 @@ disk contents, including any credentials in them.
 Restore requires a compatible runtime, the same host OS and architecture, and
 compatible CPU features. Do not assume a macOS checkpoint restores on Linux,
 or that GPU state, external connections, and host mounts are portable. See
-[Forks and Snapshots](/docs/introduction/concepts/forks-and-snapshots).
+[Branches and Snapshots](/docs/introduction/concepts/forks-and-snapshots).
 
 ## Use it from code or in the cloud
 

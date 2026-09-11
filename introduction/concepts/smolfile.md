@@ -244,15 +244,15 @@ startup_grace = "20s"
 | `max_retries` | integer | Maximum restart attempts. |
 | `max_backoff` | string | Maximum delay between restarts, such as `"60s"`. |
 
-## Forking
+## Branching
 
-`[fork]` configures a copy-on-write fork base and CUDA clone capacity.
+`[branch]` configures a copy-on-write branch source and CUDA clone capacity. The older `[fork]` section name is still accepted.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `enabled` | boolean | Start the machine as a fork base. |
+| `enabled` | boolean | Start the machine as a branch source. |
 | `pool_size` | integer | Planned number of runnable CUDA clones. Implies `enabled` and requires `cuda = true` or `auto_graph = true`. |
-| `cuda_vram_limit_mib` | integer | Logical VRAM limit per golden machine or clone. Requires `pool_size`. |
+| `cuda_vram_limit_mib` | integer | Logical VRAM limit per source machine or clone. Requires `pool_size`. |
 
 ## Authentication and secrets
 

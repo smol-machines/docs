@@ -159,7 +159,7 @@ Cloud `MachineConfig` supports:
 - `image`: required base OCI image
 - `autoStopSeconds` / `auto_stop_seconds`: stop after an idle period
 - `ttlSeconds` / `ttl_seconds`: delete after a fixed period
-- `forkable`: prepare a machine as a live fork base
+- `branchable`: prepare a machine as a live branch source
 - `env`: machine workload environment variables
 - `workdir`: machine workload working directory
 
