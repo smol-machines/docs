@@ -100,6 +100,34 @@ A bare port or range uses the same numbers on both sides. Ranges map one to one,
 
 Publishing a port selects the virtio-net backend for the machine, because the default outbound-only backend cannot accept inbound connections.
 
+### Publish a Unix socket
+
+`machine create` takes two socket flags, both repeatable. `--expose-socket` makes a socket the
+guest listens on reachable from the host, and `--mount-socket` puts a host socket inside the
+guest so a guest process can reach a host service:
+
+```bash
+smolvm machine create --name api --image alpine \
+  --expose-socket /run/app.sock \
+  --mount-socket /run/host-db.sock:/run/db.sock
+```
+
+`--expose-socket` takes `GUEST_PATH[:HOST_PATH]`. Without a host path the socket appears at
+`<machine-dir>/<basename>`, which `smolvm machine data-dir --name api` prints.
+`--mount-socket` takes `HOST_PATH:GUEST_PATH` and needs both.
+
+Two behaviours are worth knowing before you write a client against an exposed socket.
+
+**The host end accepts before the guest is listening.** smolvm creates the host listener when the
+machine starts, so a connect succeeds whether or not anything in the guest has bound its end yet.
+A client that treats a successful connect as readiness proceeds to send into a socket with no
+reader. Retry on the first request and its reply, not on the connect.
+
+**Teardown removes the default path and leaves a pinned one.** The default socket lives inside
+the machine's own directory, so deleting the machine takes it with it. A host path you named
+yourself sits outside that directory and stays after the machine is gone; remove it yourself
+before you reuse the path.
+
 ### Run the workload as a chosen user
 
 `--user` takes a name from the image or a numeric `uid[:gid]`, in the same form
