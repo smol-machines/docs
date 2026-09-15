@@ -75,7 +75,7 @@ The manifest records the guest platform, host platform, creation time, and smolv
 
 A `.smolmachine` is a disk artifact. It packages the prepared filesystem and storage needed to start another machine. It is not:
 
-- A live-memory snapshot
+- A live-memory checkpoint
 - A capture of running processes
 - A live migration stream
 - A way to move an active VM between hosts without stopping it

@@ -161,7 +161,7 @@ smol cloud checkpoint restore CHECKPOINT_ID --name myapp-restored
 smol cloud checkpoint rm CHECKPOINT_ID
 ```
 
-`restore` creates and starts a new machine from the checkpoint. A downloaded artifact can also be restored locally with `smolvm machine create --from`, subject to the host requirements in [Branches and Snapshots](/docs/introduction/concepts/forks-and-snapshots). Neither branching nor checkpoint provides a cross-architecture restore format.
+`restore` creates and starts a new machine from the checkpoint. A downloaded artifact can also be restored locally with `smolvm machine create --from`, subject to the host requirements in [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots). Neither branching nor checkpoint provides a cross-architecture restore format.
 
 ## GPU
 

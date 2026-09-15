@@ -262,7 +262,7 @@ clone = source.branch(
 
 When ports are omitted, the control plane allocates fresh host ports so concurrent clones do not collide.
 
-Cloud branches are node-local and require a branchable source machine. They do not provide portable snapshots or live migration between local and cloud. For local branching, use the `smolvm` CLI.
+Cloud branches are node-local and require a branchable source machine. They do not provide portable checkpoints or live migration between local and cloud. For local branching, use the `smolvm` CLI.
 
 ## Configuration types
 

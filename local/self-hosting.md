@@ -26,7 +26,7 @@ The invoking service account needs permission to access `/dev/kvm` and the runti
 
 ### Other supported hosts
 
-macOS uses Hypervisor.framework and is suitable for local workstations. Native Windows x86_64 uses Windows Hypervisor Platform. Windows does not currently support VM branching, snapshots, or GPU acceleration, so verify feature requirements before choosing it for a self-hosted node.
+macOS uses Hypervisor.framework and is suitable for local workstations. Native Windows x86_64 uses Windows Hypervisor Platform. Windows does not currently support VM branching, checkpoints, or GPU acceleration, so verify feature requirements before choosing it for a self-hosted node.
 
 Guest and artifact architecture must match the host architecture.
 
@@ -88,7 +88,7 @@ Use separate host service accounts or stronger OS confinement for hostile co-ten
 
 Persistent named machines keep disk changes across stop/start on the same host. A `.smolmachine` can capture stopped disk state for reuse on a compatible host.
 
-Packing does not preserve live RAM or running processes. Standalone smolvm does not provide live migration between hosts or a general portable snapshot/restore service. Build backup and recovery around stopped disk artifacts and any external durable storage your workload uses.
+Packing does not preserve live RAM or running processes. Standalone smolvm does not provide live migration between hosts or a general portable checkpoint/restore service. Build backup and recovery around stopped disk artifacts and any external durable storage your workload uses.
 
 Test host failure, node replacement, and version upgrades before using a self-hosted deployment for production workloads.
 

@@ -78,7 +78,7 @@ page.
 | `introduction/concepts/persistent-state-volumes-resources.md` | Machine disks, host mounts, CPU, memory, storage |
 | `introduction/concepts/packs-and-smolmachine.md` | Portable `.smolmachine` artifacts and compatible hosts |
 | `introduction/concepts/smolfile.md` | Declarative machine configuration (TOML) |
-| `introduction/concepts/forks-and-snapshots.md` | Copy-on-write clones and the snapshot boundary |
+| `introduction/concepts/forks-and-snapshots.md` | Copy-on-write clones and the checkpoint boundary |
 | `introduction/concepts/gpu.md` | Vulkan graphics and CUDA API remoting |
 | `introduction/concepts/supported-platforms.md` | Hosts, guest architecture, Windows/WSL, limitations |
 

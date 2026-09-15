@@ -1,8 +1,8 @@
 ---
-title: Branches and Snapshots
+title: Branches and Checkpoints
 ---
 
-# Branches and Snapshots
+# Branches and Checkpoints
 
 A branch creates a new machine from a live, branchable source. The child starts from the source machine's memory, processes, and disk state, then diverges through copy-on-write.
 
@@ -29,7 +29,7 @@ Branch support is host and feature dependent. Native Windows does not currently 
 
 The rest of the documentation uses the current names only.
 
-## Branches, packs, and snapshots
+## Branches, packs, and checkpoints
 
 These mechanisms preserve different state:
 
