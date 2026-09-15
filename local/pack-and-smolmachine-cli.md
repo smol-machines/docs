@@ -53,6 +53,32 @@ smolvm machine stop --name app-dev
 
 This path gives the artifact a normal named-machine lifecycle. Changes made through `machine exec` persist across stop/start cycles.
 
+## One prepared base, one machine per working directory
+
+Packing a base once and creating from it per task gives each machine its own mounts and sockets,
+which branching cannot do. Prepare the base and stop it before packing:
+
+```bash
+smolvm machine create --name base --image python:3.12-alpine --net
+smolvm machine start --name base
+smolvm machine exec --name base -- pip install requests
+smolvm machine stop --name base
+smolvm pack create --from-vm base -o ./base
+```
+
+Then create one machine per working directory from the same artifact, each with its own mount and
+its own socket:
+
+```bash
+smolvm machine create --name work-a --from ./base.smolmachine \
+  -v "$PWD/work-a:/work" --expose-socket /run/app.sock
+smolvm machine create --name work-b --from ./base.smolmachine \
+  -v "$PWD/work-b:/work" --expose-socket /run/app.sock
+```
+
+Every machine created from one artifact reads the same extracted layers, and each keeps its own
+overlay, so what one writes stays in that machine. Delete one and the layers stay for the others.
+
 ## Launcher daemon mode
 
 The generated launcher also has a persistent daemon mode:
@@ -75,7 +101,7 @@ The manifest records the guest platform, host platform, creation time, and smolv
 
 A `.smolmachine` is a disk artifact. It packages the prepared filesystem and storage needed to start another machine. It is not:
 
-- A live-memory snapshot
+- A live-memory checkpoint
 - A capture of running processes
 - A live migration stream
 - A way to move an active VM between hosts without stopping it

@@ -147,7 +147,7 @@ Seeing that means the deployment is behind, not that the flag is wrong.
 
 ## Branches and checkpoints
 
-Branch creates a copy-on-write child from a running branchable cloud machine. It does not provide local-to-cloud live migration.
+Branching creates a copy-on-write child from a running branchable cloud machine. It does not provide local-to-cloud live migration.
 
 Machine snapshots are not implemented in the cloud API: the snapshot routes return `501`. To keep a stopped machine's disk state, export it to a `.smolmachine` artifact instead.
 
@@ -161,7 +161,7 @@ smol cloud checkpoint restore CHECKPOINT_ID --name myapp-restored
 smol cloud checkpoint rm CHECKPOINT_ID
 ```
 
-`restore` creates and starts a new machine from the checkpoint. A downloaded artifact can also be restored locally with `smolvm machine create --from`, subject to the host requirements in [Branches and Snapshots](/docs/introduction/concepts/forks-and-snapshots). Neither branching nor checkpoint provides a cross-architecture restore format.
+`restore` creates and starts a new machine from the checkpoint. A downloaded artifact can also be restored locally with `smolvm machine create --from`, subject to the host requirements in [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots). Neither branching nor checkpoint provides a cross-architecture restore format.
 
 ## GPU
 

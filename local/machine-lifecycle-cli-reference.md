@@ -100,6 +100,34 @@ A bare port or range uses the same numbers on both sides. Ranges map one to one,
 
 Publishing a port selects the virtio-net backend for the machine, because the default outbound-only backend cannot accept inbound connections.
 
+### Publish a Unix socket
+
+`machine create` takes two socket flags, both repeatable. `--expose-socket` makes a socket the
+guest listens on reachable from the host, and `--mount-socket` puts a host socket inside the
+guest so a guest process can reach a host service:
+
+```bash
+smolvm machine create --name api --image alpine \
+  --expose-socket /run/app.sock \
+  --mount-socket /run/host-db.sock:/run/db.sock
+```
+
+`--expose-socket` takes `GUEST_PATH[:HOST_PATH]`. Without a host path the socket appears at
+`<machine-dir>/<basename>`, which `smolvm machine data-dir --name api` prints.
+`--mount-socket` takes `HOST_PATH:GUEST_PATH` and needs both.
+
+Two behaviours are worth knowing before you write a client against an exposed socket.
+
+**The host end accepts before the guest is listening.** smolvm creates the host listener when the
+machine starts, so a connect succeeds whether or not anything in the guest has bound its end yet.
+A client that treats a successful connect as readiness proceeds to send into a socket with no
+reader. Retry on the first request and its reply, not on the connect.
+
+**Teardown removes the default path and leaves a pinned one.** The default socket lives inside
+the machine's own directory, so deleting the machine takes it with it. A host path you named
+yourself sits outside that directory and stays after the machine is gone; remove it yourself
+before you reuse the path.
+
 ### Run the workload as a chosen user
 
 `--user` takes a name from the image or a numeric `uid[:gid]`, in the same form
@@ -138,7 +166,7 @@ smolvm machine cp dev:/workspace/result.json ./result.json
 
 `machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.smolcheckpoint` file. The machine keeps running.
 
-The machine has to have been started branchable, because a checkpoint reads the same copy-on-write guest memory a branch does. Start it with `--branchable`:
+The machine has to have been started branchable, because a checkpoint reads the same copy-on-write guest memory a branch does. Start it with `--branchable`, which the engine also accepts as `--forkable`:
 
 ```bash
 smolvm machine start --name dev --branchable
@@ -159,7 +187,7 @@ smolvm machine start --name dev-restored
 
 The restored machine resumes from the captured instant instead of booting. Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
 
-See [Branches and Snapshots](/docs/introduction/concepts/forks-and-snapshots) for what a checkpoint preserves and where it can be restored.
+See [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots) for what a checkpoint preserves and where it can be restored.
 
 ### Update a stopped machine
 
@@ -199,6 +227,26 @@ The bucket is mounted by the machine's agent from inside the guest, so the image
 
 Remote volumes need egress to reach the bucket, so an ephemeral run without `--net` is rejected rather than started. `machine run` and `machine create` accept an `s3://` source; `machine update` and `pack run` do not.
 
+### Run a hypervisor inside the machine
+
+`--nested` exposes the host's virtualization extensions to the guest so it can run KVM, which is
+what lets smolvm, QEMU or another hypervisor run inside the machine:
+
+```bash
+smolvm machine run --nested --net --image ubuntu:24.04 -- sh -c "ls -l /dev/kvm"
+```
+
+It is off by default, because nesting turns work the guest would do natively into vmexits and a
+nested guest runs far slower.
+
+The host has to be able to offer the extensions in the first place, and smolvm checks before the
+VM boots rather than failing inside the guest. On Apple silicon that means an M3 or newer and
+macOS 15 or later; on Linux it means nested KVM is enabled, through `kvm_intel.nested=1` or
+`kvm_amd nested=1`. A host that cannot returns an error naming the check result.
+
+Running a Docker daemon in a machine does not need this flag. Containers share the guest kernel,
+so [Docker in a Machine](/docs/guides/docker-in-a-machine) works without it.
+
 ## Common resource flags
 
 | Flag | Meaning |
@@ -216,6 +264,9 @@ Remote volumes need egress to reach the bucket, so an ephemeral run without `--n
 | `--interactive`, `-i` | Keep stdin open |
 | `--tty`, `-t` | Allocate a TTY |
 | `--smolfile`, `-s` | Read configuration from a Smolfile |
+| `--block-io` | Host block I/O engine, `sync` or `async` |
+
+`--block-io` takes `sync`, which services one request at a time on the virtio block worker, or `async`, which submits queued raw-disk reads through a restricted Linux io_uring. `async` is worth reaching for when a workload is disk heavy on a Linux host. It is a Linux-only engine, and asking for it anywhere else does not quietly fall back: the machine refuses to start with `async block I/O is currently supported on Linux hosts only; use --block-io sync`. `machine run`, `machine create` and `smolvm pack run` all accept the flag.
 
 Defaults are 4 vCPUs, 8192 MiB of guest memory, 20 GiB of storage, and a 2 GiB overlay. Memory is elastic: the host commits and reclaims memory according to guest use.
 

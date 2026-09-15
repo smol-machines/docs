@@ -26,7 +26,7 @@ Native Windows uses Windows Hypervisor Platform and is the primary Windows path.
 
 WSL2 can use the Linux/KVM path on Windows 11 when nested virtualization and KVM are available. WSL2 on Windows 10 cannot provide the required nested KVM support. Use native Windows there.
 
-Native Windows currently lacks Vulkan GPU acceleration, VM branching, and snapshots.
+Native Windows currently lacks Vulkan GPU acceleration, VM branching, and checkpoints.
 
 ## Cloud clients
 

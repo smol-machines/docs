@@ -1,8 +1,8 @@
 ---
-title: Branches and Snapshots
+title: Branches and Checkpoints
 ---
 
-# Branches and Snapshots
+# Branches and Checkpoints
 
 A branch creates a new machine from a live, branchable source. The child starts from the source machine's memory, processes, and disk state, then diverges through copy-on-write.
 
@@ -23,13 +23,13 @@ Branch support is host and feature dependent. Native Windows does not currently 
 | `smolvm machine fork` | `smolvm machine branch` |
 | `smolvm machine fork-release` | `smolvm machine branch-release` |
 | `--forkable` | `--branchable` |
-| `--golden` | `--from` |
+| `--golden` | `--from` on `machine branch` |
 | `[fork]` in a Smolfile | `[branch]` |
 | `fork()` in the Node and Python SDKs | `branch()` |
 
 The rest of the documentation uses the current names only.
 
-## Branches, packs, and snapshots
+## Branches, packs, and checkpoints
 
 These mechanisms preserve different state:
 
@@ -57,6 +57,27 @@ A checkpoint is portable between hosts, within limits the runtime checks before 
 - The checkpoint format and runtime interface are versioned. A file written by an incompatible runtime is refused with the version it needs.
 
 Restoring keeps the captured machine's shape. The CPU, memory, disk, and device topology come from the checkpoint, so they cannot be changed on the way in.
+
+Capture is the fussier side. A checkpoint has to be able to resume every device it captured, so a
+machine holding host-bound state is refused rather than captured into an artifact that could not
+be restored. The initial profile refuses a machine with any of:
+
+- host mounts, including staged mounts
+- published sockets
+- remote volumes
+- host secret references
+- host-backed image layers, which includes a machine created from a pack
+- custom DNS
+- named inter-VM networking
+- Vulkan GPU state, CUDA state, or Rosetta
+- SSH agent forwarding or Docker socket forwarding
+
+The error names the ones in the way and asks you to stop or detach them before capture. A machine
+that needs a mount or a socket for its work is therefore a machine to pack, not to checkpoint.
+
+`machine branch` is the other way round: it takes no mount or socket flag at all, and children
+inherit whatever the source was created with. To give each child its own mount, build the base as
+an artifact and create from it, as the packs page shows.
 
 ## Migration boundary
 

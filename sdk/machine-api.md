@@ -110,7 +110,7 @@ For cloud, set `MachineConfig.image` during creation and use `exec()`.
 
 ### Stream output
 
-`execStream()` / `exec_stream()` yields stdout, stderr, exit, and error events as they arrive. It is supported on the local target. For cloud command streaming, use the Cloud REST API's Server-Sent Events response.
+`execStream()` / `exec_stream()` yields stdout, stderr, exit, and error events as they arrive. It is supported on the local target and on cloud machines. A client that is not using an SDK can read the Cloud REST API's Server-Sent Events response directly.
 
 ```ts
 for await (const event of machine.execStream(["sh", "-lc", "make test"])) {
@@ -235,7 +235,8 @@ with Machine.create(conn=ConnectOptions(target="local")) as machine:
 
 ## Branching
 
-The SDK exposes `branch()` for cloud machines. Create the source machine with `branchable: true`, then clone its live state:
+The SDK exposes `branch()` for cloud machines. Create the source machine as branchable, `branchable: true` in TypeScript and
+`branchable=True` in Python, then clone its live state:
 
 ```ts
 const clone = await source.branch("clone-1");
@@ -262,7 +263,7 @@ clone = source.branch(
 
 When ports are omitted, the control plane allocates fresh host ports so concurrent clones do not collide.
 
-Cloud branches are node-local and require a branchable source machine. They do not provide portable snapshots or live migration between local and cloud. For local branching, use the `smolvm` CLI.
+Cloud branches are node-local and require a branchable source machine. They do not provide portable checkpoints or live migration between local and cloud. For local branching, use the `smolvm` CLI.
 
 ## Configuration types
 
