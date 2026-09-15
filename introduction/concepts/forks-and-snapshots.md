@@ -58,6 +58,27 @@ A checkpoint is portable between hosts, within limits the runtime checks before 
 
 Restoring keeps the captured machine's shape. The CPU, memory, disk, and device topology come from the checkpoint, so they cannot be changed on the way in.
 
+Capture is the fussier side. A checkpoint has to be able to resume every device it captured, so a
+machine holding host-bound state is refused rather than captured into an artifact that could not
+be restored. The initial profile refuses a machine with any of:
+
+- host mounts, including staged mounts
+- published sockets
+- remote volumes
+- host secret references
+- host-backed image layers, which includes a machine created from a pack
+- custom DNS
+- named inter-VM networking
+- Vulkan GPU state, CUDA state, or Rosetta
+- SSH agent forwarding or Docker socket forwarding
+
+The error names the ones in the way and asks you to stop or detach them before capture. A machine
+that needs a mount or a socket for its work is therefore a machine to pack, not to checkpoint.
+
+`machine branch` is the other way round: it takes no mount or socket flag at all, and children
+inherit whatever the source was created with. To give each child its own mount, build the base as
+an artifact and create from it, as the packs page shows.
+
 ## Migration boundary
 
 Branching is a same-runtime clone operation. It is not live migration between hosts.
