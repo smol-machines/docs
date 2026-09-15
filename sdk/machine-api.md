@@ -235,7 +235,8 @@ with Machine.create(conn=ConnectOptions(target="local")) as machine:
 
 ## Branching
 
-The SDK exposes `branch()` for cloud machines. Create the source machine with `branchable: true`, then clone its live state:
+The SDK exposes `branch()` for cloud machines. Create the source machine as branchable, `branchable: true` in TypeScript and
+`branchable=True` in Python, then clone its live state:
 
 ```ts
 const clone = await source.branch("clone-1");

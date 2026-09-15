@@ -147,7 +147,7 @@ Seeing that means the deployment is behind, not that the flag is wrong.
 
 ## Branches and checkpoints
 
-Branch creates a copy-on-write child from a running branchable cloud machine. It does not provide local-to-cloud live migration.
+Branching creates a copy-on-write child from a running branchable cloud machine. It does not provide local-to-cloud live migration.
 
 Machine snapshots are not implemented in the cloud API: the snapshot routes return `501`. To keep a stopped machine's disk state, export it to a `.smolmachine` artifact instead.
 

@@ -132,9 +132,9 @@ flag or API name generally appears in the page that documents it:
 
 ```bash
 # --include mirrors the site's own served-set rule: lowercase names are pages
-grep -rn --include='[a-z]*.md' "allow_hosts" .          # the flag's home page
+grep -rn --include='[a-z]*.md' "allow_hosts" .            # the flag's home page
 grep -rln --include='[a-z]*.md' "smolvm machine branch" . # pages naming a command
-grep -rn --include='[a-z]*.md' "^title:" . | sort       # every page title
+grep -rn --include='[a-z]*.md' "^title:" . | sort         # every page title
 ```
 
 ## Reading the format

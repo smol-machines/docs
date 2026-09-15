@@ -23,7 +23,7 @@ Branch support is host and feature dependent. Native Windows does not currently 
 | `smolvm machine fork` | `smolvm machine branch` |
 | `smolvm machine fork-release` | `smolvm machine branch-release` |
 | `--forkable` | `--branchable` |
-| `--golden` | `--from` |
+| `--golden` | `--from` on `machine branch` |
 | `[fork]` in a Smolfile | `[branch]` |
 | `fork()` in the Node and Python SDKs | `branch()` |
 
