@@ -110,7 +110,7 @@ For cloud, set `MachineConfig.image` during creation and use `exec()`.
 
 ### Stream output
 
-`execStream()` / `exec_stream()` yields stdout, stderr, exit, and error events as they arrive. It is supported on the local target. For cloud command streaming, use the Cloud REST API's Server-Sent Events response.
+`execStream()` / `exec_stream()` yields stdout, stderr, exit, and error events as they arrive. It is supported on the local target and on cloud machines. A client that is not using an SDK can read the Cloud REST API's Server-Sent Events response directly.
 
 ```ts
 for await (const event of machine.execStream(["sh", "-lc", "make test"])) {

@@ -114,14 +114,16 @@ cat "$body"
 
 Typical meanings:
 
-- `400`: malformed or invalid request
+- `400`: the body was not JSON, or a well-formed body broke a rule the schema cannot express
 - `401` or `403`: missing, invalid, or insufficient credentials
 - `402`: tenant billing or budget restriction
 - `404`: machine or other resource does not exist
 - `409`: lifecycle conflict or duplicate name
-- `422`: request accepted as structured input but rejected by a constraint such as quota
+- `422`: the body parsed but did not satisfy the schema, or the request was refused by a quota
 - `429`: rate limited; retry with bounded backoff and jitter
 - `5xx`: service failure; retry idempotent requests with bounded backoff
+
+The status does not separate these cleanly, so read the body rather than branching on the code alone: a wrong field name, a wrong type and a quota refusal are all `422`, and a body that parses but breaks a semantic rule comes back as `400`.
 
 Do not automatically retry invalid input, authentication failures, or arbitrary non-idempotent creates. When a create times out, list or fetch the resource before submitting another create.
 
