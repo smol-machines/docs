@@ -199,6 +199,26 @@ The bucket is mounted by the machine's agent from inside the guest, so the image
 
 Remote volumes need egress to reach the bucket, so an ephemeral run without `--net` is rejected rather than started. `machine run` and `machine create` accept an `s3://` source; `machine update` and `pack run` do not.
 
+### Run a hypervisor inside the machine
+
+`--nested` exposes the host's virtualization extensions to the guest so it can run KVM, which is
+what lets smolvm, QEMU or another hypervisor run inside the machine:
+
+```bash
+smolvm machine run --nested --net --image ubuntu:24.04 -- sh -c "ls -l /dev/kvm"
+```
+
+It is off by default, because nesting turns work the guest would do natively into vmexits and a
+nested guest runs far slower.
+
+The host has to be able to offer the extensions in the first place, and smolvm checks before the
+VM boots rather than failing inside the guest. On Apple silicon that means an M3 or newer and
+macOS 15 or later; on Linux it means nested KVM is enabled, through `kvm_intel.nested=1` or
+`kvm_amd nested=1`. A host that cannot returns an error naming the check result.
+
+Running a Docker daemon in a machine does not need this flag. Containers share the guest kernel,
+so [Docker in a Machine](/docs/guides/docker-in-a-machine) works without it.
+
 ## Common resource flags
 
 | Flag | Meaning |
