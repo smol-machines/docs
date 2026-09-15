@@ -90,6 +90,27 @@ Persistent named machines keep disk changes across stop/start on the same host. 
 
 Packing does not preserve live RAM or running processes. Standalone smolvm does not provide live migration between hosts or a general portable checkpoint/restore service. Build backup and recovery around stopped disk artifacts and any external durable storage your workload uses.
 
+### An isolated data root
+
+`SMOLVM_DATA_DIR` puts every piece of smolvm state under one directory: machine directories, the
+agent rootfs, the disk templates and the server database. It works by pointing `HOME` at that
+root before any path is computed, so everything derived from the home directory follows it. That
+is what lets a node run machines under a system-owned root rather than an operator's home.
+
+```bash
+SMOLVM_DATA_DIR=/var/lib/smolvm smolvm machine ls
+```
+
+The agent rootfs is the one piece that may not follow. smolvm looks for it in `SMOLVM_AGENT_ROOTFS`
+first, then beside the `smolvm` binary, and only then under the data directory that this variable
+moves. The release tarball sets that variable and ships the rootfs next to the binary, so a tarball
+install is unaffected. An install that relies on the data-directory copy is not: point
+`SMOLVM_AGENT_ROOTFS` at the rootfs, or copy it into the new root. A machine that cannot find it
+fails to start with `could not find agent rootfs at <path>; set SMOLVM_AGENT_ROOTFS or reinstall`.
+
+`SMOLVM_DATA_DIR` is read on Linux only. On macOS it is ignored and state stays where the
+installer put it.
+
 Test host failure, node replacement, and version upgrades before using a self-hosted deployment for production workloads.
 
 smol machines can provide custom managed solutions to customers with special needs.
