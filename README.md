@@ -23,6 +23,7 @@ sdk.md                      # section landing page   →  /docs/sdk
 sdk/*.md                    # →  /docs/sdk/<name>
 cloud.md · cloud/*.md
 local.md · local/*.md
+local/skills/*.md           # →  /docs/local/skills/<name>
 guides/*.md                 # →  /docs/guides/<name>
 ```
 

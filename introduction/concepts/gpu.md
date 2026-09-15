@@ -81,6 +81,8 @@ This design allows multiple machines to share a host GPU and lets a warm CUDA ma
 
 Enable this separate path with `--cuda` or `cuda: true` / `cuda=True` in the local SDK. The host needs a compatible NVIDIA GPU and driver with `libcuda.so.1` available. It works on Linux hosts and on Windows hosts with WHP, where it was verified on an RTX 4050 laptop. The guest image does not need an NVIDIA kernel driver.
 
+The [gpu-cuda](/docs/local/skills/gpu-cuda) skill packet is a procedure for running a workload on this path, including why an exit code proves nothing when the API is remoted.
+
 ## Tradeoffs
 
 CUDA remoting adds transport and marshalling work to each API call. Workloads with many small, latency-sensitive calls can see more overhead than workloads dominated by larger kernels and transfers.
