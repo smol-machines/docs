@@ -216,6 +216,9 @@ Remote volumes need egress to reach the bucket, so an ephemeral run without `--n
 | `--interactive`, `-i` | Keep stdin open |
 | `--tty`, `-t` | Allocate a TTY |
 | `--smolfile`, `-s` | Read configuration from a Smolfile |
+| `--block-io` | Host block I/O engine, `sync` or `async` |
+
+`--block-io` takes `sync`, which services one request at a time on the virtio block worker, or `async`, which submits queued raw-disk reads through a restricted Linux io_uring. `async` is worth reaching for when a workload is disk heavy on a Linux host. It is a Linux-only engine, and asking for it anywhere else does not quietly fall back: the machine refuses to start with `async block I/O is currently supported on Linux hosts only; use --block-io sync`. `machine run`, `machine create` and `smolvm pack run` all accept the flag.
 
 Defaults are 4 vCPUs, 8192 MiB of guest memory, 20 GiB of storage, and a 2 GiB overlay. Memory is elastic: the host commits and reclaims memory according to guest use.
 
