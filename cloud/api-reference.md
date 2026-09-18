@@ -125,6 +125,46 @@ Starting a machine blocks until the boot completes, which normally takes a few s
 
 Stopping a machine preserves its stored state. Deleting it removes the machine. See the lifecycle page for billing and storage details.
 
+## Plan limits
+
+Three ceilings apply to every tenant, and all three come from the plan the
+account is on rather than from the platform:
+
+- **How many machines you may hold** — counted across every state, not just
+  running ones, so a stopped machine still occupies a slot until it is deleted.
+- **How many may run at once** — counted over `started` and `creating`.
+- **How large one machine may be** — vCPU, memory, and disk, applied per
+  machine at create time.
+
+Read your own ceilings rather than assuming them. `GET /v1/account` returns
+`effectiveMaxMachines` alongside the plan it came from, and the plan object
+carries `maxConcurrentMachines`, `maxCpus`, `maxMemoryMb`, and `maxDiskGb`:
+
+```bash
+curl -fsSL https://api.smolmachines.com/v1/account \
+  -H "Authorization: Bearer $SMOL_API_KEY"
+```
+
+The published plans and their ceilings are listed on the
+[pricing page](/pricing). Limits differ between plans; the per-unit rates do
+not, so moving up a plan buys headroom rather than a different price.
+
+Exceeding a ceiling is refused at create time with `422` and a body naming the
+plan, the limit, and where to change it — nothing is started, so nothing is
+charged:
+
+```
+machine count quota exceeded: your Standard plan allows 20 machines; upgrade at https://smolmachines.com/pricing
+concurrency limit reached: your Standard plan allows 20 machines running at once; upgrade at https://smolmachines.com/pricing
+```
+
+::: tip
+A count refusal usually means machines were left behind rather than that the
+ceiling is genuinely too low. Ephemeral work should delete its machine when it
+finishes, and `autoStopSeconds` stops an idle machine but does not delete it —
+a stopped machine still holds its slot.
+:::
+
 ## Errors and request IDs
 
 Use the HTTP status code first. Error bodies may be plain text. For guest exit codes and SDK error patterns, see [Error handling](/docs/guides/error-handling).
