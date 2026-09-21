@@ -91,6 +91,32 @@ The generated launcher also has a persistent daemon mode:
 
 In launcher daemon mode, `/workspace` persists across `exec` and stop/start. OCI container overlay changes, including package installs, reset for each `exec`. Use `machine create --from` when the full machine filesystem must remain writable and persistent.
 
+## Sizing the export helper
+
+Packing a stopped machine runs a short-lived helper VM that mounts the image's layers and tars the
+merged tree. smolvm sizes that helper from the host and the image: memory is 4096 MiB or half of
+what the host has free, whichever is smaller, never below 1024 MiB, and the disk follows the
+image's size rather than a fixed default.
+
+Two environment variables override the sizing when the automatic choice is wrong:
+
+| Variable | Overrides |
+|---|---|
+| `SMOLVM_EXPORT_HELPER_MEMORY_MIB` | the helper's memory, in MiB |
+| `SMOLVM_EXPORT_HELPER_STORAGE_GIB` | the helper's storage disk, in GiB |
+
+```bash
+SMOLVM_EXPORT_HELPER_STORAGE_GIB=128 smolvm pack create --from-vm app -o ./app
+```
+
+Reach for the storage one when an export of a large image fails for room. The disk is sparse, so a
+generous value costs nothing on the host until it is written.
+
+Two things to know before setting either. **A value that is not a positive whole number is ignored
+without a warning** and the automatic sizing runs instead, so a typo looks exactly like a setting
+that had no effect. And an override is taken literally: it skips the floor the automatic path
+applies, so a value smaller than the export needs will fail where the automatic choice would not.
+
 ## Architecture compatibility
 
 The payload can move between supported host operating systems when the host architecture matches. An arm64 artifact requires an arm64 host; an x86_64 artifact requires an x86_64 host. The launcher stub is specific to the host platform that created it, so use a launcher built for the destination platform or run the `.smolmachine` payload with an installed compatible `smolvm`.

@@ -8,7 +8,9 @@ The smol SDK provides one `Machine` API for local microVMs and smol cloud. Selec
 
 ## Install
 
-The package is named `smolmachines` on npm and PyPI.
+The package is named `smolmachines` on npm and PyPI, and the crate is `smolmachines` on
+crates.io. This page covers Node and Python; Rust has its own page,
+[Rust SDK](/docs/sdk/rust), because its install and its host requirements differ.
 
 Do not install the older package named `smolvm` for these examples. It is a REST client for `smolvm serve`, not the unified embedded/cloud SDK documented here.
 
