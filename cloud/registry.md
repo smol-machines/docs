@@ -83,6 +83,26 @@ export REGISTRY_PASSWORD="your-token"
 
 Use `[images]` for OCI image registry credentials. Those credentials are separate from `.smolmachine` artifact registry credentials.
 
+### A `docker login` on the host is enough for image pulls
+
+Before reaching for `[images]`, check whether you already have the credential. smolvm resolves OCI
+image credentials from the host's Docker configuration on every pull, and that includes
+credential helpers, so a registry you have already run `docker login` against needs nothing
+configured here. It reads `DOCKER_CONFIG` if that is set, and `~/.docker/` otherwise.
+
+The resolution happens on the host, and the credential is never handed to the guest. There is a
+`--docker-config` flag that mounts `~/.docker/` into the machine, and it is not what makes a
+private pull work; it exists for the other contents of that directory.
+
+With no credential for the registry, from either source, the pull fails naming the registry:
+
+```text
+No matching credentials were found for "ghcr.io"
+```
+
+`[images]` is still the way to configure a registry you have not logged in to, or to keep smolvm's
+credentials separate from Docker's.
+
 ## Cloud support status
 
 The public catalog and local `smolvm pack pull` workflow are live.
