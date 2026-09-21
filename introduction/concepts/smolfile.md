@@ -46,6 +46,7 @@ These fields describe the machine and its workload. All are optional.
 | `memory` | integer | Memory in MiB. Default: `8192`. |
 | `storage` | integer | Storage disk size in GiB. |
 | `overlay` | integer | Overlay disk size in GiB. |
+| `block_io` | string | Host block I/O engine, `"sync"` or `"async"`. Default: `"sync"`. |
 | `net` | boolean | Enable outbound networking. Networking is off by default. |
 | `gpu` | boolean | Enable Vulkan GPU acceleration through virtio-gpu. |
 | `gpu_vram` | integer | GPU shared-memory size in MiB. Ignored unless `gpu = true`. |
@@ -221,7 +222,7 @@ publishing anything.
 
 ## Artifact profile
 
-`[artifact]` overrides values when `smol pack create` builds a `.smolmachine` artifact. `[pack]` is an alias.
+`[artifact]` overrides values when `smolvm pack create` builds a `.smolmachine` artifact. `[pack]` is an alias.
 
 | Field | Type | Description |
 | --- | --- | --- |
