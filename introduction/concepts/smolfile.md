@@ -146,6 +146,33 @@ The same commands can be given on the command line with `--init`, which is
 accepted on `machine run` as well as `machine create`. The flag wins when a
 Smolfile also sets `init`.
 
+### Secrets and init do not mix on the cached path
+
+An ephemeral run that has `init` steps is cached by default. smolvm bakes `image` plus `init` once
+into a reusable artifact and later runs of the same pair rehydrate from it, printing
+`Using cached init layer <id>`. Nothing has to be passed to opt in, so a Smolfile with `[init]`
+takes that path on its second run whether or not you know the cache exists.
+
+**A secret that `init` needs does not survive that path.** The bake runs without the secret refs,
+and what happens next depends on how the secret was given:
+
+- A Smolfile `[secrets]` entry with `[init]` **fails the run**, with an error about packs that
+  never mentions the cache: `secret 'MYSEC': source kind 'env' is not allowed in scope Untrusted;
+  secret refs may only be resolved on the trusted local host (packs may not carry secret refs)`.
+- `--secret-env` or `--secret-file` on the command line is worse, because it does not fail. The
+  init step runs with the variable **empty**, and the value is baked in that way, so every later
+  run rehydrates the same empty result.
+
+Pass `--no-init-cache` when `init` needs a secret. It re-runs `init` on every ephemeral run
+instead of baking it, and the secret is present:
+
+```bash
+smolvm machine run -s app.smolfile --no-init-cache -- ./start.sh
+```
+
+This applies to ephemeral runs. A persistent machine runs `init` on its first start, outside the
+init-layer cache, and is unaffected.
+
 ## Network policy
 
 `[network]` narrows outbound access. Both fields imply networking when they contain entries.
