@@ -89,6 +89,7 @@ page.
 | `sdk.md` | Install the SDK, run your first machine from Node or Python |
 | `sdk/with-local.md` | Drive the embedded in-process engine |
 | `sdk/with-cloud.md` | Point the same code at smol cloud |
+| `sdk/rust.md` | The Rust crate: install, the local host requirement, local and cloud |
 | `sdk/machine-api.md` | The `Machine` class: config, exec, run, files, lifecycle |
 
 **Local** — running on your own host.
