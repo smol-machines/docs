@@ -50,7 +50,23 @@ Secret injection resolves a host environment variable or file and places the val
 
 SSH-agent forwarding follows a different model. Private keys remain in the host agent, and the guest receives access to an agent socket. The guest can request signatures for as long as that socket is available, so forwarding still grants the ability to use the corresponding key.
 
-HTTP credential brokering that swaps guest placeholders for host-held secrets is under development and is not a shipped product surface.
+## Credential substitution
+
+A credential binding gives a workload the ability to *use* a secret at named hosts without ever holding it. The guest receives an opaque placeholder in the environment variable it expects; the host replaces the placeholder with the real value only on HTTPS requests to the binding's allowed hosts, and only inside a request header.
+
+```bash
+NOTION_API_KEY=secret_... smolvm machine create --name notes --image alpine:3.20 \
+  --credential notion=NOTION_API_KEY@api.notion.com
+smolvm machine start --name notes
+smolvm machine exec --name notes -- sh -c \
+  'echo "$NOTION_API_KEY"; curl -s -H "Authorization: Bearer $NOTION_API_KEY" https://api.notion.com/v1/users/me'
+```
+
+The first line of output is `SMOL_PLACEHOLDER_NOTION_...`, which is all the guest can read or exfiltrate. Notion receives the real key. The same placeholder sent to any other host travels as a literal string; a placeholder in a URL, query string or request body is refused with a `403`.
+
+The value is read on the host for every request, from a `[secrets]` reference of the same variable name or, failing that, from the host environment variable of that name. Rotating it needs no restart. Each binding lists exact hosts, and when the machine also has `allow_hosts` every credential host must fall under it, so widening the network never widens a credential. Branched machines inherit placeholders and keep working; each branch is resolved under its own name, so one branch can be cut off without touching the others.
+
+Clients that honor `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `GIT_SSL_CAINFO`, `NODE_EXTRA_CA_CERTS` or `DENO_CERT` work unmodified; the guest is given a bundle of the image's own roots plus a per-machine CA at `/run/smolvm/ca-bundle.pem`. Substitution covers HTTPS on port 443 and needs the default `virtio-net` backend.
 
 ## Practical boundary
 

@@ -256,6 +256,7 @@ so [Docker in a Machine](/docs/guides/docker-in-a-machine) works without it.
 | `--net` | Enable networking |
 | `--allow-host` | Allow egress to a hostname |
 | `--allow-cidr` | Allow egress to a CIDR |
+| `--credential` | Bind a credential as `NAME=ENV_VAR@HOST[,HOST]`: the guest gets a placeholder in `ENV_VAR`; the host substitutes the real value only on HTTPS requests to the listed hosts |
 | `--cpus` | vCPU count |
 | `--mem` | Guest memory in MiB |
 | `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]` |

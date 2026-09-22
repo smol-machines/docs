@@ -301,6 +301,17 @@ TLS_KEY = { from_file = "/absolute/path/to/tls.key" }
 
 `from_env` reads a host environment variable and `from_file` reads an absolute host file path at workload launch. The resolved plaintext is injected into the guest, while the reference is stored in the machine record and packed artifact so it can be resolved again on a trusted local host. See [Isolation, networking, and credentials](/docs/introduction/concepts/isolation-networking-credentials).
 
+When the workload only needs to *use* a key in request headers, bind it as a credential instead of injecting it. The guest receives a placeholder in the variable; the host substitutes the real value only on HTTPS requests to the listed hosts, read from the `[secrets]` reference of the same variable name or from the host environment.
+
+```toml
+[[network.credentials]]
+name = "notion"
+environment_variable = "NOTION_API_KEY"
+allowed_hosts = ["api.notion.com"]
+```
+
+Each binding lists exact hosts. When `[network].allow_hosts` is set, every credential host must fall under it.
+
 ## Service metadata
 
 `[service]` describes the port a deployed service listens on inside the VM.
