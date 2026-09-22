@@ -19,7 +19,9 @@ smolvm machine run --net --image alpine -- echo hello
 Filesystem changes do not carry into the next run. Use this mode for one-off jobs, tests, and untrusted commands.
 
 Networking is off by default; `--net` above lets the in-guest image pull reach
-the registry. An ephemeral run pulls every time unless you add `--oci-cache`,
+the registry. On the default backend the guest has no visible network interface and `ping` does
+not work, even though TCP and UDP do — see [how networking behaves inside a
+machine](#how-networking-behaves-inside-a-machine). An ephemeral run pulls every time unless you add `--oci-cache`,
 which keeps the image on the host for later runs to start from without a pull.
 Beyond the pull, enable networking only when the workload needs network access:
 
@@ -265,9 +267,67 @@ so [Docker in a Machine](/docs/guides/docker-in-a-machine) works without it.
 | `--tty`, `-t` | Allocate a TTY |
 | `--smolfile`, `-s` | Read configuration from a Smolfile |
 | `--block-io` | Host block I/O engine, `sync` or `async` |
+| `--net-backend` | Networking implementation, `tsi` (default) or `virtio-net` |
 
 `--block-io` takes `sync`, which services one request at a time on the virtio block worker, or `async`, which submits queued raw-disk reads through a restricted Linux io_uring. `async` is worth reaching for when a workload is disk heavy on a Linux host. It is a Linux-only engine, and asking for it anywhere else does not quietly fall back: the machine refuses to start with `async block I/O is currently supported on Linux hosts only; use --block-io sync`. `machine run`, `machine create` and `smolvm pack run` all accept the flag.
 
 Defaults are 4 vCPUs, 8192 MiB of guest memory, 20 GiB of storage, and a 10 GiB overlay. Memory is elastic: the host commits and reclaims memory according to guest use.
+
+## How networking behaves inside a machine
+
+Networking is off until you pass `--net`. What you get then depends on the backend, and the
+default one behaves in a way that surprises people the first time they look inside a machine.
+
+The default backend, `tsi`, carries the guest's TCP and UDP connections directly rather than
+emulating a network card. Outbound connections work, port forwarding works, and DNS works. But
+there is no virtual interface for the guest to show you:
+
+```console
+$ smolvm machine exec --name web -- ip link show
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 ...
+2: dummy0: <BROADCAST,UP,LOWER_UP> mtu 1500 ...
+```
+
+`lo` and `dummy0` are the whole list. There is no `eth0`, the guest holds no IP address of its
+own, and `ip route` shows only a placeholder route. None of that means networking is broken.
+
+**`ping` does not work on this backend, and its failure is misleading.** ICMP is not TCP or UDP,
+so `tsi` does not carry it:
+
+```console
+$ smolvm machine exec --name web -- ping -c1 8.8.8.8
+ping: sendto: Network unreachable
+```
+
+The machine reached the internet perfectly well a moment later:
+
+```console
+$ smolvm machine exec --name web -- wget -qO- https://example.com
+<!doctype html><html lang="en">...
+```
+
+So check connectivity with something that speaks TCP — `wget`, `curl`, or your own client — and
+treat a missing interface and a failing `ping` as expected rather than as symptoms.
+
+### When you need a real interface
+
+Pass `--net-backend virtio-net` and the guest gets an ordinary network card, its own address, and
+ICMP:
+
+```console
+$ smolvm machine create --name web --image alpine --net --net-backend virtio-net
+$ smolvm machine start --name web
+$ smolvm machine exec --name web -- ip link show
+1: lo: <LOOPBACK,UP,LOWER_UP> ...
+2: dummy0: <BROADCAST,NOARP> ...
+3: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 ...
+$ smolvm machine exec --name web -- ping -c1 8.8.8.8
+1 packets transmitted, 1 packets received, 0% packet loss
+```
+
+Choose `virtio-net` when the workload inspects its own interfaces, needs ICMP, or runs software
+that expects a routable address — a VPN client, a container runtime, or a network test suite.
+Otherwise the default is the one to keep: it needs no interface configuration in the guest and
+carries the traffic most workloads actually make.
 
 Run `smolvm machine COMMAND --help` against your installed version for the complete flag set.
