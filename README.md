@@ -107,10 +107,11 @@ request:
   new pages. Say where a new page belongs in your PR description and it gets
   handled during review.
 
-A merge here does not appear on the site immediately. The website pins this
-repository at an exact commit, so the two are joined by a scheduled job that
-moves that pin to `main` and redeploys — currently **twice a day, at 00:00 and
-12:00 UTC**. A page merged just after a run waits for the next one.
+The website pins this repository at an exact commit rather than tracking `main`,
+so a merge here reaches the site only when that pin moves. Merging moves it: the
+merge tells the website to advance the pin and redeploy, normally within a few
+minutes. A twice-daily job at 00:00 and 12:00 UTC sits behind that as a failsafe,
+which bounds the delay at twelve hours if the trigger fails.
 
 The pin is why an unrelated website deploy never publishes docs by accident, and
 why a rollback of the site rolls the docs back with it.

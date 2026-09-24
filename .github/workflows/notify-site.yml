@@ -1,0 +1,78 @@
+name: notify-site
+
+# Tell smol-machines/smolmachines to publish this repo the moment a change
+# lands on main.
+#
+# The website mounts this repo as a git submodule, which pins one exact commit
+# rather than tracking main. A merge here therefore changes nothing on the site
+# until someone moves that pin. `sync-docs.yml` over there moves it, tests the
+# new content against the site's navigation, and deploys. This workflow is what
+# tells it to run.
+#
+# Push rather than poll, because a poll does work when it is most likely to be
+# pointless: twice a day, whether or not anything merged, and it is late by
+# construction when something did. A dispatch happens because something useful
+# actually happened. `sync-docs.yml` keeps its twice-daily schedule as a
+# FAILSAFE for every way this trigger can die silently (the App uninstalled, its
+# key rotated, this file renamed), which bounds staleness at twelve hours
+# instead of "never, until a reader reports a stale page".
+#
+# On the credential, plainly. The App key is a repository secret, so it is
+# reachable only by workflows in this repo, and only on push to main or a manual
+# dispatch: GitHub does not expose secrets to workflow runs from forked pull
+# requests, which is what makes this safe to carry in a public repo. The
+# exposure that remains is anyone with write access here. The token is minted
+# per run, scoped to one repository, and carries one permission: it can start
+# and cancel workflow runs on the site repo. It cannot read or write code,
+# anywhere.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Coalesce a burst. Seven pull requests merged inside a few minutes on
+# 2026-09-01, which would have sent seven dispatches for one deploy. Cancelling
+# the in-flight run is safe either way: a run already past its dispatch step has
+# done its job, and a run cancelled before it dispatches is replaced by the
+# newer one, which carries the newer commit.
+concurrency:
+  group: notify-site
+  cancel-in-progress: true
+
+# This job reads nothing and writes nothing in this repo. The only credential it
+# uses is the minted App token below.
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: ask the site to sync
+    runs-on: ubuntu-latest
+    steps:
+      # A GitHub App rather than a personal token: an App belongs to the org
+      # rather than to a person, and its installation token is minted per run
+      # and expires with it. A fine-grained PAT with the same single permission
+      # would work, and would also expire within a year and stop this without
+      # saying so.
+      - name: Mint a token scoped to the site repo
+        id: token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.SITE_DEPLOY_APP_ID }}
+          private-key: ${{ secrets.SITE_DEPLOY_APP_KEY }}
+          owner: smol-machines
+          repositories: smolmachines
+
+      # `gh workflow run` resolves the workflow by filename on the site repo's
+      # default branch, so renaming or moving sync-docs.yml breaks this and the
+      # failure is this step going red.
+      #
+      # No error handling on purpose. If the dispatch cannot be sent, this run
+      # fails visibly in this repo's Actions tab, and the site's failsafe still
+      # ships the content within twelve hours. Swallowing the error would trade
+      # a red tick for a silent twelve-hour delay, which is the failure this
+      # whole arrangement exists to remove.
+      - name: Dispatch the site's docs sync
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: gh workflow run sync-docs.yml --repo smol-machines/smolmachines
