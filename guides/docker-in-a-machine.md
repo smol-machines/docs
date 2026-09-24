@@ -57,6 +57,8 @@ dockerd --data-root=/storage/docker --storage-driver=overlay2
 
 The local example instead bind-mounts `/storage/docker` onto `/var/lib/docker`. Bind mounts do not survive a stop and start, so reapply that mount before starting `dockerd`.
 
+The [docker-in-machine](/docs/guides/skills/docker-in-machine) skill packet is this procedure with that reapplication built into the start step, and it asserts which filesystem Docker's root landed on.
+
 When separate exec calls use separate mount namespaces, including on the managed cloud path, point `dockerd` directly at `/storage/docker`.
 
 ## Reach the guest daemon from the host
