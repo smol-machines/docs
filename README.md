@@ -24,6 +24,7 @@ sdk/*.md                    # →  /docs/sdk/<name>
 cloud.md · cloud/*.md
 local.md · local/*.md
 guides/*.md                 # →  /docs/guides/<name>
+guides/skills/*.md          # →  /docs/guides/skills/<name>
 ```
 
 A file at `<path>.md` is served at `/docs/<path>`, and folders nest:

@@ -101,6 +101,10 @@ Replace the file checks with your tests or agent commands after preparing
 dependencies in the source. Use `machine exec` for subsequent commands in
 each child; delete the child when its task ends.
 
+To run one task at a time as a procedure, with a preflight that checks the host
+first and a cleanup that proves it afterwards, load a packet from
+[Skill Packets](/docs/guides/skills).
+
 ## Know the boundary
 
 Branching and checkpoint capture briefly pause the source to capture consistent

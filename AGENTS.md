@@ -61,6 +61,7 @@ page.
 | The underlying model — machines, isolation, state | `introduction/concepts/` |
 | Writing code against machines (Node/Python) | `sdk/` |
 | Running on your own host, CLI flags | `local/` |
+| A task-scoped procedure an agent loads to drive the CLI | `guides/skills/` |
 | The hosted platform, REST API, registry | `cloud/` |
 | A concrete end-to-end task | `guides/` |
 
@@ -125,6 +126,15 @@ page.
 | `guides/headless-browser-computer-use.md` | Drive a browser or desktop inside a machine |
 | `guides/agent-sandboxes-ci.md` | Isolate agent-generated code and CI jobs |
 | `guides/error-handling.md` | Error codes and how to handle them |
+| `guides/skills.md` | The skill packets, what a packet page carries, and how to load one |
+| `guides/skills/install.md` | Install smolvm and prove the host boots a VM |
+| `guides/skills/teardown.md` | Stop every machine a session started and prove the host is clean |
+| `guides/skills/sandbox.md` | Run untrusted code with no network against a read-only repo |
+| `guides/skills/dev-env.md` | A persistent machine re-entered across sessions |
+| `guides/skills/local-api.md` | Drive smolvm over its local HTTP API |
+| `guides/skills/docker-in-machine.md` | Run a Docker daemon inside a machine |
+| `guides/skills/gpu-cuda.md` | Run CUDA workloads against a host NVIDIA GPU |
+| `guides/skills/pack.md` | Ship a prepared machine to another host as one file |
 
 ## Searching
 
@@ -151,7 +161,7 @@ markup noise:
 - **Callouts** — `::: tip`, `::: warning`, `::: info`, closed by `:::`, with an
   optional title on the opening line. These hold caveats that change what a
   reader should do — a cloud/local difference, a limit, a surprising default —
-  so carry them into any answer you build from the page. Eight are in use:
+  so carry them into any answer you build from the page. Nine are in use:
   `cloud/api-reference.md` (exec is metered at $0),
   `introduction/concepts/gpu.md` (cloud has no GPU machines),
   `sdk/machine-api.md` (host mounts are local only),
@@ -160,8 +170,9 @@ markup noise:
   authentication),
   `introduction/concepts/persistent-state-volumes-resources.md` (the DAX option
   takes effect on x86_64 guests only),
-  `introduction/concepts/smolfile.md` (init always runs as root), and
-  `guides/kubernetes-in-a-microvm.md` (two node conditions stop pods starting).
+  `introduction/concepts/smolfile.md` (init always runs as root),
+  `guides/kubernetes-in-a-microvm.md` (two node conditions stop pods starting),
+  and `guides/skills.md` (skill discovery conventions move).
 - **Navigation cards** — `index.md` and
   `introduction/concepts.md` embed raw HTML card markup: a
   `doc-cards-lead` paragraph and a `doc-cards` container holding `doc-card`
