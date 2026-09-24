@@ -65,6 +65,8 @@ with Machine.create(config, ConnectOptions(target="local")) as machine:
 
 The context manager deletes the local machine on exit. For a cloud machine, pass `ConnectOptions(target="cloud")` and set `SMOL_CLOUD_TOKEN`; see [Use SDK on Cloud](/docs/sdk/with-cloud) for lifecycle and readiness details.
 
+The [sdk-python](/docs/guides/skills/sdk-python) skill packet is that cloud path as a procedure, from install through delete, with the install traps a fresh environment meets first.
+
 ## Run a local project
 
 Mount only the directory the guest needs:

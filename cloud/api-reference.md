@@ -105,6 +105,8 @@ Metering semantics to build billing on:
 - `DELETE /v1/machines/{id}?includeUsage=true` returns `200` with the settled usage and cost in the response body — the recommended pattern for short-lived machines (create, run a job, delete, bill from the DELETE response). Without the flag, DELETE returns `204` as before.
 - `GET /v1/machines/{id}/usage` keeps working for 30 days after a machine is deleted.
 
+The [cloud-usage](/docs/guides/skills/cloud-usage) skill packet reads these totals and reconciles one machine's bill against its uptime and the published rate.
+
 ### API keys
 
 The API supports listing, creating, and revoking keys:

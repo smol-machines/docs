@@ -73,6 +73,8 @@ try {
 
 For a cloud machine, pass `{ target: "cloud" }` as the second argument to `Machine.create` and set `SMOL_CLOUD_TOKEN`; see [Use SDK on Cloud](/docs/sdk/with-cloud) for lifecycle and readiness details.
 
+The [sdk-node](/docs/guides/skills/sdk-node) skill packet is that cloud path as a procedure, from install through delete, including how to log a machine without printing its key.
+
 ## Run a local project
 
 Mount only the directory the guest needs:

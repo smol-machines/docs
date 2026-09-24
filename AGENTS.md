@@ -126,7 +126,7 @@ page.
 | `guides/headless-browser-computer-use.md` | Drive a browser or desktop inside a machine |
 | `guides/agent-sandboxes-ci.md` | Isolate agent-generated code and CI jobs |
 | `guides/error-handling.md` | Error codes and how to handle them |
-| `guides/skills.md` | The skill packets, what a packet page carries, and how to load one |
+| `guides/skills.md` | Which skill packet fits a task, what a packet page carries, and how to load one |
 | `guides/skills/install.md` | Install smolvm and prove the host boots a VM |
 | `guides/skills/teardown.md` | Stop every machine a session started and prove the host is clean |
 | `guides/skills/sandbox.md` | Run untrusted code with no network against a read-only repo |
@@ -135,6 +135,13 @@ page.
 | `guides/skills/docker-in-machine.md` | Run a Docker daemon inside a machine |
 | `guides/skills/gpu-cuda.md` | Run CUDA workloads against a host NVIDIA GPU |
 | `guides/skills/pack.md` | Ship a prepared machine to another host as one file |
+| `guides/skills/cloud-auth.md` | Point an agent at a cloud account and prove one call works |
+| `guides/skills/cloud-machine.md` | Create, exec, move files, restart and delete a cloud machine |
+| `guides/skills/cloud-registry.md` | Push an artifact and run a cloud machine from it |
+| `guides/skills/cloud-errors.md` | Every failure the cloud API returns, including the ones that arrive as 200 |
+| `guides/skills/cloud-usage.md` | What a run cost, reconciled against uptime and the published rate |
+| `guides/skills/sdk-python.md` | Drive cloud machines from Python, install through delete |
+| `guides/skills/sdk-node.md` | Drive cloud machines from Node, install through delete |
 
 ## Searching
 

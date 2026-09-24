@@ -127,6 +127,8 @@ The status does not separate these cleanly, so read the body rather than branchi
 
 Do not automatically retry invalid input, authentication failures, or arbitrary non-idempotent creates. When a create times out, list or fetch the resource before submitting another create.
 
+The [cloud-errors](/docs/guides/skills/cloud-errors) skill packet provokes each of these failures on purpose and shows what a client must branch on, including the ones that arrive as HTTP 200.
+
 The local `smolvm serve` API uses `/api/v1`. Generate the OpenAPI document for the installed version:
 
 ```bash
