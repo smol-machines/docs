@@ -6,8 +6,8 @@ title: "Docker in machine: run a Docker daemon inside a machine"
 
 Runs a Docker daemon inside a smolvm machine, for workloads that must call Docker themselves such as Testcontainers, Compose, image builds, or a coding agent that launches containers. Use when dockerd will not start inside a machine; when Docker worked on the first boot and broke after a stop and start; when deciding where Docker's data directory has to live; or when checking whether this is possible on a given platform at all. Do not use it to run OCI images, which smolvm boots natively without Docker, and do not attempt it on Windows, where the bundled guest kernel cannot support it.
 
-Verified on **smolvm v1.16.1** on macOS arm64, 2026-09-15, and on **v1.14.6** on Linux aarch64,
-2026-09-10. Done means `docker info` succeeds inside the guest, a nested container runs, and
+Verified on **smolvm v1.18.2** on macOS arm64 and Linux aarch64, 2026-09-24; the Linux run used
+the Smolfile with `memory = 1024`, for a host reason given below. Done means `docker info` succeeds inside the guest, a nested container runs, and
 Docker's data sits on the ext4 storage disk rather than the rootfs overlay.
 
 smolvm boots OCI images without Docker. This is only for software **inside** the machine that must
@@ -21,8 +21,8 @@ the direct kernel probe to re-check it on a newer build.
 ## The trap this packet exists for
 
 **`init` runs once, so the bind mounts are gone on the second boot.** The upstream example puts
-them in `init` alone, which is correct for exactly one boot. Reproduced on both hosts, and again on
-macOS arm64 on v1.16.1 on 2026-09-15:
+them in `init` alone, which is correct for exactly one boot. Reproduced on both hosts, again on
+macOS arm64 on v1.16.1 on 2026-09-15, and on both hosts on v1.18.2 on 2026-09-24:
 
 ```
 Init already completed, skipping 5 command(s)
@@ -35,7 +35,7 @@ listed `alpine:latest`, because the images are on `/storage`. **The failure mode
 will not start, or one running on the wrong filesystem, not lost data.**
 
 `smolvm machine create --help` still describes `--init` as running "on every VM start" at
-v1.14.6, which is what makes the upstream example look correct. The docs have been corrected and
+v1.18.2, which is what makes the upstream example look correct. The docs have been corrected and
 now say init runs once. More in `references/traps.md`.
 
 ## Procedure
@@ -94,7 +94,11 @@ result=docker_ok
 `docker_root_device` is the check that matters. `docker info` succeeds while `/var/lib/docker`
 sits on the rootfs overlay, and the failure that follows is confusing and much later.
 
-**5. Clean up.**
+**5. Use it, and clean up only when it is no longer wanted.** A machine someone asked for is the
+deliverable: leave it running and give them its name. Their own code gets in with
+`smolvm machine cp <file> smolskill-docker:/workspace/` or a `-v` mount on create, and runs with
+`smolvm machine exec --name smolskill-docker -- ...`; with no `docker` client on the host, that is
+also how a Testcontainers suite reaches the daemon.
 
 ```bash
 scripts/cleanup.sh --purge
@@ -143,9 +147,10 @@ verified**: neither host used here has a `docker` client.
 
 ## Platform arms
 
-- **Linux aarch64**: the scripts were run here, which is the verified platform for this use case.
-- **macOS arm64**: the scripts were run here too and every check passed, including the restart
-  trap and its recovery. The material behind this packet had not exercised this use case on macOS.
+- **Linux aarch64**: the scripts were run here on v1.18.2 with the Smolfile's memory at 1024 MiB,
+  and on v1.14.6 at 2048.
+- **macOS arm64**: the scripts were run here on v1.18.2 as shipped, and every check passed,
+  including the restart trap and its recovery.
 - **Linux x86_64**: not run anywhere for this use case.
 - **Windows x86_64**: **not possible**, on the evidence of one v1.14.2 run. A re-run on
   2026-09-11 against v1.14.6 **did not reach the question**: both attempts died pulling the image,
@@ -204,6 +209,37 @@ daemon comes up healthy while every container fails on `/dev/mqueue`. That resul
 earlier run on Windows 11 against v1.14.2. The 2026-09-11 attempt on v1.14.6 died pulling the
 image and confirmed nothing either way, so that answer still rests on the one run.
 
+## Re-verified on v1.18.2
+
+Run 2026-09-24 PT against v1.18.2 from the published release, under an isolated `HOME`, on macOS
+26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64). **Full pass on both**, the restart trap
+and its recovery included:
+
+```
+machine_running=yes
+docker_version=Docker version 25.0.5, build d260a54c81efcc3f00fe67dee78c94b16c2f8692
+result=installed
+server_version=25.0.5
+result=dockerd_up
+storage_driver=ok (overlay2)
+docker_root_device=ok (/dev/vda)
+nested_container=ok (NESTED_OK)
+host_network=ok (HOSTNET_OK)
+result=docker_ok
+Init already completed, skipping 5 command(s)
+NO_BIND_MOUNTS_AFTER_RESTART
+DOCKERD_DOWN
+result=dockerd_up
+alpine:latest
+result=docker_ok
+```
+
+The install took 9.3 s on macOS and 23.4 s on Linux. **The Linux run used a copy of
+`assets/docker.smolfile` with `memory = 1024`**: that box could not boot guests above 2048 MiB
+inside the fixed 30 s readiness window that day and was borderline at 2048, on v1.16.1 as well,
+and the `install` packet's traps have the numbers. On a small or busy host, lower `memory` before
+suspecting Docker; 1024 MiB was enough for `dockerd` and a nested alpine container.
+
 ## Re-verified on v1.14.6
 
 Run 2026-09-10 PT against v1.14.6 on macOS 26.6.2 arm64 **and Lima `linux-kvm` (Ubuntu 24.04
@@ -244,7 +280,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.14.6"
+VERIFIED_VERSION="1.18.2"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -313,7 +349,7 @@ case "$kernel" in
         else
             emit socket_path_status ok
         fi
-        emit unsupported "vulkan,cuda"
+        emit unsupported "cuda"
         emit docker_in_machine verified
         ;;
     Linux)

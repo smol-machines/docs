@@ -6,8 +6,7 @@ title: "Local API: drive smolvm over HTTP"
 
 Drives smolvm programmatically over its local HTTP API (smolvm serve) instead of the CLI: create machines, exec and stream commands, move files in and out, and tear them down. Use when building a client, harness, agent tool or MCP backend over smolvm; when a create call is accepted but the machine behaves as if a field was ignored; when a file uploaded over the API has disappeared; when an exec that failed still returned HTTP 200; or when choosing between the Unix socket and loopback TCP. Do not use it as a substitute for the CLI in a shell script, and do not bind the listener beyond loopback: the API has no authentication of any kind.
 
-Verified on **smolvm v1.16.1** on macOS arm64, 2026-09-15, and on **v1.14.6** on Linux aarch64,
-2026-09-10. Done means a machine went through
+Verified on **smolvm v1.18.2** on macOS arm64 and Linux aarch64, 2026-09-24. Done means a machine went through
 its whole lifecycle over HTTP and `GET /api/v1/machines` is empty again at the end.
 
 Two rules run through everything here, and both are the same shape: **a 200 is not a result.**
@@ -116,20 +115,41 @@ Full detail in `references/traps.md` and `references/api-fields.md`.
   mounts over. The same sequence on macOS returned the payload.
   **Re-run on v1.16.1 on 2026-09-15 and it did not reproduce on either host**: a machine created
   without a `cmd`, started, then written to immediately, read `ROUND1` back at once on macOS arm64
-  and on Lima aarch64, and again at 20 s on Linux. The rule still costs nothing and the failure was
-  silent when it happened, so keep ordering the upload after a successful `exec`.
+  and on Lima aarch64, and again at 20 s on Linux. **On v1.18.2 it reproduces again on Linux**,
+  with the v1.14.6 messages word for word, and still not on macOS. Order the upload after a
+  successful `exec`; a run that happens to work proves nothing.
 - **A failing guest command is HTTP 200.**
 - **Unknown create fields are accepted and ignored**, while a Smolfile rejects them. A `net` for
   `network` was caught at create here with a clear 400 about the missing network, but a `memory`
   for `memoryMb` gets no diagnostic at all: you silently get the default.
 - **Killing the server orphans machines.**
 - **The spec's `info.version` is not the binary's.** It says `0.5.2` on v1.14.2 while `/health`
-  says `1.14.2`. Take the version from `/health`.
+  says `1.14.2`, and still `0.5.2` on v1.18.2. Take the version from `/health`.
 - **The default listen path differs per platform, and `--help` shows only one of them.** The help
   prints `[default: unix:///tmp/smolvm.sock]`, and its own example line says
   `unix:///$XDG_RUNTIME_DIR/smolvm.sock`. Observed on v1.16.1: the socket appeared at
   `/tmp/smolvm.sock` on macOS arm64 and at `/run/user/501/smolvm.sock` on Lima aarch64. Read the
   path the server reports rather than assuming either.
+
+## Pausing a machine over the API
+
+v1.18.0 added `POST /api/v1/machines/{name}/pause` and `/resume`. Pause saves RAM, disks and the
+running execution and stops the machine; resume brings back that execution under the same name
+rather than booting a fresh guest. The machine has to be started branchable, which over the API is
+a query parameter on start:
+
+```bash
+curl -X POST "$B/api/v1/machines/m/start?branchable=true" -H 'content-type: application/json' -d '{}'
+curl -X POST  $B/api/v1/machines/m/pause  -H 'content-type: application/json' -d '{}'   # state: paused
+curl -X POST  $B/api/v1/machines/m/resume -H 'content-type: application/json' -d '{}'   # state: running
+```
+
+Assert on a value the workload holds in memory, not on the state field. Measured on v1.18.2 on
+both hosts with a workload that writes an incrementing counter every second: it read 9 before the
+pause, the machine stayed paused for 10 s, and 3 s after the resume it read 13 on macOS and 12 on
+Linux, so the process continued from where it stopped, did not restart at 1, and did not run while
+paused. Over the CLI a paused machine refuses `stop` and `start`; the `teardown` packet has those
+messages, and `branch-and-checkpoint` covers pause alongside checkpoints.
 
 ## Security defaults, and why they are the defaults
 
@@ -206,6 +226,30 @@ registry, but this machine has no network, so the pull can never succeed. Add --
 A 404 on either host returns `{"error":"machine 'nope-does-not-exist' not found",
 "code":"NOT_FOUND"}`, which is the diagnostic Windows does not give you.
 
+## Re-verified on v1.18.2
+
+Run 2026-09-24 PT against v1.18.2 from the published release, under an isolated `HOME`, on macOS
+26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64), over the Unix socket.
+**`result=lifecycle_ok` on both, all eleven checks green**, including
+`failing_exec_exit_code=ok (3)`. `/health` said `"version":"1.18.2"` and the spec `0.5.2`.
+
+What moved:
+
+- **The upload trap is back on Linux.** A machine created with no `cmd`, started, then written to
+  at once:
+  ```
+  PUT: {"path":"/tmp/r1.txt","size":6}
+  GET now: {"error":"agent operation failed: read file: failed to canonicalize target /tmp/r1.txt: No such file or directory (os error 2)","code":"INTERNAL_ERROR"}
+  GET +20s: {"error":"agent operation failed: read file: failed to read /tmp/r1.txt in the workload container: open /tmp/r1.txt: No such file or directory (os error 2)","code":"INTERNAL_ERROR"}
+  ```
+  The same sequence on macOS read `ROUND1` both times.
+- **A directory path in the files route returns a listing** (#1330): `GET .../files/%2Fetc%2Fapk`
+  gave `{"entries":[{"kind":"file","name":"arch","size":8},{"kind":"dir","name":"keys","size":0},...]}`
+  on both hosts.
+- **Pause and resume**, as in the section above.
+- **Unchanged:** a body with `memory` for `memoryMb` and a `bogusField` was accepted and came back
+  with `"memoryMb":8192`, the default.
+
 ## Re-verified on v1.14.6
 
 Run 2026-09-10 PT against v1.14.6 on macOS 26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04
@@ -245,7 +289,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.14.6"
+VERIFIED_VERSION="1.18.2"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -314,7 +358,7 @@ case "$kernel" in
         else
             emit socket_path_status ok
         fi
-        emit unsupported "vulkan,cuda"
+        emit unsupported "cuda"
         emit unix_socket_transport yes
         ;;
     Linux)
@@ -673,8 +717,15 @@ if [ -s "$STATE_FILE" ]; then
             printf 'skipping %s: not created by this packet (no %s prefix)\n' "$name" "$PREFIX"
             continue ;;
         esac
-        "$SMOLVM" machine stop   --name "$name" >/dev/null 2>&1
-        "$SMOLVM" machine delete --name "$name" --force --cascade 2>&1 | sed 's/^/  /'
+        # lifecycle-check.sh deletes its own machine over the API, and on v1.18.2
+        # `machine stop` on a name that no longer exists leaves an empty directory
+        # under vms/. Act only on names still listed.
+        # Read the list first: under pipefail, grep -q closing the pipe early can
+        # fail the pipeline and skip a machine that exists.
+        listed="$("$SMOLVM" machine list </dev/null 2>/dev/null | awk 'NR>2{print $1}')"
+        grep -qx -- "$name" <<<"$listed" || continue
+        "$SMOLVM" machine stop   --name "$name" </dev/null >/dev/null 2>&1
+        "$SMOLVM" machine delete --name "$name" --force --cascade </dev/null 2>&1 | sed 's/^/  /'
     done < "$STATE_FILE"
 fi
 
@@ -771,6 +822,11 @@ canonicalize the path at all, after it the read happens inside the container and
 **It is timing dependent, which makes it worse rather than better.** The same sequence on macOS
 arm64, and on Linux with a long-lived `cmd` in the create body, returned `ROUND1` both immediately
 and after 30 s. A run that happens to work proves nothing about the next one.
+
+**Measured again on v1.18.2, 2026-09-24**, after it had not reproduced on v1.16.1: on Lima
+`linux-kvm` (Ubuntu 24.04 aarch64) the same PUT returned the same 200, the immediate GET the same
+`failed to canonicalize target /tmp/r1.txt`, and the GET 20 s later the same `failed to read
+/tmp/r1.txt in the workload container`. macOS arm64 read `ROUND1` both times.
 
 **So:** wait for a successful `exec` before uploading anything, which is what
 `scripts/lifecycle-check.sh` does, or upload to a path on the overlay such as `/root` rather than

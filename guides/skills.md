@@ -14,14 +14,14 @@ Find the task, then read the one page it names. Each packet was run end to end a
 
 | Your task | Packet | Not for | Verified on |
 |---|---|---|---|
-| Install smolvm and prove the host can boot a VM | [install](/docs/guides/skills/install) | Removing an install; anything after the first boot | smolvm v1.16.1 on macOS arm64, v1.14.6 on Linux aarch64 |
-| Stop everything and prove the host is clean | [teardown](/docs/guides/skills/teardown) | Deleting machines another session created | smolvm v1.16.1 on macOS arm64, v1.14.6 on Linux aarch64 |
-| Run untrusted code with no network, against a read-only repo | [sandbox](/docs/guides/skills/sandbox) | A machine you re-enter; Docker in a machine; installing smolvm | smolvm v1.14.6 on Linux aarch64 and macOS arm64 |
-| Keep a development machine you re-enter across sessions | [dev-env](/docs/guides/skills/dev-env) | Untrusted code; Docker in a machine | smolvm v1.16.1 on macOS arm64, v1.14.6 on Linux aarch64 |
-| Drive the local runtime over HTTP | [local-api](/docs/guides/skills/local-api) | Replacing the CLI in a shell script; binding beyond loopback | smolvm v1.16.1 on macOS arm64, v1.14.6 on Linux aarch64 |
-| Run a Docker daemon inside a machine | [docker-in-machine](/docs/guides/skills/docker-in-machine) | Running OCI images, which need no Docker; Windows | smolvm v1.16.1 on macOS arm64, v1.14.6 on Linux aarch64 |
-| Run CUDA workloads against a host NVIDIA GPU | [gpu-cuda](/docs/guides/skills/gpu-cuda) | Vulkan graphics (`--gpu`); a Mac, which has no NVIDIA GPU | smolvm v1.14.6 on Linux x86_64 (A10) and Windows x86_64 (RTX 4050) |
-| Ship a prepared machine to another host as one file | [pack](/docs/guides/skills/pack) | A machine you re-enter; untrusted code | smolvm v1.16.1 on macOS arm64, v1.14.6 on Linux aarch64 |
+| Install smolvm and prove the host can boot a VM | [install](/docs/guides/skills/install) | Removing an install; anything after the first boot | smolvm v1.18.2 on macOS arm64 and Linux aarch64 |
+| Stop everything and prove the host is clean | [teardown](/docs/guides/skills/teardown) | Deleting machines another session created | smolvm v1.18.2 on macOS arm64 and Linux aarch64 |
+| Run untrusted code with no network, against a read-only repo | [sandbox](/docs/guides/skills/sandbox) | A machine you re-enter; Docker in a machine; installing smolvm | smolvm v1.18.2 on macOS arm64 and Linux aarch64; the offline route last on v1.14.6 on Linux aarch64 |
+| Keep a development machine you re-enter across sessions | [dev-env](/docs/guides/skills/dev-env) | Untrusted code; Docker in a machine | smolvm v1.18.2 on macOS arm64 and Linux aarch64 |
+| Drive the local runtime over HTTP | [local-api](/docs/guides/skills/local-api) | Replacing the CLI in a shell script; binding beyond loopback | smolvm v1.18.2 on macOS arm64 and Linux aarch64 |
+| Run a Docker daemon inside a machine | [docker-in-machine](/docs/guides/skills/docker-in-machine) | Running OCI images, which need no Docker; Windows | smolvm v1.18.2 on macOS arm64 and Linux aarch64 |
+| Run CUDA workloads against a host NVIDIA GPU | [gpu-cuda](/docs/guides/skills/gpu-cuda) | Vulkan graphics (`--gpu`); a Mac, which has no NVIDIA GPU | smolvm v1.14.6 on Linux x86_64 (A10) and Windows x86_64 (RTX 4050); the no-GPU answer on v1.18.2 on macOS arm64 and Linux aarch64 |
+| Ship a prepared machine to another host as one file | [pack](/docs/guides/skills/pack) | A machine you re-enter; untrusted code | smolvm v1.18.2 on macOS arm64, v1.14.6 on Linux aarch64 |
 
 ### Running things on smol cloud
 

@@ -6,7 +6,9 @@ title: "Sandbox: run untrusted code in a throwaway machine"
 
 Runs untrusted code in a throwaway smolvm microVM against a repo it must not modify, with no network unless explicitly granted, and collects artifacts from a writable output directory. Use when executing an agent's generated script, a pull request's test suite, or any code that should not be trusted with the host; when a workload needs egress granted one host at a time; or when a sandbox run has to be cancelled, because Ctrl-C leaves the VM running and invisible to the CLI. Do not use it for a development environment that is re-entered across sessions, for running a Docker daemon inside a machine, or for installing smolvm itself, which is the install packet.
 
-Verified on **smolvm v1.14.6** on macOS arm64 and Linux aarch64, 2026-09-10. Done means the command's output landed in your writable directory,
+Verified on **smolvm v1.18.2** on macOS arm64 and Linux aarch64, 2026-09-24, by the network-on
+route and the cancel on both; the offline route last completed on Linux aarch64 on v1.14.6, and
+"Re-verified on v1.18.2" says why. Done means the command's output landed in your writable directory,
 the repo is unchanged, the workload could not reach the network, and nothing is left running.
 
 **Two smolvm defects shape this packet and you will meet both.**
@@ -14,6 +16,8 @@ the repo is unchanged, the workload could not reach the network, and nothing is 
 - **[#1193](https://github.com/smol-machines/smolvm/issues/1193): Ctrl-C does not stop a cached
   run.** The VM outlives the CLI, `machine list` reports `No machines found`, and it exits only
   when the untrusted workload does. **The cancel is `scripts/cleanup.sh --cancel`, never Ctrl-C.**
+  On the network-on route a v1.18.2 run whose wrapper was killed stays in `machine list` as
+  `running (eph)` on both hosts here, and `--cancel` still clears it.
 - **[#1192](https://github.com/smol-machines/smolvm/issues/1192): on macOS a cached run with any
   mount never boots.** The offline shape below is therefore Linux-only today. macOS has its own
   page with a route that works: read `references/macos.md`.
@@ -118,13 +122,29 @@ to the CLI does take the VM with it, verified here on Linux. Do not rely on that
 *wrapper* rather than the CLI leaves both running on either route, which was observed on both hosts
 used for this packet. Use `--cancel`.
 
+## If the workload brings up a VPN
+
+A guest that runs Tailscale or another carrier NAT VPN loses its gateway and its resolver on the
+default virtio-net link, and every lookup then fails as `bad address`, which reads like the
+allow list rather than a routing clash. `--allow-host` and `--allow-cidr` select that link, so
+this applies to any run here that grants egress. Move the link with `--guest-subnet`, passed to
+`smolvm machine run` directly:
+
+```bash
+smolvm machine run --allow-host example.com --guest-subnet 10.200.0.0/30 --image alpine -- <command>
+```
+
+**`--guest-subnet` implies `--net`**, so never add it to an offline run: it opens the network the
+offline route exists to keep shut. Pick a range outside `100.64.0.0/10`; the CLI accepts one inside
+it without a warning. `references/traps.md` has the measurement.
+
 ## Reference pages
 
 Read these when the situation calls for them; they are not needed for a normal run.
 
 - **`references/traps.md`** for every trap with its measurement: the two routes and what Ctrl-C does
-  to each, the bake helper's fixed memory, why `pgrep -f` and `readlink` both fail as reapers, and
-  what counts as cache rather than residue.
+  to each, the bake helper's fixed memory, a guest VPN taking the default link, why `pgrep -f` and
+  `readlink` both fail as reapers, and what counts as cache rather than residue.
 - **`references/macos.md`** if you are on macOS. The offline shape does not work there; that page
   gives a route that does and says what it costs.
 - **`references/windows.md`** if you are on Windows. The bake never completes there, so the offline
@@ -152,11 +172,13 @@ Read these when the situation calls for them; they are not needed for a normal r
 
 ## Platform arms
 
-- **Linux aarch64**: **the offline route, the network-on route, the cancel path and the reaper
-  were all run here on v1.14.6.** This is the first host on which the offline route completed.
+- **Linux aarch64**: **the network-on route and the cancel path were run here on v1.18.2**, and
+  the offline route, the cancel path on it and the reaper on v1.14.6, the first host on which the
+  offline route completed.
 - **Linux x86_64**: the offline route is verified in the material behind this packet, not re-run.
-- **macOS arm64**: the offline shape is unavailable (#1192, reproduced here 3 of 3). The
-  network-on route was run end to end. `references/macos.md`.
+- **macOS arm64**: the offline shape is unavailable (#1192, reproduced 3 of 3 on v1.18.2). The
+  network-on route and the pull-once-then-disconnect route were run end to end on v1.18.2.
+  `references/macos.md`.
 - **Windows x86_64**: the offline shape is unavailable for a different reason, the bake never
   completes. `references/windows.md`, **re-run on 2026-09-11 against v1.14.6** on Windows 11 Home
   build 10.0.26200.0 UBR 9445: the mount and the network-off refusal confirmed, and the bake still
@@ -234,6 +256,41 @@ A baked image is only useful to a run that also mounts something, and on macOS
 --oci-cache plus any -v mount times out the boot (smol-machines/smolvm#1192).
 ```
 
+## Re-verified on v1.18.2
+
+Run 2026-09-24 PT against v1.18.2 from the published release, under an isolated `HOME`, on macOS
+26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64).
+
+**macOS.** #1192 still holds: a bake followed by a run with one `:ro` mount failed 3 of 3 with
+`agent did not become ready within 30 seconds`, while the mount without `--oci-cache` and
+`--oci-cache` without the mount both passed in the same session. The preflight still says
+`result=blocked` and `bake.sh` still refuses. The network-on route held:
+
+```
+inside_workspace=ok (readonly)
+inside_out=ok (writable)
+inside_network=ok (REACHED)
+artifact=ok (42)
+repo_unchanged=ok
+result=sandbox_held
+```
+
+The cancel, with the wrapper killed while a `sleep 600` workload ran: `machine list` showed
+`vm-552a084a running (eph)`, and `cleanup.sh --cancel --purge` reported `cancelled=72150` and
+`result=clean`. The first choice in `references/macos.md` ran end to end for the first time here.
+
+**Linux aarch64.** The network-on route held with the same six values, and the cancel cleared its
+VM (`cancelled=141333`, `result=clean`). **The offline route was not re-run, for a host reason.**
+That box no longer boots a guest above 2048 MiB inside the fixed 30 s readiness window, v1.16.1
+installed on the same box behaves the same, and the bake helper takes 8192 MiB. `bake.sh` named it
+the way `references/traps.md` describes, with `control_boot_2048=ok` and a pointer to the
+network-on route, which is the diagnosis working rather than the route.
+
+**The VPN trap, on both hosts.** With a policy route for `100.64.0.0/10` into a dummy device added
+inside the guest, the way Tailscale adds one, a run on the default link printed
+`wget: bad address 'example.com'`; the same routes with `--guest-subnet 10.200.0.0/30` resolved and
+fetched.
+
 ## Re-verified on v1.14.6
 
 Run 2026-09-10 PT against v1.14.6 from the published release. **Two things changed on this
@@ -272,9 +329,10 @@ the cancel path recorded and killed its VM.
 
 ## What was not run
 
-- **The offline route on macOS.** Blocked by #1192, reproduced on v1.14.6 3 of 3 with both
+- **The offline route on macOS.** Blocked by #1192, reproduced on v1.18.2 3 of 3 with both
   controls passing. `references/macos.md` gives the route that works there and what it costs.
-  The offline route itself is now verified on Linux aarch64, so it is no longer unrun everywhere.
+- **The offline route on v1.18.2.** It last completed on Linux aarch64 on v1.14.6; the host used
+  here could not boot the bake helper's 8192 MiB this time, for the reason above.
 - **A GPU sandbox.** Nothing here was run against a GPU on either release.
 - **The macOS first-choice route** in `references/macos.md`, which needs a `docker`, `crane`,
   `podman` or `nerdctl` binary to produce an image archive. None is installed on that host.
@@ -307,7 +365,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.14.6"
+VERIFIED_VERSION="1.18.2"
 
 # The guest gets eleven IRQs. Four -v mounts boot and five fail with "no more
 # IRQs are available", and any published port costs one of those slots, so the
@@ -1058,6 +1116,10 @@ So:
 | offline (`--oci-cache`) | VM survives, invisible to `machine list` | `scripts/cleanup.sh --cancel` |
 | network-on (no `--oci-cache`) | VM dies with the CLI (verified on Linux) | either |
 
+On v1.18.2 the network-on route was measured again with the **wrapper** killed and the CLI left
+alone: the run stayed in `machine list` as `running (eph)` on macOS arm64 and on Linux aarch64, and
+`scripts/cleanup.sh --cancel` killed the recorded pid on both.
+
 **Do not rely on the second row to cancel a sandbox.** `run.sh` records the VM's pid on both
 routes because the difference is a boot-path detail that can change between releases, and because
 interrupting the *wrapper* rather than the CLI leaves the CLI and its VM running on either route,
@@ -1109,6 +1171,29 @@ That is exactly the message a loaded host produces, so it invites the wrong diag
 `SMOLVM_AGENT_READY_TIMEOUT_SECS` does not help: the string is in the binary, but the failure is in
 the inner `machine start`, which uses the hard-coded 30 s limit. Verified by setting it to 180 and
 watching the bake fail at 30 s anyway.
+
+### A guest that runs a VPN loses its gateway and resolver
+
+A virtio-net guest's link is `100.96.0.0/30` by default: the guest is `.2`, and the gateway and
+the resolver are both `.1`. `--allow-host` and `--allow-cidr` select virtio-net, so every sandbox
+run that grants egress gets that link. A plain `--net` run uses TSI and has no such link, which
+was observed and not tested against a VPN. Tailscale and other carrier NAT VPNs claim `100.64.0.0/10`, which contains it, and route
+it into their own device.
+
+Measured on v1.18.2 on macOS arm64 and Linux aarch64, 2026-09-24, by adding in the guest what
+Tailscale adds: `ip rule add to 100.64.0.0/10 lookup 52 prio 5270` and a table 52 route for
+`100.64.0.0/10` into a dummy device.
+
+| link | `ip route get 100.96.0.1` | lookup | fetch |
+|---|---|---|---|
+| default, `--allow-host example.com` | `dev ts0` | `bad address 'example.com'` | failed |
+| `--guest-subnet 10.200.0.0/30`, same routes | not used | resolved | fetched |
+
+With the flag the guest is `10.200.0.2/30` and the gateway and resolver are `10.200.0.1`. Three
+things to know about it: **it implies `--net`**, so it does not belong on the offline route; it
+requires virtio-net, and `--net-backend tsi` with it is refused with `--guest-subnet requires the
+virtio-net backend`; and a range inside `100.64.0.0/10` is accepted without a warning, which
+brings the clash back.
 
 ### `machine egress-events` cannot inspect an ephemeral run
 

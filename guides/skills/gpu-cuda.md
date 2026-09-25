@@ -4,18 +4,19 @@ title: "GPU CUDA: run CUDA workloads against a host GPU"
 
 # GPU CUDA: run CUDA workloads against a host GPU
 
-Runs CUDA compute workloads inside a smolvm microVM against a real host NVIDIA GPU, using smolvm's --cuda API remoting. Use when a workload in a machine needs a GPU; when nvidia-smi or /dev/nvidia* is missing inside a --cuda guest; when a CUDA program in a machine exits zero but seems not to touch the device; when the shim will not load in an Alpine image; or when checking whether CUDA is available on a given platform, including Windows. Do not use it for Vulkan graphics (--gpu), which is a separate feature that works on no tested host, and do not expect it on a Mac, which has no NVIDIA hardware.
+Runs CUDA compute workloads inside a smolvm microVM against a real host NVIDIA GPU, using smolvm's --cuda API remoting. Use when a workload in a machine needs a GPU; when nvidia-smi or /dev/nvidia* is missing inside a --cuda guest; when a CUDA program in a machine exits zero but seems not to touch the device; when the shim will not load in an Alpine image; or when checking whether CUDA is available on a given platform, including Windows. Do not use it for Vulkan graphics (--gpu), which is a separate feature with its own topic, and do not expect it on a Mac, which has no NVIDIA hardware.
 
 Verified on **smolvm v1.14.6** against an **NVIDIA A10** (driver 580.105.08, Linux x86_64,
 kernel 6.8.0-1046-nvidia), and on the same version against an **NVIDIA GeForce RTX 4050**
 (driver 32.0.15.6626, Windows x86_64). Done means a program in the VM opens the device, creates a context, and moves
 data to and from it.
 
-> **Not re-run on v1.16.1, and the stamp above is deliberately unchanged.** There is no NVIDIA
-> hardware on this Mac or on the Lima box, so the GPU path keeps its v1.14.6 dates. What was
-> re-run here on 2026-09-15 on macOS arm64 is the no-GPU answer path: the preflight still reports
-> `gpu_present=no` without starting anything, and `--cuda` on a host with no GPU now reaches a CPU
-> emulation device, which is the new trap below.
+> **The GPU path was not re-run on v1.16.1 or v1.18.2, and the stamp above is deliberately
+> unchanged.** There is no NVIDIA hardware on this Mac or on the Lima box, so the GPU path keeps
+> its v1.14.6 dates. What was re-run, on **v1.18.2 on 2026-09-24 on macOS arm64 and Linux
+> aarch64**, is the no-GPU answer path: the preflight reports `gpu_present=no` without starting
+> anything, and `--cuda` on a host with no GPU reaches a CPU emulation device, which the probe
+> names rather than passing. See "Re-verified on v1.18.2".
 >
 > **Read this before trusting a step here.** **The Linux GPU path was re-run end to end on
 > v1.14.6**, on a rented A10 instance: the preflight, the probe against the real device with two
@@ -50,7 +51,7 @@ neither CUDA nor the GPU.
 **If the question is "can this machine run CUDA", the preflight answers it and nothing else needs
 to run.** Do not reach for the probe to decide that: on a host with no NVIDIA GPU the probe now
 starts a VM, reaches a CPU emulation device and returns a passing round trip, which reads like a
-yes. Verified on macOS arm64 on v1.16.1: `gpu_present=no`, `unsupported=cuda,vulkan`, and the
+yes. Verified on macOS arm64 on v1.16.1 and v1.18.2: `gpu_present=no`, `unsupported=cuda`, and the
 note `no Apple Silicon or Intel Mac has an NVIDIA GPU, so --cuda has nothing to reach here`.
 
 **2. Run the probe.**
@@ -107,7 +108,8 @@ full session of CUDA runs plus a Kubernetes install and teardown on the same box
 Full detail in `references/traps.md`.
 
 - **A zero exit code proves nothing.** The remoted API is why.
-- **A device name and a passing round trip no longer prove a GPU either, as of v1.16.1.** On a host
+- **A device name and a passing round trip no longer prove a GPU either, as of v1.16.1**, and
+  on v1.18.2 on macOS arm64 and Linux aarch64 alike. On a host
   with no NVIDIA hardware the shim answers with a CPU emulation device: `cuInit -> 0`,
   `cuDeviceGetCount -> 0 count = 1`, `cuDeviceGetName -> 0 name = smolvm CPU emulation device`,
   `total MiB = 1024`, and `roundtrip first 16 bytes match: True`. **The device name is the
@@ -119,12 +121,14 @@ Full detail in `references/traps.md`.
   cannot load it, and relying on the loader path picks up whatever the image carries.
 - **A fresh GPU cloud instance does not have KVM access for your user**, and the installer says the
   install succeeded anyway. `sg kvm -c` applies the group without a logout.
-- **On a host with no NVIDIA GPU the error names neither CUDA nor the GPU.** Observed on Ubuntu
-  24.04 aarch64: `agent did not become ready within 30 seconds`, which reads exactly like host
-  load. The preflight is the only thing that tells the two apart.
-- **`--cuda` and `--gpu` are different features.** `--cuda` is compute over vsock and works;
-  `--gpu` is Vulkan over virtio-gpu and works on no host tested. On Windows `--gpu` is accepted and
-  silently does nothing.
+- **`agent did not become ready within 30 seconds` from the probe is about memory, not the GPU.**
+  The probe asks for 8192 MiB. On v1.18.2 a Linux aarch64 host with no NVIDIA GPU failed that way,
+  reached the CPU emulation device with the same probe at 1024 MiB, and failed the same way on a
+  plain `machine run --mem 8192` with no `--cuda` at all. An earlier version of this packet read
+  that failure as the missing GPU; the preflight is still what answers the GPU question.
+- **`--cuda` and `--gpu` are different features.** `--cuda` is compute over vsock; `--gpu` is
+  Vulkan over virtio-gpu, which reached a Venus device on macOS arm64 on v1.18.2 and is covered by
+  `docs/gpu-vulkan`. On Windows `--gpu` is accepted and silently does nothing.
 
 ## Security defaults, and why they are the defaults
 
@@ -150,8 +154,8 @@ Full detail in `references/traps.md`.
   corrects.
 - **macOS arm64 and Intel**: **not applicable.** No Mac has an NVIDIA GPU, so `--cuda` has nothing
   to reach. The preflight says so rather than letting a run time out.
-- **Linux aarch64**: no NVIDIA hardware on the hosts available here. Only the preflight and the
-  failure path were run.
+- **Linux aarch64**: no NVIDIA hardware on the hosts available here. The preflight and the probe
+  against the CPU emulation device were run on v1.18.2.
 - **Multi-GPU, GPU forks and clones, and a real training or inference workload**: not run anywhere.
 
 ## Eval prompts, and what they produced
@@ -253,6 +257,34 @@ result=FAILED
 ```
 
 The error names neither CUDA nor the missing device.
+
+## Re-verified on v1.18.2, the no-GPU path
+
+Run 2026-09-24 PT against v1.18.2 from the published release, under an isolated `HOME`, on macOS
+26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64). Neither host has NVIDIA hardware, so
+this covers the answer a GPU-less host gives and nothing about the GPU path.
+
+**The preflight, both hosts:** `gpu_present=no` and `result=blocked`, with the macOS note that no
+Mac has an NVIDIA GPU and the Linux note that there is no `nvidia-smi` for the daemon to own.
+
+**The probe.** macOS, as shipped:
+
+```
+  cuDeviceGetName -> 0 name = smolvm CPU emulation device
+  cuMemGetInfo -> 0 total MiB = 1024
+  roundtrip first 16 bytes match: True
+device_named=ok
+data_roundtrip=ok
+device_kind=cpu_emulation
+result=cpu_emulation_not_gpu
+```
+
+Linux aarch64 at the probe's own `--mem 8192`: `agent did not become ready within 30 seconds`.
+The same probe with `--mem 1024` gave the same five lines as macOS, and a plain
+`machine run --mem 8192 --net --image alpine` with no `--cuda` failed exactly as the probe did.
+That box could not boot guests above 2048 MiB in time that day, on v1.16.1 as well, so the timeout
+is the host's memory and the missing GPU plays no part in it. The trap above and the probe's own
+failure text now say so.
 
 ## Re-verified on v1.14.6
 
@@ -380,7 +412,7 @@ case "$kernel" in
         emit accel hvf
         if [ "$(sysctl -n kern.hv_support 2>/dev/null)" = "1" ]; then emit accel_access ok; else emit accel_access denied; fi
         emit gpu_present no
-        emit unsupported "cuda,vulkan"
+        emit unsupported "cuda"
         blocked=1
         note "no Apple Silicon or Intel Mac has an NVIDIA GPU, so --cuda has nothing to reach here. This is a hardware fact, not a smolvm limitation."
         ;;
@@ -476,7 +508,7 @@ check device_named 'name = '
 # And the round trip, which is the only proof that bytes reached the device.
 check data_roundtrip 'roundtrip first 16 bytes match: True'
 
-# v1.16.1 answers on a host with no NVIDIA GPU with a CPU emulation device, which
+# v1.16.1 and later answer on a host with no NVIDIA GPU with a CPU emulation device, which
 # passes both checks above. The device name is what tells them apart.
 if printf '%s' "$out" | grep -qi 'name = .*emulation'; then
     printf 'device_kind=cpu_emulation\n'
@@ -493,9 +525,10 @@ if [ "$fail" -eq 0 ]; then
 else
     printf 'result=FAILED\n'
     printf 'Run scripts/preflight.sh. The three causes, and none of them says so in the error:\n'
-    printf '  - No NVIDIA GPU on the host. Observed on Ubuntu 24.04 aarch64: the run fails with\n'
-    printf '    "agent did not become ready within 30 seconds", which names neither CUDA nor the\n'
-    printf '    missing device and reads exactly like host load.\n'
+    printf '  - A guest too large for this host. The probe asks for 8192 MiB, and a host that cannot\n'
+    printf '    boot that inside the fixed 30 s fails with "agent did not become ready within 30\n'
+    printf '    seconds". Run smolvm machine run --mem 8192 --net --image alpine -- true: if that\n'
+    printf '    fails the same way, it is the host, not CUDA.\n'
     printf '  - A musl image. The injected shim is glibc, so an Alpine guest cannot load it.\n'
     printf '  - A machine started without --cuda, in which case /opt/smolvm-cuda does not exist.\n'
 fi
@@ -784,9 +817,17 @@ Error: agent operation failed: start machine: agent operation failed: wait for r
 agent did not become ready within 30 seconds
 ```
 
-**That message reads exactly like host load**, which is its usual cause, and there is no mention of
-CUDA, the shim or a missing device. `scripts/preflight.sh` reports `gpu_present=no` before you run
-anything, which is the only thing that tells you the difference.
+**That message reads exactly like host load**, and there is no mention of CUDA, the shim or a
+missing device. `scripts/preflight.sh` reports `gpu_present=no` before you run anything, which is
+the only thing that tells you whether a GPU is there.
+
+**Re-measured on v1.18.2, 2026-09-24, and the missing GPU was not the cause.** On the same kind of
+host, Lima `linux-kvm` with no NVIDIA hardware, `scripts/run-cuda-probe.sh` at its `--mem 8192`
+failed with the message above; the same probe at `--mem 1024` reached `smolvm CPU emulation
+device` and returned `result=cpu_emulation_not_gpu`; and `machine run --mem 8192 --net --image
+alpine` with no `--cuda` failed with the same message. That box booted 2048 MiB and not 2560 that
+day. So the timeout is the guest's size on that host, and on v1.16.1 and later a GPU-less host
+answers `--cuda` with the emulation device instead.
 
 ### Large CUDA images may not pull
 
@@ -809,9 +850,10 @@ on the same box: `nvidia-smi` still reported the device, and a whole-filesystem 
 
 ### `--cuda` and `--gpu` are different features
 
-`--cuda` is compute over vsock and works. `--gpu` is Vulkan graphics over virtio-gpu and does not
-work on any host tested, because the host renderer reports the Venus capset at version 0. They
-share nothing but the word GPU. On Windows `--gpu` is accepted and silently does nothing.
+`--cuda` is compute over vsock. `--gpu` is Vulkan graphics over virtio-gpu; on the hosts tested
+through v1.16.1 the host renderer reported the Venus capset at version 0, and on v1.18.2 on macOS
+arm64 a guest reached `Virtio-GPU Venus (Apple M4)`. `docs/gpu-vulkan` has it. They share nothing
+but the word GPU. On Windows `--gpu` is accepted and silently does nothing.
 
 ### Docs drift for the CUDA path
 

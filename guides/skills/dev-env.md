@@ -6,13 +6,13 @@ title: "Dev env: a persistent machine you re-enter"
 
 Keeps a persistent smolvm machine with its dependencies already installed and re-enters it cheaply across sessions. Use when a project needs an isolated development environment that survives stop and start; when deciding what belongs in a Smolfile's init versus what has to run on every boot; when a package installed in a machine has vanished after a restart; or when exec answers "the container smolvm-<hash> is not running". Do not use it for untrusted code, which needs a machine that leaves nothing behind (see the sandbox packet), or for running a Docker daemon inside the machine (see docker-in-machine).
 
-Verified on **smolvm v1.16.1** on macOS arm64, 2026-09-15, and on **v1.14.6** on Linux aarch64,
-2026-09-10. Done means a second `start` is fast, skips provisioning, and the packages installed in
+Verified on **smolvm v1.18.2** on macOS arm64 and Linux aarch64, 2026-09-24; the Linux run used
+the Smolfile with `memory = 1024`, for the host reason in "Re-verified on v1.18.2". Done means a second `start` is fast, skips provisioning, and the packages installed in
 the first session are still there.
 
 The whole use case turns on one fact: **`init` runs once, not on every start.** The docs now say
 so, under their own "When init runs" heading, but `smolvm machine create --help` still reads
-"Run command on every VM start" at v1.14.6. The CLI is where the wrong promise survives, and
+"Run command on every VM start" at v1.18.2. The CLI is where the wrong promise survives, and
 provisioning designed around it comes up missing on the second boot.
 
 ## Procedure
@@ -26,7 +26,9 @@ scripts/preflight.sh
 Read-only. `restart_after_stop=verified` on macOS and Linux, and on Windows too as of v1.14.6.
 The script covers macOS and Linux only, so its Windows note points at `references/windows.md`.
 
-**2. Declare the machine.** `assets/dev.smolfile` is a working starting point.
+**2. Declare the machine.** `assets/dev.smolfile` is a working starting point, and the one
+`verify-persistence.sh` is written against: it asserts the `app` user and the `/app` workdir that
+file sets. `assets/python.smolfile` and `node.smolfile` are plainer examples without them.
 
 ```toml
 image = "python:3.12-alpine"
@@ -82,7 +84,8 @@ It installs a package and records its **version**, seeds one file per filesystem
 and then asserts each value against what it recorded. A version comparison is the point: an import
 that does not crash can be satisfied by a system copy and says nothing about your install.
 
-**6. Clean up.**
+**6. Clean up, when the machine is no longer wanted.** Not at the end of a setup: the machine is the
+deliverable, so leave it stopped and tell the user its name.
 
 ```bash
 scripts/cleanup.sh --purge
@@ -119,7 +122,7 @@ writes to `/` persist while `tmpfs` mounts do not.
 Full detail in `references/traps.md`. The three that cost the most:
 
 - **`init` runs once.** `smolvm machine create --help` still says "Run command on every VM start"
-  at v1.14.6 while `machine run --help` says the right thing, so the CLI contradicts itself in its
+  at v1.18.2 while `machine run --help` says the right thing, so the CLI contradicts itself in its
   own help output. The docs have been corrected and now say once. Anything that must be true on
   every boot, a bind mount above all, has to run in the command that needs it.
 - **`exec` right after `start` can answer with a message rather than running.** If you see
@@ -130,9 +133,16 @@ Full detail in `references/traps.md`. The three that cost the most:
   race, and then a short retry loop is the fix. Measured on a nested-virt aarch64 host on v1.14.6:
   1 exec in 20 failed that way with no command, 0 in 20 with an explicit long-lived one.
   **Re-measured on v1.16.1 on 2026-09-15 and it did not reproduce**: 0 of 20 with no command and
-  0 of 20 with one, on macOS arm64 and on Lima aarch64 alike. Treat it as fixed until you see the
-  message, and give a machine you intend to `exec` into a long-lived workload anyway.
+  0 of 20 with one, on macOS arm64 and on Lima aarch64 alike. **On v1.18.2 it is back on Linux**:
+  1 of 20 with no command on Lima aarch64, 0 of 20 on macOS. Give a machine you intend to `exec`
+  into a long-lived workload.
 - **`machine shell` does not start a stopped machine**, despite its own help text saying it does.
+  Still true on v1.18.2.
+- **A machine that runs Tailscale or another carrier NAT VPN inside needs `--guest-subnet` at
+  create.** Its default virtio-net link sits inside `100.64.0.0/10`, the VPN routes the gateway
+  and resolver away, and every lookup fails. A Smolfile has no key for it at v1.18.2 and
+  `machine update` cannot add it, so pass it on `create` next to `-s`:
+  `smolvm machine create --name smolskill-dev -s dev.smolfile --guest-subnet 10.200.0.0/30`.
 
 Two smaller ones: `create` is instant and proves nothing, because every failure lands on the first
 `start`; and a host `volumes` mount is not writable by a non-root `user`, so build output has to go
@@ -156,11 +166,10 @@ somewhere else.
 
 ## Platform arms
 
-- **Linux aarch64**: the scripts were run here on v1.14.2, which is the verified platform for
-  this use case. **Not confirmed on v1.14.3**, for a host reason rather than a product one:
-  see the re-verification section below.
-- **macOS arm64**: the scripts were run here too, and every check passed. The material behind this
-  packet had not exercised this use case on macOS.
+- **Linux aarch64**: the scripts were run here on v1.18.2 with the Smolfile's memory at 1024 MiB,
+  and on v1.14.6 at the Smolfile's 2048. **At 2048 on v1.18.2 the restart timed out**, for a host
+  reason: see the re-verification section below.
+- **macOS arm64**: the scripts were run here on v1.18.2 as shipped, and every check passed.
 - **Linux x86_64**: verified in the material behind this packet, not re-run here.
 - **Windows x86_64**: `references/windows.md`, **re-run on 2026-09-11 against v1.14.6** on
   Windows 11 Home build 10.0.26200.0 UBR 9445. Create, two stops and two starts, with a marker
@@ -237,6 +246,41 @@ failures_after_restart=0/20
 
 The changing hash is the tell: the workload container is being relaunched between execs.
 
+## Re-verified on v1.18.2
+
+Run 2026-09-24 PT against v1.18.2 from the published release, under an isolated `HOME`, on macOS
+26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64).
+
+**macOS, as shipped: full pass.**
+
+```
+init_ran=yes / machine_running=yes / workload_ready=yes
+init_ran_as=root / exec_user=app / workdir=/app / result=up
+  Init already completed, skipping 3 command(s)
+init_ran_once=ok (yes)
+package_version=ok (2.34.2)
+home_file=ok (SURVIVES) / storage_file=ok (SURVIVES) / tmp_file=ok (WIPED)
+exec_user=ok (app) / workdir=ok (/app)
+result=persistent
+```
+
+**Linux aarch64: the same values with `memory = 1024`.** With the shipped `memory = 2048` the
+first start passed and the restart failed with `agent did not become ready within 30 seconds`, and
+every check after it failed on `machine ... is not running`. That box could not boot guests above
+2048 MiB in time that day and was borderline at 2048, on v1.16.1 as well, so the cause is the
+host; the `install` packet's traps have the numbers. If a restart times out on a small or busy
+host, lower `memory` before looking for a product fault.
+
+**Also re-checked:** `machine create --help` still says `--init` runs "on every VM start";
+`machine shell` against a stopped machine still answers `machine 'smolskill-dev' is not running.
+Use 'smolvm machine start --name smolskill-dev' first.`; the no-command exec race was 0 of 20 on
+macOS and 1 of 20 on Linux (``the container `smolvm-36c8a04bc9168bd1` is not running``).
+
+**`--guest-subnet` on a persistent machine**, macOS: created with `-s dev.smolfile --guest-subnet
+10.200.0.0/30`, the guest was `10.200.0.2/30` and reached `pypi.org`, and after a stop and start
+still `10.200.0.2/30`. A Smolfile with `guest_subnet` under `[network]` is rejected with
+``unknown field `guest_subnet`, expected one of `allow_hosts`, `allow_cidrs`, `credentials` ``.
+
 ## Re-verified on v1.14.6
 
 Run 2026-09-10 PT against v1.14.6 on macOS 26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04
@@ -288,7 +332,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.14.6"
+VERIFIED_VERSION="1.18.2"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -357,7 +401,7 @@ case "$kernel" in
         else
             emit socket_path_status ok
         fi
-        emit unsupported "vulkan,cuda"
+        emit unsupported "cuda"
         emit restart_after_stop verified
         ;;
     Linux)
@@ -814,7 +858,7 @@ a bind mount: put `mount --bind ...` in `init` and the second boot comes up with
 it in the same command that needs it. The `docker-in-machine` packet is built around this.
 
 **The CLI still says otherwise, and the docs no longer do.** `smolvm machine create --help` at
-v1.14.6 describes `--init` as "Run command on every VM start", while `smolvm machine run --help`
+v1.18.2 describes `--init` as "Run command on every VM start", while `smolvm machine run --help`
 has the corrected wording, so the two subcommands contradict each other in their own help output.
 `introduction/concepts/smolfile.md` has since been corrected and carries a "When init runs"
 heading stating that init runs once, on the first start, and that later starts skip it. Believe
@@ -850,6 +894,9 @@ immediately after a restart:
 |---|---|---|
 | none (image CMD) | 1 in 20 | 1 in 20 |
 | `sh -c 'while true; do sleep 3600; done'` | 0 in 20 | 0 in 20 |
+
+**On v1.18.2**, 2026-09-24, the no-command row was 0 in 20 on macOS arm64 and 1 in 20 on Lima
+aarch64, where it had been 0 in 20 on both on v1.16.1.
 
 **The fix is to give the machine a workload that stays up**, which is what
 `scripts/create-dev-machine.sh` does. There is no Smolfile key for it: pass it after `--` on
@@ -902,8 +949,8 @@ Error: agent operation failed: connect: machine 'dev' is not running.
        Use 'smolvm machine start --name dev' first.
 ```
 
-Verified both through a pipe and under a real pty, so it is not a TTY-detection effect. Start it
-explicitly first.
+Verified both through a pipe and under a real pty, so it is not a TTY-detection effect, and again
+on v1.18.2. Start it explicitly first.
 
 ### A host `volumes` mount is not writable by a non-root `user`
 
@@ -936,8 +983,28 @@ none on / type overlay (... upperdir=/storage/overlays/persistent-<name>/upper .
 
 ### `machine delete` prompts and defaults to No
 
-Without `--force` a scripted cleanup prints `Delete machine 'dev'? [y/N] Cancelled` and leaves the
-machine in place while the script carries on. Always pass `--force` in a script.
+Through v1.16.x a scripted delete without `--force` printed `Delete machine 'dev'? [y/N]
+Cancelled`, exited 0 and left the machine in place while the script carried on. On v1.17.0 and
+later it exits 1 with `needs confirmation but stdin is not a terminal; pass --force to delete it`.
+Always pass `--force` in a script.
+
+### A VPN inside the machine takes its gateway and resolver
+
+A machine on virtio-net gets the link `100.96.0.0/30` by default, with the gateway and resolver at
+`.1`. Tailscale and other carrier NAT VPNs claim `100.64.0.0/10`, which contains it, so once the
+VPN is up inside the machine its gateway and resolver route into the VPN and every lookup fails.
+The `sandbox` packet's traps have the measurement: with the routes Tailscale adds, the default link
+gave `bad address 'example.com'` and `--guest-subnet 10.200.0.0/30` with the same routes resolved
+and fetched, on v1.18.2 on both hosts.
+
+For a dev machine the flag has three constraints, each observed on v1.18.2:
+
+- **It is set at `create` only.** `machine update` has no `--guest-subnet`, so changing it means a
+  new machine. It survives stop and start.
+- **A Smolfile cannot carry it.** `[network]` accepts `allow_hosts`, `allow_cidrs` and
+  `credentials`; pass `--guest-subnet` on `machine create` next to `-s`.
+- **It implies `--net` and virtio-net**, and `machine ls --json` then reports `"network": false`
+  for a machine that does reach the network, so do not read that field as the answer.
 
 ### Do not run two lifecycle commands against the same machine at once
 

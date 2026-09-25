@@ -6,8 +6,9 @@ title: "Pack: ship a prepared machine as one file"
 
 Turns an image, or a machine already provisioned, into a single self-contained artifact that runs on another compatible host. Use when shipping a prepared environment as one file, when a packed artifact runs but the state installed into it is missing, when pack create --from-vm fails with a ready timeout that names nothing, when an export is refused because the machine is a fork clone, or when deciding whether to pack from an image or from a machine. Do not use it to keep a machine you re-enter, which is the dev-env packet, or to run untrusted code, which is the sandbox packet.
 
-Verified on **smolvm v1.16.1** on macOS arm64, 2026-09-15, and on **v1.14.6** on Linux aarch64,
-2026-09-11. Done means the
+Verified on **smolvm v1.18.2** on macOS arm64, 2026-09-24, and on **v1.14.6** on Linux aarch64,
+2026-09-11; the Linux host could not run the packing steps on v1.18.2, for the reason in
+"Re-verified on v1.18.2". Done means the
 artifact runs a command in a real VM and, for a machine pack, **the state you installed is still
 inside it**.
 
@@ -56,6 +57,23 @@ It creates the machine with a workload that stays up, waits for a value from it,
 not ceremony: packing a machine whose provisioning silently failed produces an artifact that runs
 perfectly and contains nothing, and nothing downstream will tell you.
 
+**Packing a machine that already exists**, the user's own rather than one `pack-machine.sh` made:
+the script refuses any name without the `smolskill-` prefix, so run its sequence by hand. The
+machine has to be stopped, since `--from-vm` packs a stopped machine's snapshot.
+
+```bash
+smolvm machine exec --name myapp -- sh -c 'echo PACKED_STATE_PRESENT > /marker.txt'
+smolvm machine exec --name myapp -- cat /marker.txt          # assert it on the source first
+smolvm machine stop --name myapp
+smolvm pack create --from-vm myapp --output ./myapp-portable --single-file   # one file, no sidecar
+scripts/verify-pack.sh --machine ./myapp-portable            # reads /marker.txt back out of it
+smolvm machine start --name myapp && smolvm machine exec --name myapp -- rm -f /marker.txt
+```
+
+`verify-pack.sh --machine` works on a `--single-file` artifact as it does on a stub with a sidecar.
+A stranger given only this packet and "ship this provisioned machine as one file" took this route
+on v1.18.2, and the 58.8 MiB artifact printed the machine's own `/root/PROOF.txt` on another run.
+
 **4. Verify.** Both halves.
 
 ```bash
@@ -87,6 +105,25 @@ scripts/cleanup.sh --purge --artifacts ./from-image ./from-vm
 It prunes each recorded machine while it still exists, deletes it, removes both stubs and their
 sidecars, and runs `pack prune`. **`smolvm machine prune` with no argument does not run on this
 release**; the form is `--name <NAME>`.
+
+## Forwarding the SSH agent to an artifact
+
+From v1.18.1 the artifact's own `run` and `start` take `--ssh-agent`, the same bridge `machine
+run` has: the guest gets `SSH_AUTH_SOCK=/tmp/ssh-agent.sock` and the host agent signs, so no key
+enters the artifact or the VM.
+
+```bash
+./from-image run --net --ssh-agent -- sh -c 'apk add -q openssh-client; ssh-add -l'
+./from-image start --net --ssh-agent
+./from-image exec -- ssh-add -l
+```
+
+Measured on macOS arm64 on v1.18.2 with a throwaway key in a throwaway agent: both forms listed
+that key's fingerprint from inside the guest, a `run` without the flag had `SSH_AUTH_SOCK` unset,
+and with the host variable empty the flag stops before booting with
+`--ssh-agent: SSH_AUTH_SOCK is not set. Start an SSH agent with: eval $(ssh-agent) && ssh-add`.
+**Forward the agent only to an artifact you trust**: the guest can ask for signatures for as long
+as it runs, and an artifact is a filesystem somebody else prepared.
 
 ## What an artifact is, and what it carries
 
@@ -144,8 +181,11 @@ Full detail with the evidence in `references/traps.md`. The ones that cost the m
   turned on for an already-running machine`, and `machine create --branchable` is not a flag.
 - **A checkpoint restore packs and carries its rootfs**, and the restore path is
   `machine create --from`. There is no `machine restore` subcommand. **Taking the checkpoint needs
-  `--branchable` on macOS**: without it v1.16.1 fails with `guest RAM has no file-backed regions`,
-  which names neither the flag nor the precondition.
+  `--branchable` on macOS**: without it v1.16.1 and v1.18.2 fail with `guest RAM has no
+  file-backed regions`, which names neither the flag nor the precondition. Linux aarch64 took one
+  without it on v1.18.2. A machine created from a pack can be checkpointed from v1.18.0, and
+  `create --from` restores the newest generation a checkpoint carries; `--at ~N` picks an earlier
+  one, which `branch-and-checkpoint` covers.
 - **On Linux, `SMOLVM_DATA_DIR` moves where the agent rootfs is looked up and the installer does
   not write it there**, so an isolated data root needs the rootfs copied in before the first boot.
 
@@ -167,9 +207,11 @@ Full detail with the evidence in `references/traps.md`. The ones that cost the m
 
 ## Platform arms
 
-- **macOS arm64**: verified on v1.14.6. An extra `Signing binary with hypervisor entitlements`
-  step runs here that does not on Linux.
-- **Linux aarch64**: verified on v1.14.6.
+- **macOS arm64**: verified on v1.18.2, including the SSH agent forwarding and a pack of a
+  restored machine. An extra `Signing binary with hypervisor entitlements` step runs here that
+  does not on Linux.
+- **Linux aarch64**: verified on v1.14.6. Not re-run on v1.18.2: the host could not boot the pull
+  helper in time, see below.
 - **Linux x86_64**: verified in the material behind this packet on v1.14.6, including the branched
   and restored cases. Not re-run here.
 
@@ -229,6 +271,39 @@ memory. Packing from an image starts no exporter and is unaffected.
 On the hosts here the export then **succeeded anyway**, on the Mac reporting 4990 MiB, which is
 why that line warns rather than blocks.
 
+## Re-verified on v1.18.2
+
+Run 2026-09-24 PT against v1.18.2 from the published release, under an isolated `HOME`, on macOS
+26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64).
+
+**macOS: full pass.**
+
+```
+exporter_memory_ok=no                   (free_memory_mib=2707, a warning and not a gate)
+result=packed                           (image, 4.5 s; stub_understated_kb=10516)
+source_marker=PACKED_STATE_PRESENT
+  Reusing the machine's cached image layers...
+result=packed                           (machine, 1 s of export)
+image_pack_is_a_vm=ok (Linux)
+image_pack_second_run=ok (SECOND_RUN_OK)
+machine_pack_carried_rootfs=ok (PACKED_STATE_PRESENT)
+result=artifacts_good (2 of 2 artifacts)
+```
+
+The SSH agent forwarding in the section above was measured in the same session. So was a
+restore: a machine created from `from-vm.smolmachine`, started `--branchable`, a marker written,
+`Checkpointed ... (43 MiB written, 4.043s total, 0.652s source pause)`, restored with
+`machine create --from <file>.smolcheckpoint`, started, the marker read back, and
+`pack create --from-vm` of the restored machine finished in 2.3 s with an artifact that printed the
+marker.
+
+**Linux aarch64: not run, for a host reason.** `pack create --image alpine` failed with `agent did
+not become ready within 30 seconds`, with or without `--mem 1024`, because the pull helper does not
+take `--mem`; the golden machine's start failed the same way. That box could not boot guests above
+2048 MiB in time that day, on v1.16.1 as well, which the `install` packet's traps record. The
+preflight reported `exporter_memory_ok=yes` there, since the host had 10386 MiB free: free memory
+is not what failed, so read that line as a hint about the exporter only.
+
 ## What was not run
 
 - **Cross-platform rehydration**, except for one pair. An arm64 stub built on macOS was carried to
@@ -239,9 +314,11 @@ why that line warns rather than blocks.
   registry.
 - **Windows through these scripts.** `scripts/*.sh` are POSIX shell and do not run there; the
   2026-09-11 v1.14.6 run on Windows issued the CLI by hand. `references/windows.md` has it.
-- **The branched and restored sources on these two hosts.** Both are answered on Linux x86_64 in
-  the material behind this packet and are written up in `references/traps.md` as behaviour; they
-  were not re-run on macOS or aarch64.
+- **The branched source on aarch64**, and the restored source on Linux aarch64. The restored
+  source was run on macOS on v1.18.2 and the branched one on v1.16.1; both are answered on Linux
+  x86_64 in the material behind this packet.
+- **SSH agent forwarding on Linux.** Measured on macOS only.
+- **Linux aarch64 on v1.18.2**, as above.
 
 ## Related packets
 
@@ -273,7 +350,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.14.6"
+VERIFIED_VERSION="1.18.2"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -342,7 +419,7 @@ case "$kernel" in
         else
             emit socket_path_status ok
         fi
-        emit unsupported "vulkan,cuda"
+        emit unsupported "cuda"
         ;;
     Linux)
         emit platform "linux-$arch"
@@ -1017,7 +1094,14 @@ regions
 
 which names neither the flag nor the precondition. Started with
 `machine start --name <n> --branchable`, the same command wrote 46 MiB in 2.554s with a 0.292s
-source pause. Branchability is decided at start and cannot be turned on afterwards.
+source pause. Branchability is decided at start and cannot be turned on afterwards. **The same on
+v1.18.2 on macOS, 2026-09-24**, with the same message. On Linux aarch64 v1.18.2 took the checkpoint
+of a machine started without the flag: `Checkpointed ... (55 MiB written, 1.781s total, 1.242s
+source pause)`.
+
+A machine **created from a pack** checkpoints from v1.18.0 (#1361), and its restore reattaches the
+pack's layers: on macOS on v1.18.2 a machine created from `from-vm.smolmachine`, checkpointed,
+restored and packed again gave an artifact carrying the marker written after the pack.
 
 A machine restored from a checkpoint packs, runs, and carries its rootfs. This is the case
 [#1174](https://github.com/smol-machines/smolvm/pull/1174) changed, shipped in v1.14.3.

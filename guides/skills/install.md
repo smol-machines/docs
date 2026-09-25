@@ -6,13 +6,13 @@ title: "Install: set up smolvm and prove the host boots"
 
 Installs smolvm from a published release and proves the host can actually boot a microVM before any other work starts. Use when setting smolvm up on a new machine, a CI runner or an agent sandbox; when a first boot fails with krun_start_enter -22, KVM_DENIED or "agent did not become ready"; when checking whether a host meets smolvm's requirements at all; or when an install has to be isolated from an existing one and then removed. Do not use it to remove an existing install (see the teardown packet) or for anything after the first boot has succeeded.
 
-Verified on **smolvm v1.16.1** on macOS arm64, 2026-09-15, and on **v1.14.6** on Linux aarch64,
-2026-09-10. Done means `smolvm --version` prints the release version **and** a throwaway VM has run
+Verified on **smolvm v1.18.2** on macOS arm64 and Linux aarch64, 2026-09-24. Done means `smolvm --version` prints the release version **and** a throwaway VM has run
 one command and exited. A version number alone proves nothing: on every
 platform here there is at least one way for the install to succeed and every VM start to fail.
 
-`scripts/preflight.sh` reports the host as `key=value` lines and ends with `result=ready` or
-`result=blocked`. Run it first, and run it again after the install if the first boot fails.
+`scripts/preflight.sh` reports the host as `key=value` lines and ends with `result=ready`,
+`result=not_installed` or `result=blocked`. Run it first, and run it again after the install if
+the first boot fails.
 
 ## Procedure
 
@@ -22,7 +22,9 @@ platform here there is at least one way for the install to succeed and every VM 
 scripts/preflight.sh
 ```
 
-Stop on `result=blocked` and read the `note=` lines. The two that block a fresh host are
+`result=not_installed` on a fresh host means the host is fit and smolvm is simply missing: go on
+to step 2 and run this again afterwards. Stop on `result=blocked` and read the `note=` lines. The
+two that block a fresh host are
 `accel_access=denied` on Linux (your user cannot open `/dev/kvm`) and `socket_path_status=too_long`
 on macOS (the install path is too deep for a VM's Unix socket). Both have a fix in
 `references/traps.md`, and neither announces itself later: the installer warns about KVM and
@@ -42,7 +44,7 @@ is what the packet was last verified on, not what you should install. Pin only t
 recorded run:
 
 ```bash
-curl -sSL https://smolmachines.com/install.sh | bash -s -- --version 1.16.1   # a recorded run
+curl -sSL https://smolmachines.com/install.sh | bash -s -- --version 1.18.2   # a recorded run
 ```
 
 On macOS two `warning:` lines about notarization appear on every install and are not a problem.
@@ -63,6 +65,11 @@ scripts/verify-boot.sh
 It runs one ephemeral alpine VM and asserts two values: a marker the guest printed, and that the
 guest kernel is not the host's. On failure it prints the three misreadings that cost the most
 time, before you clean up and lose the evidence.
+
+It boots a 2048 MiB guest, and a machine you create without `--mem` asks for 8192. A host can pass
+this step and still fail every default-size machine with `agent did not become ready within 30
+seconds`; if your work uses the default, boot one at that size too. `references/traps.md` has the
+measurement.
 
 **4. Clean up.**
 
@@ -85,7 +92,7 @@ processes an interrupt left behind, and kills them only with `--reap`.
 | `macos_version`, `hardware_verified` | `hardware_verified=no` on an Intel Mac: the installer accepts it and nothing here was run on one |
 | `socket_path_bytes`, `socket_path_status` | macOS only, and the single most common cause of "macOS is broken" |
 | `unsupported` | features this platform does not have |
-| `result` | `ready` or `blocked` |
+| `result` | `ready`, `not_installed` (the host is fit and smolvm is missing) or `blocked` |
 
 `version_status=newer` is a warning, not a failure. smolvm's flags and messages move every
 release, so on a newer binary check each step's output against the binary before trusting the
@@ -211,6 +218,22 @@ macOS 26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64). Both hosts: `res
 `guest_ran=yes`, `guest_kernel=Linux 6.12.95`, `is_a_vm=yes`, `result=boot_ok`, and a clean
 cleanup. The guest kernel is unchanged across 1.14.2, 1.14.3 and 1.14.6.
 
+## Re-verified on v1.18.2
+
+Run 2026-09-24 PT against v1.18.2 from the published release, into a fresh isolated `HOME` on macOS
+26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64), with `--version 1.18.2`. Both hosts:
+`result=ready`, then `guest_ran=yes`, `guest_kernel=Linux 6.12.95`, `is_a_vm=yes`,
+`result=boot_ok`, and `machines=clean`, `vm_processes=none` from the cleanup. The boot took 9.8 s
+on macOS and 30.7 s on Linux, the image pull included. The `smolvm-bin` the installer laid down
+hashed identical to the one in the release tarball
+(`34b13aae2e126998444b85cd78553f047a2376eeab48715399eaa3443d0e726f` on macOS), so the installer
+serves the published release.
+
+**The Linux box passed this packet and could not boot a default-size machine.** On the same day
+it booted 512, 1024 and 2048 MiB guests and timed out at 2560 MiB and above, with v1.16.1 on the
+same box doing the same, so the cause is the host and not the release. `verify-boot.sh` asks for
+2048 MiB and passed. See the second cause under the readiness trap in `references/traps.md`.
+
 ## What was not run
 
 - **Intel Mac.** Nothing.
@@ -243,11 +266,11 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 # writes no smolvm state, changes no group membership.
 #
 # Output is one key=value per line so a caller can parse it. The last line is
-# always result=ready or result=blocked.
+# always result=ready, result=not_installed or result=blocked.
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.16.1"
+VERIFIED_VERSION="1.18.2"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -257,10 +280,11 @@ note() { printf 'note=%s\n' "$1"; }
 # --- the binary --------------------------------------------------------------
 
 SMOLVM="${SMOLVM:-$(command -v smolvm 2>/dev/null)}"
+missing=0
 if [ -z "$SMOLVM" ]; then
     emit smolvm_installed no
     emit smolvm_version ""
-    blocked=1
+    missing=1
 else
     emit smolvm_installed yes
     version="$("$SMOLVM" --version 2>/dev/null | awk '{print $NF}')"
@@ -316,7 +340,7 @@ case "$kernel" in
         else
             emit socket_path_status ok
         fi
-        emit unsupported "vulkan,cuda"
+        emit unsupported "cuda"
         ;;
     Linux)
         emit platform "linux-$arch"
@@ -344,7 +368,16 @@ case "$kernel" in
         ;;
 esac
 
-if [ "$blocked" -eq 0 ]; then emit result ready; else emit result blocked; fi
+# Not installed yet is not a fault of the host, and reading it as one stopped a
+# first install that had nothing wrong with it.
+if [ "$blocked" -ne 0 ]; then
+    emit result blocked
+elif [ "$missing" -ne 0 ]; then
+    note "smolvm is not installed yet and nothing else blocks this host: install it (step 2), then run this again"
+    emit result not_installed
+else
+    emit result ready
+fi
 ```
 
 ### `scripts/verify-boot.sh`
@@ -398,7 +431,7 @@ if [ "$fail" -eq 0 ]; then
 else
     printf 'result=boot_failed\n'
     printf 'next: read the failure before cleaning up, because the evidence is deleted with the VM directory.\n'
-    printf '  - "agent did not become ready within 30 seconds" is usually host load, not the install. The 30s limit is fixed and no flag raises it for machine run or machine start.\n'
+    printf '  - "agent did not become ready within 30 seconds" is usually host load or a guest too large for this host, not the install. The 30s limit is fixed and no flag raises it for machine run or machine start; retry with a smaller --mem to tell the two apart.\n'
     printf '  - "krun_start_enter returned: -22" on macOS is almost always the socket path length, not the disks its text names. Run preflight.sh and read socket_path_status.\n'
     printf '  - the boot child sends its own output to /dev/null. To see the real failure, copy <vm-dir>/boot-config.json while a start is in flight and run: smolvm-bin _boot-vm <copy>\n'
 fi
@@ -629,6 +662,20 @@ which is what you want over SSH or inside a script.
 **Suspect host load before you suspect the install.** This was reproduced on both macOS and a
 nested-virt Linux box purely by running other VMs at the same time, and the identical command
 passed on a quiet host seconds later.
+
+**Then suspect the guest's size.** A host that is slow to fault in guest memory can boot a small
+guest and time out on a large one, and the message is the same. Measured on Lima `linux-kvm`
+(Ubuntu 24.04 aarch64, nested virtualisation on a 16 GiB Mac that was paging), 2026-09-24:
+
+| `--mem` | v1.18.2 | v1.16.1 |
+|---|---|---|
+| 512, 1024 | booted, about 14 s | not run |
+| 2048 | booted, 33 s | booted, 36 s |
+| 2560 to 8192 | `agent did not become ready within 30 seconds` | the same at 4096 and 8192 |
+
+The default is 8192, so on such a host `machine create` without `--mem` gives a machine that never
+starts, while `scripts/verify-boot.sh` at 2048 passes. Bisect on `--mem` before designing around
+it: the same box booted 8192 on v1.14.6 on 2026-09-10, when its host was not paging.
 
 The 30 s limit is a hard-coded constant (`src/agent/manager.rs`, `AGENT_READY_TIMEOUT`) and
 **there is no flag or environment variable that raises it** for `machine run` or `machine start`.
