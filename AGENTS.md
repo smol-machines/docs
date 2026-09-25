@@ -135,6 +135,8 @@ page.
 | `guides/skills/docker-in-machine.md` | Run a Docker daemon inside a machine |
 | `guides/skills/gpu-cuda.md` | Run CUDA workloads against a host NVIDIA GPU |
 | `guides/skills/pack.md` | Ship a prepared machine to another host as one file |
+| `guides/skills/branch-and-checkpoint.md` | Scheduled checkpoints with history, restores, pause and resume, and branch points kept as checkpoints |
+| `guides/skills/credentials.md` | Let a workload use an API key it can never read, and prove it stayed out |
 | `guides/skills/cloud-auth.md` | Point an agent at a cloud account and prove one call works |
 | `guides/skills/cloud-machine.md` | Create, exec, move files, restart and delete a cloud machine |
 | `guides/skills/cloud-registry.md` | Push an artifact and run a cloud machine from it |

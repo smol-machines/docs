@@ -22,6 +22,8 @@ Find the task, then read the one page it names. Each packet was run end to end a
 | Run a Docker daemon inside a machine | [docker-in-machine](/docs/guides/skills/docker-in-machine) | Running OCI images, which need no Docker; Windows | smolvm v1.18.2 on macOS arm64 and Linux aarch64 |
 | Run CUDA workloads against a host NVIDIA GPU | [gpu-cuda](/docs/guides/skills/gpu-cuda) | Vulkan graphics (`--gpu`); a Mac, which has no NVIDIA GPU | smolvm v1.14.6 on Linux x86_64 (A10) and Windows x86_64 (RTX 4050); the no-GPU answer on v1.18.2 on macOS arm64 and Linux aarch64 |
 | Ship a prepared machine to another host as one file | [pack](/docs/guides/skills/pack) | A machine you re-enter; untrusted code | smolvm v1.18.2 on macOS arm64, v1.14.6 on Linux aarch64 |
+| Checkpoint a machine on a schedule, restore any generation, pause and resume, and keep a branch point | [branch-and-checkpoint](/docs/guides/skills/branch-and-checkpoint) | Moving a machine to another host as a file; state that only has to survive a restart | smolvm v1.18.2 on macOS arm64 and Linux aarch64 |
+| Let a workload use an API key it can never read | [credentials](/docs/guides/skills/credentials) | A value the program must parse, which is `--secret-env`; git and ssh keys, which is SSH agent forwarding | smolvm v1.18.2 on macOS arm64 and Linux aarch64, host side only |
 
 ### Running things on smol cloud
 
@@ -64,7 +66,7 @@ A packet is written only when the procedure behind it can be run end to end and 
 | Empty folder to a deployed tool in three commands | The documented route does not currently complete on every host |
 | Headless browsing on cloud | A browser in a cloud machine renders nothing, and the cause is narrowed rather than found |
 | Anything behind the console sign-in | Account creation and key minting are human steps by design. The packets start where a person hands an agent a key |
-| Checkpoint a running machine and restore it | **Not yet available.** The local CLI does this today and the agent quickstart runs it end to end, but no packet covers it: nothing here has exercised `machine checkpoint`, and on cloud the capability is advertised with no route in the published spec |
+| Checkpoint a running cloud machine and restore it | On cloud the capability is advertised with no route in the published spec. Locally, [branch-and-checkpoint](/docs/guides/skills/branch-and-checkpoint) covers it |
 
 ## What is on a packet page
 
