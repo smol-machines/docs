@@ -20,6 +20,8 @@ const agent = await AgentSession.create(
 while ((await agent.info()).status === "starting") {
   await new Promise((resolve) => setTimeout(resolve, 2000));
 }
+if ((await agent.info()).status !== "ready") throw new Error("agent setup failed");
+await (await agent.machine()).writeFile("/workspace/task.txt", Buffer.from("Fix the tests"));
 
 const turn = await agent.send("Fix the failing tests", {
   idempotencyKey: "task-123",
@@ -40,6 +42,9 @@ agent = AgentSession.create(
 )
 while agent.info()["status"] == "starting":
     time.sleep(2)
+if agent.info()["status"] != "ready":
+    raise RuntimeError("agent setup failed")
+agent.machine().write_file("/workspace/task.txt", "Fix the tests")
 
 turn = agent.send("Fix the failing tests", idempotency_key="task-123")
 for event in agent.events(turn):
@@ -61,6 +66,8 @@ let agent = CloudAgentSession::create(&CreateAgent {
 while agent.info()?.status == "starting" {
     std::thread::sleep(std::time::Duration::from_secs(2));
 }
+assert_eq!(agent.info()?.status, "ready", "agent setup failed");
+agent.machine()?.write_file("/workspace/task.txt", b"Fix the tests".to_vec())?;
 let turn = agent.send(&SendAgentTurn {
     prompt: "Fix the failing tests".into(),
     env: Default::default(),
@@ -73,7 +80,7 @@ for event in agent.events(turn, None)? {
 
 :::
 
-`create` returns while setup runs. Check that the session reaches `ready` before sending its first turn; handle `failed` as an error. Each turn returns an index immediately. Its event stream ends with a `done` summary; if the connection breaks, reconnect with the last event ID as `after`. Reusing an idempotency key with the same turn input returns the original index.
+`create` returns while setup runs. Check that the session reaches `ready` before sending its first turn; handle `failed` as an error. `machine()` gives you the current machine handle so you can stage repository files in `/workspace` with the usual file API. Attach again after a rewind because the machine ID changes. Each turn returns an index immediately. Its event stream ends with a `done` summary; if the connection breaks, reconnect with the last event ID as `after`. Reusing an idempotency key with the same turn input returns the original index.
 
 After a turn is checkpointed, use `rewind(turn)` to restore that state or `fork(turn, newName)` to try another approach in an independent machine. `cancel(turn)` stops a running turn; `pause()`, `resume()`, and `delete()` manage the session's machine. Fetch `info()` for turn history and use `AgentSession.list()` (or `CloudAgentSession::list()`) to page through an account's sessions.
 
