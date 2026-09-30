@@ -119,7 +119,7 @@ Typical meanings:
 - `402`: tenant billing or budget restriction
 - `404`: machine or other resource does not exist
 - `409`: lifecycle conflict or duplicate name
-- `422`: the body parsed but did not satisfy the schema, or the request was refused by a quota
+- `422`: the body parsed but did not satisfy the schema, or the request was refused by a quota. A quota refusal names the plan and the ceiling it hit, so the body is worth surfacing to whoever triggered the call — see [plan limits](/docs/cloud/api-reference)
 - `429`: rate limited; retry with bounded backoff and jitter
 - `5xx`: service failure; retry idempotent requests with bounded backoff
 
