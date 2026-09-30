@@ -69,6 +69,90 @@ POST   /v1/machines/{id}/sessions/{sessionId}/exec
 DELETE /v1/machines/{id}/sessions/{sessionId}
 ```
 
+### Interactive terminal
+
+The console's terminal is a WebSocket you can open yourself, to give your own product a real shell in a machine: full-screen programs, colors, prompts, and resizing all work.
+
+```text
+GET /v1/machines/{id}/exec/interactive   (WebSocket upgrade)
+```
+
+| Query parameter | Meaning |
+|---|---|
+| `cmd` | Program to run, as a single path with no arguments. Defaults to `/bin/sh`. `command` is accepted too. |
+| `cols`, `rows` | Initial terminal size. |
+| `access_token` | Your API key, for clients that cannot set an `Authorization` header on a WebSocket, such as browsers. Servers should send the bearer header instead. |
+
+The key needs the `machine:exec` scope. A stopped machine is started before the terminal opens.
+
+Once connected, frames mean:
+
+| Direction | Frame | Meaning |
+|---|---|---|
+| you → machine | binary | Keystrokes, as raw bytes |
+| you → machine | text `{"type":"resize","cols":120,"rows":40}` | The terminal was resized |
+| you → machine | text `{"type":"stdin","data":"ls\n"}` | Text input; any other text frame is also typed as input |
+| machine → you | binary | Terminal output, including ANSI escape codes |
+| machine → you | text `{"type":"exit","code":0}` | The program exited; the socket closes next |
+
+This maps directly onto [xterm.js](https://xtermjs.org/):
+
+```js
+import { Terminal } from '@xterm/xterm';
+
+const term = new Terminal();
+term.open(document.getElementById('terminal'));
+
+const url = new URL(`wss://api.smolmachines.com/v1/machines/${machineId}/exec/interactive`);
+url.search = new URLSearchParams({
+  cmd: '/bin/bash',
+  cols: String(term.cols),
+  rows: String(term.rows),
+  access_token: apiKey,
+}).toString();
+
+const ws = new WebSocket(url);
+ws.binaryType = 'arraybuffer';
+const encoder = new TextEncoder();
+
+ws.onmessage = (event) => {
+  if (typeof event.data === 'string') {
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'exit') term.write(`\r\n[exited with ${msg.code}]\r\n`);
+  } else {
+    term.write(new Uint8Array(event.data));
+  }
+};
+term.onData((data) => ws.send(encoder.encode(data)));
+term.onResize(({ cols, rows }) => ws.send(JSON.stringify({ type: 'resize', cols, rows })));
+```
+
+From a server, the same session with Node's `ws` package:
+
+```js
+import WebSocket from 'ws';
+
+const ws = new WebSocket(
+  `wss://api.smolmachines.com/v1/machines/${machineId}/exec/interactive?cmd=/bin/sh&cols=120&rows=40`,
+  { headers: { Authorization: `Bearer ${process.env.SMOL_CLOUD_TOKEN}` } },
+);
+ws.on('open', () => ws.send(Buffer.from('uname -a\n')));
+ws.on('message', (data, isBinary) => {
+  if (isBinary) process.stdout.write(data);
+  else if (JSON.parse(data.toString()).type === 'exit') ws.close();
+});
+```
+
+Behavior to plan for:
+
+- **Closing the socket ends the program.** Nothing keeps running once you disconnect. For a session you can come back to, set `cmd` to a script that runs `exec tmux new -A -s main` (with `tmux` installed in the machine) and reconnect to the same session.
+- **A connection lasts at most one hour.** Reconnect before then; with `tmux`, reconnecting lands you back where you were.
+- **Quiet sessions are kept alive.** The server pings every 30 seconds, which WebSocket clients answer automatically. A client that stops answering for 90 seconds is treated as gone and its session ends, so a machine is not kept awake by a connection nobody is using.
+- **Several terminals can be open at once.** Each has its own session and does not block the others or `exec` calls.
+- **Treat a key in a browser as visible.** Anyone who can read the page can read an `access_token`, and query strings can appear in proxy logs. Have your backend mint a key for that user with `"scopes": ["machine:exec"]` and `"expiresInDays": 1` through `POST /v1/apikeys`, and revoke it when the session ends.
+
+For command output without a terminal, such as an agent running a build, `POST /v1/machines/{id}/exec` with `"stream": true` returns output as Server-Sent Events and is simpler to consume.
+
 ### Files
 
 The API supports file upload and download for a machine. Use the current OpenAPI or API Explorer for the path shape and request encoding.
