@@ -88,7 +88,7 @@ Use separate host service accounts or stronger OS confinement for hostile co-ten
 
 Persistent named machines keep disk changes across stop/start on the same host. A `.smolmachine` can capture stopped disk state for reuse on a compatible host.
 
-Packing does not preserve live RAM or running processes. Standalone smolvm does not provide live migration between hosts or a general portable checkpoint/restore service. Build backup and recovery around stopped disk artifacts and any external durable storage your workload uses.
+Packing does not preserve live RAM or running processes, but `machine checkpoint` does: it writes a portable checkpoint of a running machine, RAM included, which `machine create --from` restores. What standalone smolvm does not provide is live migration between hosts, and a restore has host requirements of its own. Build backup and recovery around checkpoints, stopped disk artifacts, and any external durable storage your workload uses.
 
 ### An isolated data root
 
