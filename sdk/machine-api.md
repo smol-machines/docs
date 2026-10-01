@@ -302,7 +302,7 @@ Cloud authentication also reads `SMOL_CLOUD_TOKEN`. The base URL override is `SM
 | `network` | `network` | Both | Unrestricted guest outbound networking. Local default `false`. On cloud it only turns access **on**: omitting it and setting `false` both leave the control-plane default, which is open. To allow only specific destinations, set `allowHosts` / `allowCidrs` instead of this flag |
 | `storageGb` | `storage_gb` | Both | Storage disk size in GiB; local SDK default `20` |
 | `overlayGb` | `overlay_gb` | Local | Overlay disk size in GiB; local SDK default `10` |
-| `allowHosts` | `allow_hosts` | Both | Enable networking restricted to these hostnames and their subdomains, enforced at DNS inside the machine; a host served from another domain (a CDN) needs its own entry |
+| `allowHosts` | `allow_hosts` | Both | Enable networking restricted to these hostnames and their subdomains. The gateway intercepts the machine's DNS and allows the addresses it answers with, so a host served from another domain (a CDN) needs its own entry |
 | `allowCidrs` | `allow_cidrs` | Both | Enable networking restricted to these IP ranges |
 | `gpu` | `gpu` | Local Vulkan | Enable virtio-gpu/Venus; default `false` |
 | `gpuVramMib` | `gpu_vram_mib` | Local Vulkan | VRAM allocation; omitted values use the engine default |
