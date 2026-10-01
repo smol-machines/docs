@@ -34,6 +34,9 @@ exit
 
 ## Restrict network egress
 
+An allow list selects the `virtio-net` backend, so this machine has an `eth0` and a routable
+address where a plain `--net` machine has neither.
+
 ```bash
 smolvm machine run \
   --net \

@@ -249,6 +249,41 @@ macOS 15 or later; on Linux it means nested KVM is enabled, through `kvm_intel.n
 Running a Docker daemon in a machine does not need this flag. Containers share the guest kernel,
 so [Docker in a Machine](/docs/guides/docker-in-a-machine) works without it.
 
+### What moves a machine to virtio-net
+
+Four things select `virtio-net` when you have not named a backend, because each one needs
+something `tsi` cannot provide:
+
+| You passed | Why virtio-net |
+|---|---|
+| `--port` / `-p` | only virtio-net serves inbound connections |
+| `--allow-host`, `--allow-cidr`, `--outbound-localhost-only` | the allow list is enforced by the host-side gateway |
+| `--network` | a named inter-VM network is fabric routing in that gateway |
+| `--guest-subnet` | a custom guest link shapes the virtio-net interface |
+
+So adding an egress allow list to a machine changes more than its egress. The machine gains an
+`eth0` with a real address, and `ping` starts working, which is the opposite of what the default
+backend does above:
+
+```console
+$ smolvm machine run --net --image alpine -- ip -4 -o addr show scope global
+2: dummy0    inet 203.0.113.1/24 brd 203.0.113.255 scope global dummy0
+
+$ smolvm machine run --net --allow-host example.com --image alpine -- ip -4 -o addr show scope global
+3: eth0    inet 100.96.0.2/30 scope global eth0
+```
+
+Naming `tsi` explicitly alongside any of them is refused rather than silently ignored, because
+`tsi` would not enforce the policy it was given:
+
+```text
+ports:  published ports require the virtio-net backend (TSI is outbound-only); remove
+        --net-backend tsi or set it to virtio-net
+egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only) requires the
+        virtio-net backend; TSI does not enforce it. Remove --net-backend tsi or set it to
+        virtio-net
+```
+
 ## Common resource flags
 
 | Flag | Meaning |
@@ -280,8 +315,9 @@ Networking is off until you pass `--net`. What you get then depends on the backe
 default one behaves in a way that surprises people the first time they look inside a machine.
 
 The default backend, `tsi`, carries the guest's TCP and UDP connections directly rather than
-emulating a network card. Outbound connections work, port forwarding works, and DNS works. But
-there is no virtual interface for the guest to show you:
+emulating a network card. Outbound connections work and DNS works. Published ports do not: a
+machine that publishes one is moved to `virtio-net` instead, which is the next section. But on
+`tsi` there is no virtual interface for the guest to show you:
 
 ```console
 $ smolvm machine exec --name web -- ip link show
