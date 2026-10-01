@@ -49,9 +49,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 The builder takes the machine's name, and `create()` returns before the machine is started, so
 `start()` is a separate call. `exec` returns a result whose `stdout_utf8()` is the captured output.
 
-Networking is off unless you ask for it, and the image pull runs inside the guest, so a registry
-image needs `.network(true)` even when the workload itself needs no outbound access. Without it,
-`create()` fails saying the image must be pulled from a registry and the machine has no network.
+Networking is off unless you ask for it, and on the local target a registry image still needs
+`.network(true)`. This crate drives `smolvm machine create`, and that command refuses an uncached registry image on a machine with no networking:
+
+```text
+create machine: image 'busybox:1.30' must be pulled from a registry, but this machine has no
+network, so the pull can never succeed
+```
 
 ## Choose local or cloud
 

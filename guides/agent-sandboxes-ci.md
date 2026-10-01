@@ -23,9 +23,11 @@ The [sandbox](/docs/guides/skills/sandbox) and [dev-env](/docs/guides/skills/dev
 
 ## Run an ephemeral job
 
-Network access is off unless enabled — but the image pull runs inside the
-guest, so a registry image needs `--net` even when the job itself needs no
-egress. On a CI host that runs the same image repeatedly, add `--oci-cache` so
+Network access is off unless enabled, and a registry image usually does not need
+it: a separate builder machine pulls the image into a shared seed and the job's
+machine starts from that, so a job with no egress of its own runs on an
+unnetworked machine. On a CI host
+that runs the same image repeatedly, add `--oci-cache` so
 later runs start from the host copy instead of pulling again:
 
 ```bash

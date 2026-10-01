@@ -18,8 +18,17 @@ smolvm machine run --net --image alpine -- echo hello
 
 Filesystem changes do not carry into the next run. Use this mode for one-off jobs, tests, and untrusted commands.
 
-Networking is off by default; `--net` above lets the in-guest image pull reach
-the registry. On the default backend the guest has no visible network interface and `ping` does
+Networking is off by default, and an ephemeral run usually does not need it for
+the image. The pull runs in a separate builder machine that smolvm starts with
+networking on, once per image, leaving a shared seed your machine starts from a
+copy of, so `--net` above is for the workload. Three things have to hold: the
+machine takes the default storage size, seeding is not turned off with
+`SMOLVM_IMAGE_SEEDS=0`, and the host is not Windows. Seeding is best effort, so
+when it does not happen the pull falls back into your own machine, which then
+needs `--net`. The pull running in the builder machine has one consequence worth
+knowing: an egress allow list on your machine governs the workload and not the
+image, so a machine restricted to one hostname still starts from an image on a
+registry that list does not name. On the default backend the guest has no visible network interface and `ping` does
 not work, even though TCP and UDP do — see [how networking behaves inside a
 machine](#how-networking-behaves-inside-a-machine). An ephemeral run pulls every time unless you add `--oci-cache`,
 which keeps the image on the host for later runs to start from without a pull.
@@ -36,6 +45,12 @@ smolvm machine run \
 `--allow-host` limits egress to the named host. Add multiple flags when the workload needs multiple hosts.
 
 ## Persistent machines
+
+`machine create` is stricter than `machine run` about images. An ephemeral run starts from the
+image seed described above and needs no networking of its own, while `create` refuses an uncached
+registry image on a machine with none, even when a previous run already seeded that image locally. Pass `--net`, or
+supply the image locally with `--image -`.
+
 
 A persistent machine separates creation from execution:
 

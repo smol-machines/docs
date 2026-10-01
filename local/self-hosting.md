@@ -38,7 +38,7 @@ smolvm --version
 smolvm machine run --net --image alpine -- uname -a
 ```
 
-The final command needs `--net` so the in-guest image pull can reach the registry, even though the workload itself needs no egress.
+The final command passes `--net` for the workload rather than for the image. On a macOS or Linux node, a separate builder machine pulls a registry image into a seed and the run starts from that, so a machine with no networking of its own still starts from one; on a Windows node the pull runs in the machine and needs `--net`.
 
 For production installation, pin a tested release and verify its published SHA-256 checksum. Release archives are not currently signed or accompanied by provenance attestations.
 

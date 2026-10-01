@@ -80,7 +80,7 @@ result = machine.run(
 result.assert_success()
 ```
 
-The image pull runs inside the guest, so `run()` with an uncached registry image needs `resources.network` enabled. Beyond the pull, enable it only when the guest workload needs DNS or outbound network access; guest networking is off by default.
+The image pull runs inside the guest, so an uncached registry image needs `resources.network` enabled. `Machine.create` does not use the shared image seed that lets an ephemeral `smolvm machine run` start without networking. Beyond the pull, enable it only when the guest workload needs DNS or outbound network access; guest networking is off by default.
 
 ## Mount a host directory
 

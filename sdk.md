@@ -92,7 +92,7 @@ with Machine.create(config, ConnectOptions(target="local")) as machine:
 
 :::
 
-Guest networking is disabled by default, and the image pull runs inside the guest — `run()` with an uncached registry image needs `resources.network` enabled, as the examples above set. Beyond the pull, enable networking only when the workload itself needs outbound access.
+Guest networking is disabled by default, and the image pull runs inside the guest, so an uncached registry image needs `resources.network` enabled, as the examples above set. Beyond the pull, enable networking only when the workload itself needs outbound access.
 
 ## Complete examples
 
