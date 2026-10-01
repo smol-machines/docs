@@ -38,7 +38,7 @@ smolvm --version
 smolvm machine run --net --image alpine -- uname -a
 ```
 
-The final command needs `--net` so the in-guest image pull can reach the registry, even though the workload itself needs no egress.
+The final command passes `--net` for the workload rather than for the image. On a macOS or Linux node, a separate builder machine pulls a registry image into a seed and the run starts from that, so a machine with no networking of its own still starts from one; on a Windows node the pull runs in the machine and needs `--net`.
 
 For production installation, pin a tested release and verify its published SHA-256 checksum. Release archives are not currently signed or accompanied by provenance attestations.
 
@@ -88,7 +88,7 @@ Use separate host service accounts or stronger OS confinement for hostile co-ten
 
 Persistent named machines keep disk changes across stop/start on the same host. A `.smolmachine` can capture stopped disk state for reuse on a compatible host.
 
-Packing does not preserve live RAM or running processes. Standalone smolvm does not provide live migration between hosts or a general portable checkpoint/restore service. Build backup and recovery around stopped disk artifacts and any external durable storage your workload uses.
+Packing does not preserve live RAM or running processes, but `machine checkpoint` does: it writes a portable checkpoint of a running machine, RAM included, which `machine create --from` restores. What standalone smolvm does not provide is live migration between hosts, and a restore has host requirements of its own. Build backup and recovery around checkpoints, stopped disk artifacts, and any external durable storage your workload uses.
 
 ### An isolated data root
 

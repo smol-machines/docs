@@ -15,7 +15,7 @@ smolvm machine run --net --image python:3.12-alpine -- \
   python3 -c "print(2 ** 10)"
 ```
 
-`--net` above covers the in-guest image pull; workload egress such as a package install needs it too:
+`--net` above is for the workload, such as a package install. The image itself is pulled by a separate builder machine with networking of its own, so it does not need it:
 
 ```bash
 smolvm machine run --net --image python:3.12-alpine -- \

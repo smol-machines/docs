@@ -25,7 +25,12 @@ On macOS, the release bundles virglrenderer and MoltenVK. On Linux, install virg
 sudo apt install virglrenderer0 mesa-vulkan-drivers
 ```
 
-The guest also needs a Vulkan loader and the Venus virtio ICD. Some images require `VK_ICD_FILENAMES` to point at that ICD explicitly, for example `/usr/share/vulkan/icd.d/virtio_icd.x86_64.json` in an x86_64 guest.
+The guest needs a Vulkan loader and the Venus virtio ICD, and on a glibc image it needs nothing
+set to find them. Mesa's ICD manifest is where the loader already looks, and smolvm bind-mounts
+its own Venus driver and pins the loader to it. **Do not set `VK_ICD_FILENAMES`**: it overrides
+that pin, and because the manifest name is architecture specific
+(`virtio_icd.x86_64.json` against `virtio_icd.aarch64.json`) a hardcoded path breaks on the other
+architecture.
 
 ### Nix and NixOS hosts
 

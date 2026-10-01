@@ -180,7 +180,7 @@ init-layer cache, and is unaffected.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `allow_hosts` | string array | Hostnames whose resolved IP addresses may be reached. |
+| `allow_hosts` | string array | Hostnames whose resolved IP addresses may be reached. Setting it selects the `virtio-net` backend, because the allow list is enforced by the host-side gateway. |
 | `allow_cidrs` | string array | Allowed IP addresses or CIDR ranges, such as `"10.0.0.0/8"`. |
 
 ```toml
@@ -215,10 +215,11 @@ net = true
 net_backend = "virtio-net"
 ```
 
-Publishing a port needs `virtio-net` too: with `tsi` the engine refuses a
-published port rather than switching backends, because TSI is outbound only.
-So set it both when publishing and when the guest needs the interface without
-publishing anything.
+Publishing a port needs `virtio-net` too, and you do not have to ask for it: with no
+`net_backend` set the engine selects `virtio-net` itself. It refuses only when `tsi` was named
+explicitly, because TSI is outbound only. So set the field when the guest needs the interface
+without publishing anything, and leave it alone when a published port or an allow list already
+implies it.
 
 ## Artifact profile
 

@@ -70,6 +70,16 @@ Clients that honor `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `GIT
 
 ## Practical boundary
 
+Asked what to worry about, the honest ranking is not the one people expect. A guest breaking out
+to the host is the rare case: it takes a bug in device emulation, and a machine here has its own
+kernel behind a small virtio device surface rather than an emulated PC.
+
+What actually exposes a host is what you shared on purpose. A host mount is the guest's write
+access to that directory. A published port is reachable from wherever the host is reachable. An
+allow list one entry wider than you meant is egress you did not intend. And the code running
+inside the machine is code you chose to run. Every one of those is off by default, so the
+exposure a machine has is the exposure you gave it.
+
 For an untrusted workload:
 
 - Keep networking disabled unless it is required

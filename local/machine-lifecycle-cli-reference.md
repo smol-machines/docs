@@ -18,8 +18,17 @@ smolvm machine run --net --image alpine -- echo hello
 
 Filesystem changes do not carry into the next run. Use this mode for one-off jobs, tests, and untrusted commands.
 
-Networking is off by default; `--net` above lets the in-guest image pull reach
-the registry. On the default backend the guest has no visible network interface and `ping` does
+Networking is off by default, and an ephemeral run usually does not need it for
+the image. The pull runs in a separate builder machine that smolvm starts with
+networking on, once per image, leaving a shared seed your machine starts from a
+copy of, so `--net` above is for the workload. Three things have to hold: the
+machine takes the default storage size, seeding is not turned off with
+`SMOLVM_IMAGE_SEEDS=0`, and the host is not Windows. Seeding is best effort, so
+when it does not happen the pull falls back into your own machine, which then
+needs `--net`. The pull running in the builder machine has one consequence worth
+knowing: an egress allow list on your machine governs the workload and not the
+image, so a machine restricted to one hostname still starts from an image on a
+registry that list does not name. On the default backend the guest has no visible network interface and `ping` does
 not work, even though TCP and UDP do — see [how networking behaves inside a
 machine](#how-networking-behaves-inside-a-machine). An ephemeral run pulls every time unless you add `--oci-cache`,
 which keeps the image on the host for later runs to start from without a pull.
@@ -36,6 +45,12 @@ smolvm machine run \
 `--allow-host` limits egress to the named host. Add multiple flags when the workload needs multiple hosts.
 
 ## Persistent machines
+
+`machine create` is stricter than `machine run` about images. An ephemeral run starts from the
+image seed described above and needs no networking of its own, while `create` refuses an uncached
+registry image on a machine with none, even when a previous run already seeded that image locally. Pass `--net`, or
+supply the image locally with `--image -`.
+
 
 A persistent machine separates creation from execution:
 
@@ -249,6 +264,59 @@ macOS 15 or later; on Linux it means nested KVM is enabled, through `kvm_intel.n
 Running a Docker daemon in a machine does not need this flag. Containers share the guest kernel,
 so [Docker in a Machine](/docs/guides/docker-in-a-machine) works without it.
 
+### Moving the guest off the default range
+
+A virtio-net guest's link is `100.96.0.0/30` by default: the gateway and resolver take the first
+address, the guest the second. That sits inside `100.64.0.0/10`, the carrier NAT range a VPN such
+as Tailscale claims for its whole network, so a guest that runs one loses the gateway its own DNS
+depends on.
+
+`--guest-subnet` moves the link:
+
+```bash
+smolvm machine run --guest-subnet 10.200.0.0/30 --net --image alpine -- ip -4 -o addr show eth0
+# 3: eth0    inet 10.200.0.2/30 scope global eth0
+```
+
+It implies `--net` and `virtio-net`, so never add it to a machine meant to have no network, and
+naming `tsi` beside it is refused with `--guest-subnet requires the virtio-net backend`. It is set
+at create time: `machine update` has no equivalent, so changing it means a new machine.
+
+### What moves a machine to virtio-net
+
+Four things select `virtio-net` when you have not named a backend, because each one needs
+something `tsi` cannot provide:
+
+| You passed | Why virtio-net |
+|---|---|
+| `--port` / `-p` | only virtio-net serves inbound connections |
+| `--allow-host`, `--allow-cidr`, `--outbound-localhost-only` | the allow list is enforced by the host-side gateway |
+| `--network` | a named inter-VM network is fabric routing in that gateway |
+| `--guest-subnet` | a custom guest link shapes the virtio-net interface |
+
+So adding an egress allow list to a machine changes more than its egress. The machine gains an
+`eth0` with a real address, and `ping` starts working, which is the opposite of what the default
+backend does above:
+
+```console
+$ smolvm machine run --net --image alpine -- ip -4 -o addr show scope global
+2: dummy0    inet 203.0.113.1/24 brd 203.0.113.255 scope global dummy0
+
+$ smolvm machine run --net --allow-host example.com --image alpine -- ip -4 -o addr show scope global
+3: eth0    inet 100.96.0.2/30 scope global eth0
+```
+
+Naming `tsi` explicitly alongside any of them is refused rather than silently ignored, because
+`tsi` would not enforce the policy it was given:
+
+```text
+ports:  published ports require the virtio-net backend (TSI is outbound-only); remove
+        --net-backend tsi or set it to virtio-net
+egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only) requires the
+        virtio-net backend; TSI does not enforce it. Remove --net-backend tsi or set it to
+        virtio-net
+```
+
 ## Common resource flags
 
 | Flag | Meaning |
@@ -268,6 +336,7 @@ so [Docker in a Machine](/docs/guides/docker-in-a-machine) works without it.
 | `--tty`, `-t` | Allocate a TTY |
 | `--smolfile`, `-s` | Read configuration from a Smolfile |
 | `--block-io` | Host block I/O engine, `sync` or `async` |
+| `--guest-subnet` | IPv4 subnet for the guest link, such as `10.200.0.0/30` |
 | `--net-backend` | Networking implementation, `tsi` (default) or `virtio-net` |
 
 `--block-io` takes `sync`, which services one request at a time on the virtio block worker, or `async`, which submits queued raw-disk reads through a restricted Linux io_uring. `async` is worth reaching for when a workload is disk heavy on a Linux host. It is a Linux-only engine, and asking for it anywhere else does not quietly fall back: the machine refuses to start with `async block I/O is currently supported on Linux hosts only; use --block-io sync`. `machine run`, `machine create` and `smolvm pack run` all accept the flag.
@@ -280,8 +349,9 @@ Networking is off until you pass `--net`. What you get then depends on the backe
 default one behaves in a way that surprises people the first time they look inside a machine.
 
 The default backend, `tsi`, carries the guest's TCP and UDP connections directly rather than
-emulating a network card. Outbound connections work, port forwarding works, and DNS works. But
-there is no virtual interface for the guest to show you:
+emulating a network card. Outbound connections work and DNS works. Published ports do not: a
+machine that publishes one is moved to `virtio-net` instead, which is the next section. But on
+`tsi` there is no virtual interface for the guest to show you:
 
 ```console
 $ smolvm machine exec --name web -- ip link show
