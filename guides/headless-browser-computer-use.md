@@ -49,12 +49,11 @@ smolvm machine create --name browser \
 smolvm machine start --name browser
 ```
 
-The Smolfile enables `gpu = true`, installs Chromium and `mesa-vulkan-virtio`, and sets the guest Vulkan ICD. The ICD filename is architecture-specific:
-
-```text
-x86_64: /usr/share/vulkan/icd.d/virtio_icd.x86_64.json
-aarch64: /usr/share/vulkan/icd.d/virtio_icd.aarch64.json
-```
+The Smolfile enables `gpu = true` and installs Chromium and `mesa-vulkan-virtio`. It sets no
+Vulkan ICD path, and neither should you: that package installs an ICD manifest the Vulkan loader
+finds on its own, and the manifest name carries the architecture
+(`virtio_icd.aarch64.json` or `virtio_icd.x86_64.json`), so a hardcoded `VK_ICD_FILENAMES` is
+wrong on the other one.
 
 Run Chromium through ANGLE:
 
