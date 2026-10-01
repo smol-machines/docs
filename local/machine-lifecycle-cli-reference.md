@@ -249,6 +249,24 @@ macOS 15 or later; on Linux it means nested KVM is enabled, through `kvm_intel.n
 Running a Docker daemon in a machine does not need this flag. Containers share the guest kernel,
 so [Docker in a Machine](/docs/guides/docker-in-a-machine) works without it.
 
+### Moving the guest off the default range
+
+A virtio-net guest's link is `100.96.0.0/30` by default: the gateway and resolver take the first
+address, the guest the second. That sits inside `100.64.0.0/10`, the carrier NAT range a VPN such
+as Tailscale claims for its whole network, so a guest that runs one loses the gateway its own DNS
+depends on.
+
+`--guest-subnet` moves the link:
+
+```bash
+smolvm machine run --guest-subnet 10.200.0.0/30 --net --image alpine -- ip -4 -o addr show eth0
+# 3: eth0    inet 10.200.0.2/30 scope global eth0
+```
+
+It implies `--net` and `virtio-net`, so never add it to a machine meant to have no network, and
+naming `tsi` beside it is refused with `--guest-subnet requires the virtio-net backend`. It is set
+at create time: `machine update` has no equivalent, so changing it means a new machine.
+
 ### What moves a machine to virtio-net
 
 Four things select `virtio-net` when you have not named a backend, because each one needs
@@ -303,6 +321,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only) requ
 | `--tty`, `-t` | Allocate a TTY |
 | `--smolfile`, `-s` | Read configuration from a Smolfile |
 | `--block-io` | Host block I/O engine, `sync` or `async` |
+| `--guest-subnet` | IPv4 subnet for the guest link, such as `10.200.0.0/30` |
 | `--net-backend` | Networking implementation, `tsi` (default) or `virtio-net` |
 
 `--block-io` takes `sync`, which services one request at a time on the virtio block worker, or `async`, which submits queued raw-disk reads through a restricted Linux io_uring. `async` is worth reaching for when a workload is disk heavy on a Linux host. It is a Linux-only engine, and asking for it anywhere else does not quietly fall back: the machine refuses to start with `async block I/O is currently supported on Linux hosts only; use --block-io sync`. `machine run`, `machine create` and `smolvm pack run` all accept the flag.
