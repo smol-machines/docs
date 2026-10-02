@@ -4,7 +4,7 @@ title: "Credentials: an API key the machine uses and never holds"
 
 # Credentials: an API key the machine uses and never holds
 
-Gives a workload in a smolvm machine an API key or token it can use but never read, by binding the credential to named HTTPS hosts so the guest holds only a placeholder and the host substitutes the value on the way out, then proves on the host that the value never entered the machine. Use when an agent or untrusted code inside a machine has to call an API with your key; when deciding between a credential binding and --secret-env; when a request from a credentialed machine comes back 403 or 502 from smolvm itself; or when you need evidence that a key stayed out of a sandbox. Do not use it for a value the program must read and parse, such as a database URL, which is --secret-env, or for git and ssh keys, which is SSH agent forwarding.
+Gives a workload in a smolvm machine an API key or token it can use but never read, by binding the credential to named HTTPS hosts so the guest holds only a placeholder and the host substitutes the value on the way out, then proves on the host that the value never entered the machine. Use when an agent or untrusted code inside a machine has to call an API with your key; when deciding between a credential binding and --secret-env; when a request from a credentialed machine comes back 403 or 502 from smolvm itself; or when you need evidence that a key stayed out of a machine. Do not use it for a value the program must read and parse, such as a database URL, which is --secret-env, or for git and ssh keys, which is SSH agent forwarding.
 
 Verified on **smolvm v1.18.2** on macOS arm64 and Linux aarch64, 2026-09-24, for everything that
 is decided on the host; **the substitution arriving at a real API was not observed in this run**,
@@ -155,7 +155,7 @@ Run 2026-09-24 PT against v1.18.2 from the published release, under an isolated 
 26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64), with a random throwaway value and
 `example.com` as the bound host.
 
-**1. "Let the agent in this sandbox call the API with my token without the sandbox ever having the
+**1. "Let the agent in this machine call the API with my token without the machine ever having the
 token."**
 
 `preflight.sh`, `create-credentialed.sh` and `verify-containment.sh` in order, both hosts:
@@ -207,7 +207,7 @@ reachable under the machine's network allow_hosts`.
 
 ## Related packets
 
-- `sandbox` for the machine this usually protects, and `--allow-host`, which a binding must fit.
+- `throwaway-machine` for the machine this usually protects, and `--allow-host`, which a binding must fit.
 - `local-api` for the `credentials` field on a create body.
 - `teardown` for the wider cleanup.
 
@@ -799,7 +799,7 @@ A machine with a binding came up on virtio-net, `eth0 100.96.0.2/30`, with no ba
 still issued by the machine's credential CA and a placeholder in a query still got the `403`: TSI
 carries the interceptor when libkrun exports `krun_set_stream_intercept`, which both v1.18.2
 release libraries do, and `scripts/preflight.sh` reads that symbol. A guest that runs a VPN on the
-virtio-net link needs `--guest-subnet`, which the `sandbox` packet's traps cover.
+virtio-net link needs `--guest-subnet`, which the `throwaway-machine` packet's traps cover.
 
 ### What the guest has, and what it does not
 

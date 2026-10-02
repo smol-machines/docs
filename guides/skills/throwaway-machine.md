@@ -1,10 +1,10 @@
 ---
-title: "Sandbox: run untrusted code in a throwaway machine"
+title: "Throwaway machine: run untrusted code with no network"
 ---
 
-# Sandbox: run untrusted code in a throwaway machine
+# Throwaway machine: run untrusted code with no network
 
-Runs untrusted code in a throwaway smolvm microVM against a repo it must not modify, with no network unless explicitly granted, and collects artifacts from a writable output directory. Use when executing an agent's generated script, a pull request's test suite, or any code that should not be trusted with the host; when a workload needs egress granted one host at a time; or when a sandbox run has to be cancelled, because Ctrl-C leaves the VM running and invisible to the CLI. Do not use it for a development environment that is re-entered across sessions, for running a Docker daemon inside a machine, or for installing smolvm itself, which is the install packet.
+Runs untrusted code in a throwaway smolvm microVM against a repo it must not modify, with no network unless explicitly granted, and collects artifacts from a writable output directory. Use when executing an agent's generated script, a pull request's test suite, or any code that should not be trusted with the host; when a workload needs egress granted one host at a time; or when a run has to be cancelled, because Ctrl-C leaves the VM running and invisible to the CLI. Do not use it for a development environment that is re-entered across sessions, for running a Docker daemon inside a machine, or for installing smolvm itself, which is the install packet.
 
 Verified on **smolvm v1.18.2** on macOS arm64 and Linux aarch64, 2026-09-24, by the network-on
 route and the cancel on both; the offline route last completed on Linux aarch64 on v1.14.6, and
@@ -24,7 +24,7 @@ the repo is unchanged, the workload could not reach the network, and nothing is 
 
 ## Workflow
 
-**If you have no script to sandbox, make one.** A file that reads a path under `/workspace`, tries
+**If you have no script to isolate, make one.** A file that reads a path under `/workspace`, tries
 to create a file there, and tries to fetch a URL proves all three properties in one run, and the
 three lines it prints are the evidence. An agent with an empty directory and no fixture stopped and
 asked the user instead of building one.
@@ -58,7 +58,7 @@ scripts/bake.sh python:3.12-alpine
 ```
 
 Network on, nothing untrusted mounted, done before the untrusted code is anywhere near the machine.
-Afterwards the runs need no network at all, which is a materially stronger sandbox than granting
+Afterwards the runs need no network at all, which is materially stronger isolation than granting
 egress and hoping.
 
 **3. Run the untrusted command.**
@@ -70,7 +70,7 @@ scripts/run.sh --repo ./repo --out ./out -- sh -c 'python3 /workspace/calc.py > 
 The repo is mounted read-only at `/workspace`, the output directory writable at `/out`, and the run
 has no network. It prints `used_host_cache=yes`, which is the assertion that the bake worked and
 that this run reached no registry: without it the run pulled, which means it had network, which
-means it was not the sandbox you asked for.
+means it was not the isolation you asked for.
 
 It also prints `vm_pid=` and records it. **That pid is the only route back to the machine** if the
 run has to be stopped.
@@ -81,7 +81,7 @@ To grant egress, name hosts one at a time:
 scripts/run.sh --allow-host example.com --repo ./repo --out ./out -- <command>
 ```
 
-**4. Verify. Both halves, because either alone passes on a broken sandbox.**
+**4. Verify. Both halves, because either alone passes when the isolation is broken.**
 
 ```bash
 scripts/verify.sh --expect-file result.txt --expect 42
@@ -93,7 +93,7 @@ inside_out=ok (writable)
 inside_network=ok (blocked)
 artifact=ok (42)
 repo_unchanged=ok
-result=sandbox_held
+result=isolation_held
 ```
 
 The inside half proves the workload could not write the repo and could not reach the network; the
@@ -161,7 +161,7 @@ Read these when the situation calls for them; they are not needed for a normal r
 - **The repo is `:ro` because a read-only mount is enforced by the guest kernel**, not by the
   workload's good behaviour. `verify.sh` tries to write it and asserts the write failed, then checks
   from the host that nothing landed.
-- **The output directory is the only writable path out of the sandbox.** Keep it a directory you
+- **The output directory is the only writable path out of the machine.** Keep it a directory you
   created for this run, not a source tree, and read what lands in it before trusting it.
 - **Cleanup kills only the VMs this packet recorded.** A shared host can carry another session's
   machines, and one was live throughout the runs behind this packet; the reaper is scoped by the
@@ -194,7 +194,7 @@ network, and get the output back."**
 
 On Linux aarch64 the **offline route** answers this directly on v1.14.6, with the network off for
 the whole run: `used_host_cache=yes`, `inside_network=ok (blocked)`, `artifact=ok (42)`,
-`repo_unchanged=ok`, `result=sandbox_held`. On macOS, where #1192 blocks that route, the
+`repo_unchanged=ok`, `result=isolation_held`. On macOS, where #1192 blocks that route, the
 network-on route:
 
 ```
@@ -207,13 +207,13 @@ inside_out=ok (writable)
 inside_network=ok (REACHED)
 artifact=ok (42)
 repo_unchanged=ok
-result=sandbox_held
+result=isolation_held
 ```
 
 `inside_network=REACHED` is the expected result on that route and the reason it is the second
 choice: the network was open for the whole run.
 
-**2. "The sandboxed job is hung. Stop it."**
+**2. "The isolated job is hung. Stop it."**
 
 On Lima, a run with a `sleep 600` workload, wrapper interrupted:
 
@@ -233,7 +233,7 @@ result=clean
 
 The same on macOS, cancelling pid 82510 and ending clean.
 
-**3. "Can I sandbox on this machine?"**
+**3. "Can I run untrusted code on this host?"**
 
 macOS 26.6.2 arm64, where the answer is a qualified no:
 
@@ -272,7 +272,7 @@ inside_out=ok (writable)
 inside_network=ok (REACHED)
 artifact=ok (42)
 repo_unchanged=ok
-result=sandbox_held
+result=isolation_held
 ```
 
 The cancel, with the wrapper killed while a `sleep 600` workload ran: `machine list` showed
@@ -308,7 +308,7 @@ inside_out=ok (writable)
 inside_network=ok (blocked)
 artifact=ok (42)
 repo_unchanged=ok
-result=sandbox_held
+result=isolation_held
 ```
 
 `inside_network=ok (blocked)` is the line the whole packet exists for: the workload reached no
@@ -324,7 +324,7 @@ fix, the same sequence reports `vm_pid=71676` and
 
 **macOS is unchanged**: `--oci-cache` with any mount still times out, 3 of 3 with both controls
 passing in the same session, so the offline shape is still unavailable there and `bake.sh` still
-refuses with the reason. The network-on route held (`artifact=ok (42)`, `result=sandbox_held`) and
+refuses with the reason. The network-on route held (`artifact=ok (42)`, `result=isolation_held`) and
 the cancel path recorded and killed its VM.
 
 ## What was not run
@@ -333,11 +333,11 @@ the cancel path recorded and killed its VM.
   controls passing. `references/macos.md` gives the route that works there and what it costs.
 - **The offline route on v1.18.2.** It last completed on Linux aarch64 on v1.14.6; the host used
   here could not boot the bake helper's 8192 MiB this time, for the reason above.
-- **A GPU sandbox.** Nothing here was run against a GPU on either release.
+- **A GPU workload.** Nothing here was run against a GPU on either release.
 - **The macOS first-choice route** in `references/macos.md`, which needs a `docker`, `crane`,
   `podman` or `nerdctl` binary to produce an image archive. None is installed on that host.
 - **Windows.** One earlier run, recorded in `references/windows.md`.
-- **S3 and `:staged` mounts**, and driving the sandbox from a CI runner.
+- **S3 and `:staged` mounts**, and driving the packet from a CI runner.
 
 ## Related packets
 
@@ -353,7 +353,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 ```bash
 #!/usr/bin/env bash
-# Report whether this host can run the offline sandbox shape, and whether the
+# Report whether this host can run the offline shape, and whether the
 # machine you are planning fits the guest's device budget.
 #
 # usage: preflight.sh [--mounts N] [--ports N]
@@ -407,7 +407,7 @@ if [ -n "${version:-}" ] && [ "$version" != "unknown" ]; then
         newest="$(printf '%s\n%s\n' "$version" "$VERIFIED_VERSION" | sort -V | tail -1)"
         if [ "$newest" = "$version" ]; then
             emit version_status newer
-            note "this packet was verified on $VERIFIED_VERSION and the binary is $version; a sandbox is exactly where a silently changed flag matters, so check each step's output against the binary before trusting it"
+            note "this packet was verified on $VERIFIED_VERSION and the binary is $version; isolation is exactly where a silently changed flag matters, so check each step's output against the binary before trusting it"
         else
             emit version_status older
         fi
@@ -479,7 +479,7 @@ else
     note "mounts plus published ports exceeds the guest's device budget; the boot fails with 'no more IRQs are available'. Combine directories under one mount, or drop a port."
 fi
 
-# Ctrl-C does not stop a sandbox. Say so before anything is started, not after.
+# Ctrl-C does not stop a throwaway machine. Say so before anything is started, not after.
 emit cancel_route "scripts/cleanup.sh --cancel"
 emit interrupt_orphans_vm yes
 emit interrupt_blocker "smol-machines/smolvm#1193"
@@ -497,7 +497,7 @@ if [ "$blocked" -eq 0 ]; then emit result ready; else emit result blocked; fi
 # usage: bake.sh [<image>]      (default python:3.12-alpine)
 #
 # Do this before the untrusted code is anywhere near the machine. Afterwards the
-# sandbox runs need no network at all, which is a materially stronger sandbox
+# runs need no network at all, which is materially stronger isolation
 # than granting egress and hoping the workload behaves.
 
 set -uo pipefail
@@ -564,7 +564,7 @@ if printf '%s' "$out" | grep -q 'did not become ready'; then
 else
     printf 'The bake is the only networked step. If it failed on the registry, fix that here\n'
     printf 'rather than adding --net to the workload run, which is what the CLI hint suggests\n'
-    printf 'and is the opposite of what a sandbox wants.\n'
+    printf 'and is the opposite of what an isolated run wants.\n'
 fi
 exit 1
 ```
@@ -580,7 +580,7 @@ exit 1
 #   --repo <dir>        mounted read-only at /workspace (default ./repo)
 #   --out  <dir>        mounted writable at /out        (default ./out)
 #   --image <img>       must already be baked; see bake.sh (default python:3.12-alpine)
-#   --allow-host <h>    grant egress to one host. Repeatable. Weakens the sandbox
+#   --allow-host <h>    grant egress to one host. Repeatable. Weakens the isolation
 #                       and the script says so; --allow-host implies --net.
 #   --route <r>         offline (default) or network-on.
 #                       offline    bake once, then run with no network at all.
@@ -623,7 +623,7 @@ case "$ROUTE" in
 esac
 
 if [ $# -eq 0 ]; then
-    printf 'no command given; everything after -- is run inside the sandbox\n' >&2
+    printf 'no command given; everything after -- is run inside the machine\n' >&2
     exit 2
 fi
 
@@ -643,7 +643,7 @@ OUT="$(cd "$OUT" && pwd)"
 
 STATE_DIR="${SMOLVM_SKILL_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/smolvm-skills}"
 mkdir -p "$STATE_DIR"
-PIDFILE="$STATE_DIR/sandbox.vmpids"
+PIDFILE="$STATE_DIR/throwaway-machine.vmpids"
 
 case "$(uname -s)" in
     Darwin) VMS_DIR="$HOME/Library/Caches/smolvm/vms" ;;
@@ -724,7 +724,7 @@ if [ "$ROUTE" = "network-on" ]; then
         printf 'egress=granted %s\n' "${allow[*]}"
         printf 'note=the run also needs to reach the registry to pull its image, so the policy must include the registry hosts or the run will not start.\n'
     fi
-    printf 'note=this is the weaker sandbox. The offline route reaches no network at all; this one is open for as long as the workload runs.\n'
+    printf 'note=this is the weaker isolation. The offline route reaches no network at all; this one is open for as long as the workload runs.\n'
 elif [ "${#allow[@]}" -gt 0 ]; then
     printf 'egress=granted %s\n' "${allow[*]}"
     printf 'note=--allow-host implies --net. The workload can now reach the named hosts, and a denial looks like a DNS failure rather than a policy denial.\n'
@@ -732,7 +732,7 @@ else
     printf 'egress=none\n'
 fi
 
-logfile="$STATE_DIR/sandbox.lastrun.log"
+logfile="$STATE_DIR/throwaway-machine.lastrun.log"
 "$SMOLVM" machine run --mem 2048 ${cache[@]+"${cache[@]}"} --image "$IMAGE" \
     --volume "$REPO:/workspace:ro" \
     --volume "$OUT:/out" \
@@ -775,7 +775,7 @@ sed 's/^/  /' "$logfile"
 
 # On the offline route the cache-hit line is the assertion that the bake worked
 # and that this run reached no registry. Without it the run pulled, which means
-# it had network, which means it was not the sandbox you asked for.
+# it had network, which means it was not the isolation you asked for.
 if [ "$ROUTE" = "offline" ]; then
     if grep -q 'host cache hit' "$logfile"; then
         printf 'used_host_cache=yes\n'
@@ -796,7 +796,7 @@ exit "$rc"
 
 ```bash
 #!/usr/bin/env bash
-# Assert the sandbox held: from inside the guest, and from the host afterwards.
+# Assert the isolation held: from inside the guest, and from the host afterwards.
 #
 # usage: verify.sh [--repo <dir>] [--out <dir>] [--expect-file <name>]
 #                  [--expect <value>] [--image <img>] [--route offline|network-on]
@@ -862,8 +862,8 @@ inside="$("$SMOLVM" machine run --mem 2048 ${cache[@]+"${cache[@]}"} ${net[@]+"$
     --volume "$REPO:/workspace:ro" \
     --volume "$OUT:/out" \
     -- sh -c '
-        touch /workspace/SANDBOX_PROBE 2>/dev/null && echo "workspace=WRITABLE" || echo "workspace=readonly"
-        touch /out/SANDBOX_PROBE      2>/dev/null && echo "out=writable"       || echo "out=READONLY"
+        touch /workspace/ISOLATION_PROBE 2>/dev/null && echo "workspace=WRITABLE" || echo "workspace=readonly"
+        touch /out/ISOLATION_PROBE      2>/dev/null && echo "out=writable"       || echo "out=READONLY"
         wget -q -T3 -O- http://example.com >/dev/null 2>&1 && echo "net=REACHED" || echo "net=blocked"
     ' 2>&1 | tr -d '\r')"
 printf '%s\n' "$inside" | sed 's/^/  /'
@@ -887,15 +887,15 @@ fi
 
 # The probe above tried to write the repo. If the read-only mount leaked, the
 # evidence is sitting in the repo now.
-if [ -e "$REPO/SANDBOX_PROBE" ]; then
-    printf 'repo_unchanged=FAIL the read-only mount leaked: %s/SANDBOX_PROBE exists\n' "$REPO"
+if [ -e "$REPO/ISOLATION_PROBE" ]; then
+    printf 'repo_unchanged=FAIL the read-only mount leaked: %s/ISOLATION_PROBE exists\n' "$REPO"
     fail=1
 else
     printf 'repo_unchanged=ok\n'
 fi
-rm -f "$OUT/SANDBOX_PROBE"
+rm -f "$OUT/ISOLATION_PROBE"
 
-if [ "$fail" -eq 0 ]; then printf 'result=sandbox_held\n'; else printf 'result=FAILED\n'; fi
+if [ "$fail" -eq 0 ]; then printf 'result=isolation_held\n'; else printf 'result=FAILED\n'; fi
 exit "$fail"
 ```
 
@@ -903,10 +903,10 @@ exit "$fail"
 
 ```bash
 #!/usr/bin/env bash
-# Cancel or clean up a sandbox run, then prove nothing is left running.
+# Cancel or clean up a run, then prove nothing is left running.
 #
 # usage: cleanup.sh [--cancel] [--purge]
-#   --cancel   kill the VMs run.sh recorded. THIS IS THE SANDBOX'S CANCEL.
+#   --cancel   kill the VMs run.sh recorded. THIS IS THE PACKET'S CANCEL.
 #              Ctrl-C is not: it returns the shell to you and leaves the VM
 #              running, invisible to `machine list`, until the untrusted
 #              workload finishes on its own (smol-machines/smolvm#1193).
@@ -917,7 +917,7 @@ exit "$fail"
 
 set -uo pipefail
 
-PACKET="sandbox"
+PACKET="throwaway-machine"
 
 SMOLVM="${SMOLVM:-$(command -v smolvm 2>/dev/null)}"
 STATE_DIR="${SMOLVM_SKILL_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/smolvm-skills}"
@@ -1020,7 +1020,7 @@ fi
 
 # 2. An ephemeral machine's entry retires after the run returns, not with it, so
 # an immediate assertion fails on a healthy host. This is the single most likely
-# false failure in a scripted sandbox.
+# false failure in a scripted run.
 sleep 20
 
 # 3. Assert values.
@@ -1092,7 +1092,7 @@ printf 'rerun with --cancel, after checking none of the above belongs to another
 exit 1
 ```
 
-## Sandbox traps
+## Throwaway machine traps
 
 ### Ctrl-C does not stop the machine, and which route that applies to
 
@@ -1120,7 +1120,7 @@ On v1.18.2 the network-on route was measured again with the **wrapper** killed a
 alone: the run stayed in `machine list` as `running (eph)` on macOS arm64 and on Linux aarch64, and
 `scripts/cleanup.sh --cancel` killed the recorded pid on both.
 
-**Do not rely on the second row to cancel a sandbox.** `run.sh` records the VM's pid on both
+**Do not rely on the second row to cancel a run.** `run.sh` records the VM's pid on both
 routes because the difference is a boot-path detail that can change between releases, and because
 interrupting the *wrapper* rather than the CLI leaves the CLI and its VM running on either route,
 which was observed on both hosts here.
@@ -1129,7 +1129,7 @@ which was observed on both hosts here.
 
 A successful `machine run` returns **before** its ephemeral entry retires. Asserting an empty
 machine list immediately fails on a healthy host, and it is the single most likely false failure in
-a scripted sandbox. `scripts/cleanup.sh` waits before asserting.
+a scripted run. `scripts/cleanup.sh` waits before asserting.
 
 ### A network-off run that dies on the manifest means the bake was skipped
 
@@ -1141,8 +1141,8 @@ Hint: networking is disabled. Add --net to enable image pulls
 **An ordinary earlier pull does not make a later run offline-capable**: the runtime still resolves
 the tag through the registry. Bake the image with `scripts/bake.sh` instead.
 
-The CLI's own hint points at re-opening the network, which is the opposite of what a sandbox wants.
-Adding `--net` here is how an offline sandbox quietly becomes a networked one.
+The CLI's own hint points at re-opening the network, which is the opposite of what an isolated run wants.
+Adding `--net` here is how an offline run quietly becomes a networked one.
 
 ### A blocked host looks like a DNS bug, not a policy denial
 
@@ -1175,7 +1175,7 @@ watching the bake fail at 30 s anyway.
 ### A guest that runs a VPN loses its gateway and resolver
 
 A virtio-net guest's link is `100.96.0.0/30` by default: the guest is `.2`, and the gateway and
-the resolver are both `.1`. `--allow-host` and `--allow-cidr` select virtio-net, so every sandbox
+the resolver are both `.1`. `--allow-host` and `--allow-cidr` select virtio-net, so every run
 run that grants egress gets that link. A plain `--net` run uses TSI and has no such link, which
 was observed and not tested against a VPN. Tailscale and other carrier NAT VPNs claim `100.64.0.0/10`, which contains it, and route
 it into their own device.

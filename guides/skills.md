@@ -16,7 +16,7 @@ Find the task, then read the one page it names. Each packet was run end to end a
 |---|---|---|---|
 | Install smolvm and prove the host can boot a VM | [install](/docs/guides/skills/install) | Removing an install; anything after the first boot | smolvm v1.18.2 on macOS arm64 and Linux aarch64 |
 | Stop everything and prove the host is clean | [teardown](/docs/guides/skills/teardown) | Deleting machines another session created | smolvm v1.18.2 on macOS arm64 and Linux aarch64 |
-| Run untrusted code with no network, against a read-only repo | [sandbox](/docs/guides/skills/sandbox) | A machine you re-enter; Docker in a machine; installing smolvm | smolvm v1.18.2 on macOS arm64 and Linux aarch64; the offline route last on v1.14.6 on Linux aarch64 |
+| Run untrusted code with no network, against a read-only repo | [throwaway-machine](/docs/guides/skills/throwaway-machine) | A machine you re-enter; Docker in a machine; installing smolvm | smolvm v1.18.2 on macOS arm64 and Linux aarch64; the offline route last on v1.14.6 on Linux aarch64 |
 | Keep a development machine you re-enter across sessions | [dev-env](/docs/guides/skills/dev-env) | Untrusted code; Docker in a machine | smolvm v1.18.2 on macOS arm64 and Linux aarch64 |
 | Drive the local runtime over HTTP | [local-api](/docs/guides/skills/local-api) | Replacing the CLI in a shell script; binding beyond loopback | smolvm v1.18.2 on macOS arm64 and Linux aarch64 |
 | Run a Docker daemon inside a machine | [docker-in-machine](/docs/guides/skills/docker-in-machine) | Running OCI images, which need no Docker; Windows | smolvm v1.18.2 on macOS arm64 and Linux aarch64 |
@@ -94,10 +94,10 @@ An agent that already knows the primitives still has to choose defaults, and the
 An agent with no skill discovery needs nothing installed. Read the page for the task at hand, as Markdown rather than scraped HTML:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/smol-machines/docs/main/guides/skills/sandbox.md
+curl -fsSL https://raw.githubusercontent.com/smol-machines/docs/main/guides/skills/throwaway-machine.md
 ```
 
-The same shape works for any packet: substitute its name for `sandbox`.
+The same shape works for any packet: substitute its name for `throwaway-machine`.
 
 To install one for an agent that discovers skills from a directory, make `<skills dir>/<name>/`, write the procedure to `SKILL.md` in it under a frontmatter block carrying the packet's `name` and `description`, and write each script to the path in its heading. The procedure calls the scripts by those relative paths.
 

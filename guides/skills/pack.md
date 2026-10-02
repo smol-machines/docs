@@ -4,7 +4,7 @@ title: "Pack: ship a prepared machine as one file"
 
 # Pack: ship a prepared machine as one file
 
-Turns an image, or a machine already provisioned, into a single self-contained artifact that runs on another compatible host. Use when shipping a prepared environment as one file, when a packed artifact runs but the state installed into it is missing, when pack create --from-vm fails with a ready timeout that names nothing, when an export is refused because the machine is a fork clone, or when deciding whether to pack from an image or from a machine. Do not use it to keep a machine you re-enter, which is the dev-env packet, or to run untrusted code, which is the sandbox packet.
+Turns an image, or a machine already provisioned, into a single self-contained artifact that runs on another compatible host. Use when shipping a prepared environment as one file, when a packed artifact runs but the state installed into it is missing, when pack create --from-vm fails with a ready timeout that names nothing, when an export is refused because the machine is a fork clone, or when deciding whether to pack from an image or from a machine. Do not use it to keep a machine you re-enter, which is the dev-env packet, or to run untrusted code, which is the throwaway-machine packet.
 
 Verified on **smolvm v1.18.2** on macOS arm64, 2026-09-24, and on **v1.14.6** on Linux aarch64,
 2026-09-11; the Linux host could not run the packing steps on v1.18.2, for the reason in

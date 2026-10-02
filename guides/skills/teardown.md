@@ -755,7 +755,7 @@ the CLI, and `SIGKILL` to the CLI left one. Throughout, `smolvm machine list` sa
 `No machines found` and no VM cache directory exists.
 
 The VM exits only when its own **workload** finishes: a run whose command was `sleep 45` was gone
-30 s after the interrupt; one running `sleep 300` was still alive at 60 s. For a sandbox running
+30 s after the interrupt; one running `sleep 300` was still alive at 60 s. For a throwaway machine running
 untrusted code that loops or hangs, the exposure is unbounded.
 
 `scripts/cleanup.sh` is the only way to find it.
@@ -897,5 +897,5 @@ the behaviour you want from anything you let run unattended.
 
 ### Nothing in the docs describes cancellation or teardown
 
-`guides/agent-sandboxes-ci.md` is the page a sandbox author would read and it never mentions how
+`guides/agent-sandboxes-ci.md` is the page someone isolating agent code would read and it never mentions how
 to stop a run, which matters given the `Ctrl-C` behaviour above.

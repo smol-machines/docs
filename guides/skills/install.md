@@ -4,7 +4,7 @@ title: "Install: set up smolvm and prove the host boots"
 
 # Install: set up smolvm and prove the host boots
 
-Installs smolvm from a published release and proves the host can actually boot a microVM before any other work starts. Use when setting smolvm up on a new machine, a CI runner or an agent sandbox; when a first boot fails with krun_start_enter -22, KVM_DENIED or "agent did not become ready"; when checking whether a host meets smolvm's requirements at all; or when an install has to be isolated from an existing one and then removed. Do not use it to remove an existing install (see the teardown packet) or for anything after the first boot has succeeded.
+Installs smolvm from a published release and proves the host can actually boot a microVM before any other work starts. Use when setting smolvm up on a new machine, a CI runner or an agent's own environment; when a first boot fails with krun_start_enter -22, KVM_DENIED or "agent did not become ready"; when checking whether a host meets smolvm's requirements at all; or when an install has to be isolated from an existing one and then removed. Do not use it to remove an existing install (see the teardown packet) or for anything after the first boot has succeeded.
 
 Verified on **smolvm v1.18.2** on macOS arm64 and Linux aarch64, 2026-09-24. Done means `smolvm --version` prints the release version **and** a throwaway VM has run
 one command and exited. A version number alone proves nothing: on every
@@ -251,7 +251,7 @@ same box doing the same, so the cause is the host and not the release. `verify-b
 ## Related packets
 
 - `teardown` for the full removal sequence, and for what a leak check must exclude.
-- `sandbox` for running untrusted work in a throwaway machine, which assumes this boot.
+- `throwaway-machine` for running untrusted work in a throwaway machine, which assumes this boot.
 - `dev-env`, `local-api`, `docker-in-machine`, `gpu-cuda` and `pack` all assume it too.
 
 ## Scripts
