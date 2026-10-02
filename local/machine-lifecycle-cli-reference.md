@@ -117,6 +117,8 @@ A bare port or range uses the same numbers on both sides. Ranges map one to one,
 
 Publishing a port selects the virtio-net backend for the machine, because the default outbound-only backend cannot accept inbound connections.
 
+The server inside the machine must listen on `0.0.0.0` (or the machine's own address), not `127.0.0.1`. A published port reaches the machine's network interface, so a server listening only on the machine's localhost cannot be reached from the host: the connection is accepted and then reset, which curl reports as `Connection reset by peer` and Safari as "the server unexpectedly dropped the connection". Many development servers listen on localhost by default, so start them with their bind option, for example `jupyter lab --ip=0.0.0.0` or `python3 -m http.server 8000 --bind 0.0.0.0`.
+
 ### Publish a Unix socket
 
 `machine create` takes two socket flags, both repeatable. `--expose-socket` makes a socket the

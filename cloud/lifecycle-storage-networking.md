@@ -107,7 +107,9 @@ Publish a guest port in the create request:
 }
 ```
 
-Each cloud machine can publish up to four guest ports. A published port is a guest port declaration; use the returned URL or authenticated connect route to reach it.
+Each cloud machine can publish up to 16 guest ports. A published port is a guest port declaration; use the returned URL or authenticated connect route to reach it.
+
+The service must listen on `0.0.0.0` inside the machine, not `127.0.0.1`. A service listening only on the machine's localhost cannot be reached through a published port.
 
 With `public: false`, use the authenticated connect route where it is enabled:
 
