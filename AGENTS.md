@@ -129,7 +129,7 @@ page.
 | `guides/skills.md` | Which skill packet fits a task, what a packet page carries, and how to load one |
 | `guides/skills/install.md` | Install smolvm and prove the host boots a VM |
 | `guides/skills/teardown.md` | Stop every machine a session started and prove the host is clean |
-| `guides/skills/sandbox.md` | Run untrusted code with no network against a read-only repo |
+| `guides/skills/throwaway-machine.md` | Run untrusted code with no network against a read-only repo |
 | `guides/skills/dev-env.md` | A persistent machine re-entered across sessions |
 | `guides/skills/local-api.md` | Drive smolvm over its local HTTP API |
 | `guides/skills/docker-in-machine.md` | Run a Docker daemon inside a machine |

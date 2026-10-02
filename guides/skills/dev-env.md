@@ -4,7 +4,7 @@ title: "Dev env: a persistent machine you re-enter"
 
 # Dev env: a persistent machine you re-enter
 
-Keeps a persistent smolvm machine with its dependencies already installed and re-enters it cheaply across sessions. Use when a project needs an isolated development environment that survives stop and start; when deciding what belongs in a Smolfile's init versus what has to run on every boot; when a package installed in a machine has vanished after a restart; or when exec answers "the container smolvm-<hash> is not running". Do not use it for untrusted code, which needs a machine that leaves nothing behind (see the sandbox packet), or for running a Docker daemon inside the machine (see docker-in-machine).
+Keeps a persistent smolvm machine with its dependencies already installed and re-enters it cheaply across sessions. Use when a project needs an isolated development environment that survives stop and start; when deciding what belongs in a Smolfile's init versus what has to run on every boot; when a package installed in a machine has vanished after a restart; or when exec answers "the container smolvm-<hash> is not running". Do not use it for untrusted code, which needs a machine that leaves nothing behind (see the throwaway-machine packet), or for running a Docker daemon inside the machine (see docker-in-machine).
 
 Verified on **smolvm v1.18.2** on macOS arm64 and Linux aarch64, 2026-09-24; the Linux run used
 the Smolfile with `memory = 1024`, for the host reason in "Re-verified on v1.18.2". Done means a second `start` is fast, skips provisioning, and the packages installed in
@@ -993,7 +993,7 @@ Always pass `--force` in a script.
 A machine on virtio-net gets the link `100.96.0.0/30` by default, with the gateway and resolver at
 `.1`. Tailscale and other carrier NAT VPNs claim `100.64.0.0/10`, which contains it, so once the
 VPN is up inside the machine its gateway and resolver route into the VPN and every lookup fails.
-The `sandbox` packet's traps have the measurement: with the routes Tailscale adds, the default link
+The `throwaway-machine` packet's traps have the measurement: with the routes Tailscale adds, the default link
 gave `bad address 'example.com'` and `--guest-subnet 10.200.0.0/30` with the same routes resolved
 and fetched, on v1.18.2 on both hosts.
 
