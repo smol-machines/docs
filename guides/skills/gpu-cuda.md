@@ -6,23 +6,19 @@ title: "GPU CUDA: run CUDA workloads against a host GPU"
 
 Runs CUDA compute workloads inside a smolvm microVM against a real host NVIDIA GPU, using smolvm's --cuda API remoting. Use when a workload in a machine needs a GPU; when nvidia-smi or /dev/nvidia* is missing inside a --cuda guest; when a CUDA program in a machine exits zero but seems not to touch the device; when the shim will not load in an Alpine image; or when checking whether CUDA is available on a given platform, including Windows. Do not use it for Vulkan graphics (--gpu), which is a separate feature with its own topic, and do not expect it on a Mac, which has no NVIDIA hardware.
 
-Verified on **smolvm v1.14.6** against an **NVIDIA A10** (driver 580.105.08, Linux x86_64,
-kernel 6.8.0-1046-nvidia), and on the same version against an **NVIDIA GeForce RTX 4050**
-(driver 32.0.15.6626, Windows x86_64). Done means a program in the VM opens the device, creates a context, and moves
+Verified on **smolvm v1.22.2** against an **NVIDIA GeForce RTX 4050** (driver 32.0.15.6626,
+Windows x86_64), 2026-10-03, and on **v1.14.6** against an **NVIDIA A10** (driver 580.105.08,
+Linux x86_64, kernel 6.8.0-1046-nvidia). Done means a program in the VM opens the device, creates a context, and moves
 data to and from it.
 
-> **The GPU path was not re-run on v1.16.1 or v1.18.2, and the stamp above is deliberately
-> unchanged.** There is no NVIDIA hardware on this Mac or on the Lima box, so the GPU path keeps
-> its v1.14.6 dates. What was re-run, on **v1.18.2 on 2026-09-24 on macOS arm64 and Linux
-> aarch64**, is the no-GPU answer path: the preflight reports `gpu_present=no` without starting
-> anything, and `--cuda` on a host with no GPU reaches a CPU emulation device, which the probe
-> names rather than passing. See "Re-verified on v1.18.2".
->
-> **Read this before trusting a step here.** **The Linux GPU path was re-run end to end on
-> v1.14.6**, on a rented A10 instance: the preflight, the probe against the real device with two
-> different glibc images, all three eval prompts, and the cleanup. **Windows was re-run on
-> v1.14.6 too**, on 2026-09-11 against an RTX 4050: the probe, the two absences and the shim in a
-> plain `alpine` guest. The section "What was not run" lists every remaining step individually.
+> **The GPU path was last run end to end on Linux x86_64 on v1.14.6**, on a rented A10: the
+> preflight, the probe against two glibc images, all three eval prompts and the cleanup. **Windows
+> was re-run on v1.22.2** against an RTX 4050: the probe, the two absences, the shim in a plain
+> `alpine` guest, and a vector add over 16777216 elements; see `references/windows.md`. The Mac
+> and the Lima box have no NVIDIA hardware, so what runs there is the no-GPU answer, on v1.22.2 on
+> macOS and v1.18.2 on Linux aarch64: the preflight reports `gpu_present=no` without starting
+> anything, and `--cuda` reaches a CPU emulation device, which the probe names rather than
+> passing. "What was not run" lists every remaining step.
 
 ## How this works, and why the checks are shaped this way
 
@@ -51,7 +47,7 @@ neither CUDA nor the GPU.
 **If the question is "can this machine run CUDA", the preflight answers it and nothing else needs
 to run.** Do not reach for the probe to decide that: on a host with no NVIDIA GPU the probe now
 starts a VM, reaches a CPU emulation device and returns a passing round trip, which reads like a
-yes. Verified on macOS arm64 on v1.16.1 and v1.18.2: `gpu_present=no`, `unsupported=cuda`, and the
+yes. Verified on macOS arm64 on v1.16.1, v1.18.2 and v1.22.2: `gpu_present=no`, `unsupported=cuda`, and the
 note `no Apple Silicon or Intel Mac has an NVIDIA GPU, so --cuda has nothing to reach here`.
 
 **2. Run the probe.**
@@ -96,6 +92,9 @@ scripts/cleanup.sh --purge
 smolvm machine prune --name <NAME> --all   # any persistent --cuda machine you kept
 ```
 
+`cleanup.sh` waits 20 seconds before it checks the machine list and prints `waiting=20s` first:
+an ephemeral machine's entry retires after its run returns.
+
 The probe runs are ephemeral and leave nothing to prune; `machine prune` takes a machine name and
 is rejected without one.
 
@@ -108,8 +107,7 @@ full session of CUDA runs plus a Kubernetes install and teardown on the same box
 Full detail in `references/traps.md`.
 
 - **A zero exit code proves nothing.** The remoted API is why.
-- **A device name and a passing round trip no longer prove a GPU either, as of v1.16.1**, and
-  on v1.18.2 on macOS arm64 and Linux aarch64 alike. On a host
+- **A device name and a passing round trip no longer prove a GPU either, as of v1.16.1.** On a host
   with no NVIDIA hardware the shim answers with a CPU emulation device: `cuInit -> 0`,
   `cuDeviceGetCount -> 0 count = 1`, `cuDeviceGetName -> 0 name = smolvm CPU emulation device`,
   `total MiB = 1024`, and `roundtrip first 16 bytes match: True`. **The device name is the
@@ -124,11 +122,10 @@ Full detail in `references/traps.md`.
 - **`agent did not become ready within 30 seconds` from the probe is about memory, not the GPU.**
   The probe asks for 8192 MiB. On v1.18.2 a Linux aarch64 host with no NVIDIA GPU failed that way,
   reached the CPU emulation device with the same probe at 1024 MiB, and failed the same way on a
-  plain `machine run --mem 8192` with no `--cuda` at all. An earlier version of this packet read
-  that failure as the missing GPU; the preflight is still what answers the GPU question.
+  plain `machine run --mem 8192` with no `--cuda` at all.
 - **`--cuda` and `--gpu` are different features.** `--cuda` is compute over vsock; `--gpu` is
   Vulkan over virtio-gpu, which reached a Venus device on macOS arm64 on v1.18.2 and is covered by
-  `docs/gpu-vulkan`. On Windows `--gpu` is accepted and silently does nothing.
+  `docs/gpu.md` in the repository. On Windows `--gpu` is accepted and silently does nothing.
 
 ## Security defaults, and why they are the defaults
 
@@ -148,20 +145,18 @@ Full detail in `references/traps.md`.
 - **Linux x86_64 with an NVIDIA GPU**: **verified on an A10 on v1.14.6** (driver 580.105.08,
   kernel 6.8.0-1046-nvidia), preflight through cleanup, with the probe run against two glibc
   images.
-- **Windows x86_64 with an NVIDIA GPU**: **verified on an RTX 4050 on v1.14.6**, on 2026-09-11
-  (driver 32.0.15.6626), including the device name and a 1 MiB device round trip.
-  `references/windows.md`. **This contradicts three documentation pages**, which this branch
-  corrects.
+- **Windows x86_64 with an NVIDIA GPU**: **verified on an RTX 4050 on v1.22.2**, on 2026-10-03,
+  and on v1.14.6 on 2026-09-11 (driver 32.0.15.6626), including the device name and a 1 MiB device round trip.
+  `references/windows.md`.
 - **macOS arm64 and Intel**: **not applicable.** No Mac has an NVIDIA GPU, so `--cuda` has nothing
   to reach. The preflight says so rather than letting a run time out.
 - **Linux aarch64**: no NVIDIA hardware on the hosts available here. The preflight and the probe
-  against the CPU emulation device were run on v1.18.2.
-- **Multi-GPU, GPU forks and clones, and a real training or inference workload**: not run anywhere.
+  against the CPU emulation device were run on v1.18.2. On v1.22.2 the probe timed out on that
+  host's memory before reaching the device.
+- **Multi-GPU, branches of a `--cuda` machine, machines restored from its checkpoint, and a
+  training or inference workload**: not run anywhere.
 
 ## Eval prompts, and what they produced
-
-The first two need a GPU host and are recorded from the earlier runs; the third was run in this
-session. Which is which is stated per prompt.
 
 **1. "Run a CUDA workload in a smolvm machine and prove it reached the GPU." (re-run on v1.14.6
 on the A10)**
@@ -205,10 +200,9 @@ SMOLVM_CUDA_ZEROCOPY=1
 
 The driver API is the check, and the probe above is what runs it.
 
-**3. "Can this machine run CUDA?" (re-run on v1.14.6; the A10 answer is new, the two negative
-answers are from hosts with no NVIDIA hardware)**
+**3. "Can this machine run CUDA?"**
 
-On the A10, where the answer is yes:
+On the A10 on v1.14.6, where the answer is yes:
 
 ```
 platform=linux-x86_64
@@ -224,17 +218,17 @@ result=ready
 
 And where it is no:
 
-macOS 26.6.2 arm64:
+macOS 27.0.1 arm64 on v1.22.2:
 
 ```
 platform=darwin-aarch64
 gpu_present=no
-unsupported=cuda,vulkan
+unsupported=cuda
 note=no Apple Silicon or Intel Mac has an NVIDIA GPU, so --cuda has nothing to reach here. This is a hardware fact, not a smolvm limitation.
 result=blocked
 ```
 
-Lima `linux-kvm`, Ubuntu 24.04 aarch64:
+Lima `linux-kvm`, Ubuntu 24.04 aarch64, an answer v1.18.2 gave again:
 
 ```
 platform=linux-aarch64
@@ -245,46 +239,21 @@ host_libcuda=0
 result=blocked
 ```
 
-and running the probe anyway, to record what a user sees when they skip the preflight:
+## Re-verified on v1.22.2, the no-GPU path
 
-```
-Starting ephemeral machine (vm-5d98e4be)...
-Error: agent operation failed: start machine: agent operation failed: wait for ready:
-agent did not become ready within 30 seconds
-device_named=FAIL
-data_roundtrip=FAIL
-result=FAILED
-```
+Run 2026-10-03 PT against v1.22.2 from the published release, under an isolated `HOME` on macOS
+27.0.1 arm64, once to write and once from a fresh `HOME` to verify. The preflight said
+`gpu_present=no` and `result=blocked` without starting anything. The probe reached the emulation
+device, `name = smolvm CPU emulation device` and `roundtrip first 16 bytes match: True`, and
+reported `device_kind=cpu_emulation` and `result=cpu_emulation_not_gpu`. In the verify pass Docker
+Hub refused the default image with `TOOMANYREQUESTS`, the anonymous pull limit, and the probe passed
+on `scripts/run-cuda-probe.sh mirror.gcr.io/library/python:3.12-slim`, the same image from a
+mirror. A probe that reaches no device now says `device_kind=none`; before this run it said `gpu`.
 
-The error names neither CUDA nor the missing device.
-
-## Re-verified on v1.18.2, the no-GPU path
-
-Run 2026-09-24 PT against v1.18.2 from the published release, under an isolated `HOME`, on macOS
-26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64). Neither host has NVIDIA hardware, so
-this covers the answer a GPU-less host gives and nothing about the GPU path.
-
-**The preflight, both hosts:** `gpu_present=no` and `result=blocked`, with the macOS note that no
-Mac has an NVIDIA GPU and the Linux note that there is no `nvidia-smi` for the daemon to own.
-
-**The probe.** macOS, as shipped:
-
-```
-  cuDeviceGetName -> 0 name = smolvm CPU emulation device
-  cuMemGetInfo -> 0 total MiB = 1024
-  roundtrip first 16 bytes match: True
-device_named=ok
-data_roundtrip=ok
-device_kind=cpu_emulation
-result=cpu_emulation_not_gpu
-```
-
-Linux aarch64 at the probe's own `--mem 8192`: `agent did not become ready within 30 seconds`.
-The same probe with `--mem 1024` gave the same five lines as macOS, and a plain
-`machine run --mem 8192 --net --image alpine` with no `--cuda` failed exactly as the probe did.
-That box could not boot guests above 2048 MiB in time that day, on v1.16.1 as well, so the timeout
-is the host's memory and the missing GPU plays no part in it. The trap above and the probe's own
-failure text now say so.
+On Lima `linux-kvm` (Ubuntu 24.04 aarch64) the probe's 8192 MiB guest timed out on a host that
+booted 2048 MiB and no more that day, and the script named that cause first. Linux aarch64 was
+last verified on v1.18.2, where the probe at `--mem 1024` reached the emulation device with the
+same lines as macOS.
 
 ## Re-verified on v1.14.6
 
@@ -311,29 +280,14 @@ session `nvidia-smi` reported `NVIDIA A10, 580.105.08, 23028 MiB, 0 MiB` used, a
 sweep for `*smolvm*` outside the install prefix and the data root returned nothing, and the eight
 NVIDIA kernel modules were still loaded.
 
-**The KVM precondition in the traps reproduced on this instance.** A fresh box has `/dev/kvm` as
+**The KVM precondition in the traps reproduced on this instance**: a fresh box has `/dev/kvm` as
 `root:kvm` with the login user outside the group, so the preflight reported `KVM_DENIED` until the
-group was granted. The single-command `sg kvm -c` form the traps recommend was not the route used
-here; a group change plus a new login session was.
-
-**One step failed as written on v1.14.6 and is now fixed.** The cleanup section said `smolvm
-machine prune` bare, which the CLI rejects:
-
-```
-$ smolvm machine prune
-Usage: smolvm machine prune --name <NAME>
-```
-
-Its help reads as host-wide ("Remove unused images and layers to free disk space") while the
-command prunes one machine's unreferenced layers, `--all` its cached images. The section now names
-the machine and says the ephemeral probe runs leave nothing to prune.
+group was granted.
 
 ## What was not run
 
-The Linux GPU path was re-run on v1.14.6, and the Windows one on 2026-09-11. What remains unrun:
-
 - **The preflight and the cleanup on Windows.** `scripts/*.sh` are POSIX shell and do not run
-  there, so the 2026-09-11 v1.14.6 run issued the probe and the eval prompts by hand.
+  there, so the Windows runs issued the probe and the eval prompts by hand.
 - **`--cuda` with a CUDA base image** (`nvidia/cuda:...`), and the `apt-get install -y python3`
   those images need. Both probe runs used a Python image, which is what the packet recommends.
 - **The `sg kvm -c` single-command remedy.** The `KVM_DENIED` state it addresses did reproduce on
@@ -341,11 +295,13 @@ The Linux GPU path was re-run on v1.14.6, and the Windows one on 2026-09-11. Wha
 
 Never run anywhere, then or now:
 
-- **GPU forks and clones.** `introduction/concepts/gpu.md` sells this as a reason for the remoting
-  design, and a CUDA clone has its own shorter 10 s ready timeout.
+- **Branches and restores of a `--cuda` machine.** The docs site's `introduction/concepts/gpu.md`
+  (smolmachines.com/docs) gives this as a reason for the remoting design, and a restored CUDA
+  machine has its own shorter 10 s ready timeout.
 - **Multi-GPU**, and contention between two machines sharing one device.
-- **A real workload.** These are driver-API assertions, not a training or inference run, and say
-  nothing about throughput or how much of the CUDA API surface is implemented.
+- **A training or inference workload.** The furthest run is the vector add on Windows; the rest
+  are driver-API assertions, and say nothing about how much of the CUDA API surface is
+  implemented.
 
 ## Related packets
 
@@ -368,7 +324,8 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.14.6"
+# The Linux GPU path last ran on 1.14.6; the no-GPU answer on macOS on 1.22.2.
+case "$(uname -s)" in Linux) VERIFIED_VERSION="1.14.6" ;; *) VERIFIED_VERSION="1.22.2" ;; esac
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 note() { printf 'note=%s\n' "$1"; }
@@ -393,7 +350,7 @@ if [ -n "${version:-}" ] && [ "$version" != "unknown" ]; then
         newest="$(printf '%s\n%s\n' "$version" "$VERIFIED_VERSION" | sort -V | tail -1)"
         if [ "$newest" = "$version" ]; then
             emit version_status newer
-            note "this packet was verified on $VERIFIED_VERSION and the binary is $version; the GPU path was last exercised on an A10 on $VERIFIED_VERSION, so check each step's output against the binary"
+            note "this packet was verified on $VERIFIED_VERSION on this platform and the binary is $version, so check each step's output against the binary"
         else
             emit version_status older
         fi
@@ -427,12 +384,11 @@ case "$kernel" in
             blocked=1
             note "your user cannot open /dev/kvm. Fix without logging out: sudo usermod -aG kvm \$USER, then run the next command through sg kvm -c '...'"
         fi
-        emit unsupported "vulkan"
         ;;
     *)
         emit accel unknown
         emit accel_access unknown
-        note "this script covers macOS and Linux. CUDA does work on Windows, against the documentation; see references/windows.md, written from a run and not re-run by this packet."
+        note "this script covers macOS and Linux. CUDA was verified on Windows by hand on v1.22.2; see references/windows.md."
         blocked=1
         ;;
 esac
@@ -518,7 +474,8 @@ if printf '%s' "$out" | grep -qi 'name = .*emulation'; then
     printf 'scripts/preflight.sh: gpu_present=no says the same thing without starting a VM.\n'
     exit 1
 fi
-printf 'device_kind=gpu\n'
+# A run that reached no device at all names none, so it must not read as a GPU.
+if printf '%s' "$out" | grep -q 'name = '; then printf 'device_kind=gpu\n'; else printf 'device_kind=none\n'; fi
 
 if [ "$fail" -eq 0 ]; then
     printf 'result=cuda_ok\n'
@@ -611,7 +568,7 @@ print("cuMemFree    ->", lib.cuMemFree_v2(dptr))
 #
 # usage: cleanup.sh [--record <name>] [--reap] [--purge]
 #   --record <name>  add a machine name to the state file and exit
-#   --reap           kill leftover VM processes (see the warning it prints)
+#   --reap           kill every VM process under this HOME; run without it first
 #   --purge          also remove the state file once the list is empty
 
 set -uo pipefail
@@ -651,24 +608,10 @@ esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
 
-# List this HOME's smolvm VM processes, as "pid marker".
-#
-# Two process shapes exist and a reaper has to catch both. The plain
-# `machine run` path EXECS a child whose argv[1] is `_boot-vm` and whose argv[2]
-# is its boot-config path. The pack-run path, which is `--oci-cache` or any
-# `init`, FORKS without execing, so the child inherits the parent's argv and
-# carries no boot-config at all. Matching `_boot-vm` alone is therefore blind to
-# exactly the path whose child survives an interrupt
-# (smol-machines/smolvm#1193): measured on v1.14.6, it reported "none" while two
-# orphaned VMs held 234 MB each.
-#
-# On Linux both shapes rename themselves to `libkrun VM`, the one marker that
-# covers both and that no shell can hold. macOS exposes no rename, so there the
-# executable path scopes the search to this HOME and the parent chain separates
-# a VM from the CLI that started it.
-#
-# `pgrep -f _boot-vm` is not an alternative: it matches any shell whose text
-# contains that string, including this script.
+# List this HOME's VM processes as "pid marker". The plain run path execs a
+# `_boot-vm` child that carries its boot config; the pack-run path forks one that
+# carries none. Linux names both `libkrun VM`; on macOS the executable path and
+# the parent chain scope the search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
@@ -679,24 +622,19 @@ list_vm_processes() {
                 case "$cfg" in
                     "$VMS_DIR"/*) printf '%s %s\n' "$pid" "$cfg"; continue ;;
                 esac
-                # Forked shape: nothing in argv identifies it, so scope by the
-                # binary it is running.
                 case "$(readlink "$p/exe" 2>/dev/null)" in
                     "$SMOLVM_PREFIX"/*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
                 esac
             done
             ;;
         Darwin)
-            # shellcheck disable=SC2009  # pgrep cannot return ppid and the full
-            # command together, and pgrep -f matches this script's own text.
+            # shellcheck disable=SC2009  # pgrep -f would match this script.
             own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
             ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
-                # Forked shape: its parent is the CLI that started it, or init
-                # once that CLI is gone.
                 if [ "$ppid" = 1 ]; then
                     printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 else
@@ -707,10 +645,8 @@ list_vm_processes() {
     esac
 }
 
-# 1. Delete recorded machines. --force is not optional: without it the command
-# prompts, defaults to No, and leaves the machine in place while the script
-# carries on. --cascade removes branch children, which otherwise block the
-# delete.
+# 1. Delete recorded machines. Without --force a delete prompts and defaults to
+# No; --cascade removes branch children, which otherwise block it.
 if [ -s "$STATE_FILE" ]; then
     while read -r name; do
         [ -n "$name" ] || continue
@@ -718,13 +654,18 @@ if [ -s "$STATE_FILE" ]; then
             printf 'skipping %s: not created by this packet (no %s prefix)\n' "$name" "$PREFIX"
             continue ;;
         esac
-        "$SMOLVM" machine stop   --name "$name" >/dev/null 2>&1
-        "$SMOLVM" machine delete --name "$name" --force --cascade 2>&1 | sed 's/^/  /'
+        # Only names still listed: a second stop of a missing name leaves a
+        # directory that reads as a leak. The list is read first because grep -q
+        # under pipefail can fail the pipeline and skip a listed machine.
+        listed="$("$SMOLVM" machine list </dev/null 2>/dev/null | awk 'NR>2{print $1}')"
+        grep -qx -- "$name" <<<"$listed" || continue
+        "$SMOLVM" machine stop   --name "$name" </dev/null >/dev/null 2>&1
+        "$SMOLVM" machine delete --name "$name" --force --cascade </dev/null 2>&1 | sed 's/^/  /'
     done < "$STATE_FILE"
 fi
 
-# 2. An ephemeral machine's entry retires after the run returns, not with it.
-# Asserting an empty list immediately fails on a healthy host.
+# 2. An ephemeral machine's entry retires after its run returns.
+printf 'waiting=20s for ephemeral entries to retire before asserting\n'
 sleep 20
 
 # 3. Assert the value, not the exit code.
@@ -735,18 +676,13 @@ if printf '%s' "$listing" | grep -q 'No machines found'; then
 else
     printf 'machines=remaining\n'
     printf '%s\n' "$listing" | sed 's/^/  /'
-    # These were not created by this packet, so nothing here will remove them.
-    # Say what does, rather than leaving the reader to guess: delete prompts and
-    # defaults to No without --force, and a branched machine also needs --cascade.
     printf 'note=this packet did not create these, so it will not delete them. By name:\n'
     printf '  smolvm machine stop --name <NAME> && smolvm machine delete --name <NAME> --force\n'
     printf '  add --cascade for a machine that was branched from another\n'
 fi
 
-# 4. Report VM processes an interrupt left behind. Ctrl-C does not stop a
-# machine: the VM outlives the CLI and `machine list` cannot see it, so this is
-# the only route to it. Only processes whose boot config lives under this HOME's
-# smolvm state are listed, so a VM another session started is left alone.
+# 4. Report VM processes left under this HOME's state, such as a killed
+# wrapper's; another session's are left alone.
 found=0
 while read -r pid cfg; do
     [ -n "$pid" ] || continue
@@ -852,13 +788,5 @@ on the same box: `nvidia-smi` still reported the device, and a whole-filesystem 
 
 `--cuda` is compute over vsock. `--gpu` is Vulkan graphics over virtio-gpu; on the hosts tested
 through v1.16.1 the host renderer reported the Venus capset at version 0, and on v1.18.2 on macOS
-arm64 a guest reached `Virtio-GPU Venus (Apple M4)`. `docs/gpu-vulkan` has it. They share nothing
+arm64 a guest reached `Virtio-GPU Venus (Apple M4)`. `docs/gpu.md` in the repository covers it. They share nothing
 but the word GPU. On Windows `--gpu` is accepted and silently does nothing.
-
-### Docs drift for the CUDA path
-
-None found for `--cuda` itself: `introduction/concepts/gpu.md` describes the remoting design, the
-absence of `/dev/nvidia*` and the `libcuda.so.1` shim accurately.
-
-The drift is about **Windows**, where three pages say GPU acceleration is unavailable and CUDA
-works. See `references/windows.md`.

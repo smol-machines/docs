@@ -4,9 +4,9 @@ title: "Local API: drive smolvm over HTTP"
 
 # Local API: drive smolvm over HTTP
 
-Drives smolvm programmatically over its local HTTP API (smolvm serve) instead of the CLI: create machines, exec and stream commands, move files in and out, and tear them down. Use when building a client, harness, agent tool or MCP backend over smolvm; when a create call is accepted but the machine behaves as if a field was ignored; when a file uploaded over the API has disappeared; when an exec that failed still returned HTTP 200; or when choosing between the Unix socket and loopback TCP. Do not use it as a substitute for the CLI in a shell script, and do not bind the listener beyond loopback: the API has no authentication of any kind.
+Drives smolvm programmatically over its local HTTP API (smolvm serve) instead of the CLI: create machines, exec and stream commands, move files in and out, and tear them down. Use when building a client, harness, agent tool or MCP backend over smolvm; when a create call is accepted but the machine behaves as if a field was ignored; when a file uploaded over the API has disappeared; when an exec that failed still returned HTTP 200; or when choosing between the Unix socket and loopback TCP. Do not use it as a substitute for the CLI in a shell script, and do not bind a plain listener beyond loopback: a server started without mutual TLS has no authentication of any kind.
 
-Verified on **smolvm v1.18.2** on macOS arm64 and Linux aarch64, 2026-09-24. Done means a machine went through
+Verified on **smolvm v1.22.2** on macOS arm64, 2026-10-03, and on **v1.18.2** on Linux aarch64, 2026-09-24. Done means a machine went through
 its whole lifecycle over HTTP and `GET /api/v1/machines` is empty again at the end.
 
 Two rules run through everything here, and both are the same shape: **a 200 is not a result.**
@@ -23,8 +23,10 @@ Two rules run through everything here, and both are the same shape: **a 200 is n
 scripts/preflight.sh
 ```
 
-It reports `auth=none`, which is not a warning about your setup: the API has no TLS, token or auth
-flag of any kind, so **the transport you pick is the access control**.
+It reports `auth=none_unless_mtls`, which is not a warning about your setup: a server started the
+way this packet starts it has no TLS, token or auth of any kind, so **the transport you pick is the
+access control**. Mutual TLS exists, configured from the environment rather than by a flag;
+`references/traps.md` has what it does and the plain listener it opens beside itself.
 
 **2. Start the server.** A Unix socket is the default here, as it is smolvm's.
 
@@ -44,8 +46,9 @@ smolvm serve openapi -o ./openapi.json
 ```
 
 The field names are the schema's, not the CLI's flags. `network` not `net`, `memoryMb` not
-`memory`, and `cmd` for the workload you would pass after `--`. Unknown fields are accepted with
-200 and ignored. `references/api-fields.md` has the full list and what each wrong name costs.
+`memory`, and `cmd` for the workload you would pass after `--`. From v1.22.2 an unknown field is
+refused with `422` and a message that names it; before that it was accepted with 200 and ignored.
+`references/api-fields.md` has the full list and what each wrong name cost on older releases.
 
 **4. Run the lifecycle.**
 
@@ -78,6 +81,9 @@ result=lifecycle_ok
 scripts/cleanup.sh --purge
 ```
 
+`cleanup.sh` waits 20 seconds before it checks the machine list and prints `waiting=20s` first:
+an ephemeral machine's entry retires after its run returns.
+
 Order matters: **stopping the server does not stop machines**, it orphans them. The script deletes
 recorded machines, then stops the server, then removes the socket.
 
@@ -108,23 +114,20 @@ base64; `exec/stream` emits one `event: stdout` per line then a terminal `event:
 
 Full detail in `references/traps.md` and `references/api-fields.md`.
 
-- **Upload after the container is up, never before.** Reproduced on Linux aarch64 on v1.14.6: the
-  PUT returned `200 {"path":"/tmp/r1.txt","size":6}` and the file was never readable, first with
-  `failed to canonicalize target`, then with `failed to read /tmp/r1.txt in the workload
-  container`. Both directions pick a namespace per request, and `/tmp` is a path the container
-  mounts over. The same sequence on macOS returned the payload.
-  **Re-run on v1.16.1 on 2026-09-15 and it did not reproduce on either host**: a machine created
-  without a `cmd`, started, then written to immediately, read `ROUND1` back at once on macOS arm64
-  and on Lima aarch64, and again at 20 s on Linux. **On v1.18.2 it reproduces again on Linux**,
-  with the v1.14.6 messages word for word, and still not on macOS. Order the upload after a
-  successful `exec`; a run that happens to work proves nothing.
+- **Upload after the container is up, never before.** On Linux aarch64 on v1.14.6 and v1.18.2 the
+  PUT returned `200 {"path":"/tmp/r1.txt","size":6}` for a file that was never readable; `/tmp` is
+  a path the container mounts over. It did not reproduce on v1.16.1 or v1.22.2, nor ever on macOS.
+  Order the upload after a successful `exec`; a run that happens to work proves nothing.
 - **A failing guest command is HTTP 200.**
-- **Unknown create fields are accepted and ignored**, while a Smolfile rejects them. A `net` for
-  `network` was caught at create here with a clear 400 about the missing network, but a `memory`
-  for `memoryMb` gets no diagnostic at all: you silently get the default.
+- **Unknown fields are refused from v1.22.2, and were silently dropped before it.** Before v1.22.2
+  a `memory` for `memoryMb` got no diagnostic at all and the machine took the default.
+- **A second `serve start` on the same host fails** with `bind guest rollout ingress:
+  127.0.0.1:10081: Address already in use`, whatever `--listen` says: every server binds that port
+  for the branch-pool rollout routes. Set `SMOLVM_GUEST_ROLLOUT_HOST_PORT` to another port for the
+  second one.
 - **Killing the server orphans machines.**
 - **The spec's `info.version` is not the binary's.** It says `0.5.2` on v1.14.2 while `/health`
-  says `1.14.2`, and still `0.5.2` on v1.18.2. Take the version from `/health`.
+  says `1.14.2`, and still `0.5.2` on v1.22.2. Take the version from `/health`.
 - **The default listen path differs per platform, and `--help` shows only one of them.** The help
   prints `[default: unix:///tmp/smolvm.sock]`, and its own example line says
   `unix:///$XDG_RUNTIME_DIR/smolvm.sock`. Observed on v1.16.1: the socket appeared at
@@ -135,8 +138,8 @@ Full detail in `references/traps.md` and `references/api-fields.md`.
 
 v1.18.0 added `POST /api/v1/machines/{name}/pause` and `/resume`. Pause saves RAM, disks and the
 running execution and stops the machine; resume brings back that execution under the same name
-rather than booting a fresh guest. The machine has to be started branchable, which over the API is
-a query parameter on start:
+rather than booting a fresh guest. On macOS before v1.20.0 the machine has to be started
+branchable, which over the API is a query parameter on start, and the calls below always do it:
 
 ```bash
 curl -X POST "$B/api/v1/machines/m/start?branchable=true" -H 'content-type: application/json' -d '{}'
@@ -145,7 +148,7 @@ curl -X POST  $B/api/v1/machines/m/resume -H 'content-type: application/json' -d
 ```
 
 Assert on a value the workload holds in memory, not on the state field. Measured on v1.18.2 on
-both hosts with a workload that writes an incrementing counter every second: it read 9 before the
+both hosts, and on macOS again on v1.22.2, with a workload that writes an incrementing counter every second: it read 9 before the
 pause, the machine stayed paused for 10 s, and 3 s after the resume it read 13 on macOS and 12 on
 Linux, so the process continued from where it stopped, did not restart at 1, and did not run while
 paused. Over the CLI a paused machine refuses `stop` and `start`; the `teardown` packet has those
@@ -153,9 +156,9 @@ messages, and `branch-and-checkpoint` covers pause alongside checkpoints.
 
 ## Security defaults, and why they are the defaults
 
-- **The Unix socket is the default because it is the only access control there is.** `serve start`
-  has no TLS, certificate, token or auth flag, and the routes it exposes create machines, exec
-  arbitrary commands and read and write files. The socket's file permissions are a real boundary;
+- **The Unix socket is the default because it is the only access control a plain server has.** A
+  server started without the mutual TLS variables has no TLS, certificate, token or auth of any
+  kind, and the routes it exposes create machines, exec arbitrary commands and read and write files. The socket's file permissions are a real boundary;
   a loopback port is a boundary only in the sense that every process on the host is inside it.
 - **Loopback TCP is for when you need a URL**, in a container network namespace or for a client
   that cannot do Unix sockets. Treat the port as equivalent to a shell on the host, and do not
@@ -167,104 +170,67 @@ messages, and `branch-and-checkpoint` covers pause alongside checkpoints.
 
 ## Platform arms
 
-- **macOS arm64** and **Linux aarch64**: the scripts were run here, over the Unix socket.
-- **Linux x86_64**: verified in the material behind this packet, over both transports, not re-run
-  here.
-- **Windows x86_64**: `references/windows.md`, **re-run on 2026-09-11 against v1.14.6** on
-  Windows 11 Home build 10.0.26200.0 UBR 9445, where the whole lifecycle passed over loopback TCP.
-  No Unix socket form has ever been attempted there, **400 and 404 still return empty bodies**, and
-  two shapes fail before reaching a machine: routes live under `/api/v1/`, and a bodiless POST to
-  `start` or `stop` needs `application/json` with an empty JSON body.
+- **macOS arm64**: v1.22.2, over the Unix socket and loopback TCP.
+- **Linux aarch64**: v1.18.2 over the Unix socket, 2026-09-24, `result=lifecycle_ok` with all
+  eleven checks. The single v1.22.2 run failed only at `machines_empty`, on `image-seed-*` helpers
+  an interrupted run had left listed.
+- **Linux x86_64**: verified on v1.14.2 on an NVIDIA A10 cloud host, over both transports, not
+  re-run since.
+- **Windows x86_64**: `references/windows.md`, **re-run on 2026-10-03 against v1.22.2** on
+  Windows 11 Home build 10.0.26200 UBR 9457, where the whole lifecycle passed over loopback TCP. A `unix://` listen is refused there.
+  Error bodies arrive as on Unix, and PowerShell 5.1's `Invoke-WebRequest` drops them, so read
+  them with `curl.exe`. Routes live under `/api/v1/`; a bodiless POST to `start` is accepted from
+  v1.21.0.
 
 ## Eval prompts, and what they produced
 
-Run on 2026-09-07 PT against v1.14.2 from the published release, under an isolated `HOME`. Output
-is verbatim.
-
 **1. "Write me something that drives a smolvm machine over HTTP end to end and proves it worked."**
 
-`scripts/lifecycle-check.sh`, over a Unix socket. All eleven checks passed on macOS 26.6.2 arm64
-and on Lima `linux-kvm` (Ubuntu 24.04 aarch64), the Linux one twice in a row. Output as shown in
-step 4 above, including `failing_exec_exit_code=ok (3)`, which is the assertion that catches a
-guest failure hiding behind a 200.
+`scripts/lifecycle-check.sh`. All eleven checks passed on macOS arm64 on v1.22.2, over loopback TCP
+and the Unix socket, with the output shown in step 4, including `failing_exec_exit_code=ok (3)`,
+the assertion that catches a guest failure hiding behind a 200.
 
 **2. "I uploaded a file right after starting the machine and now the API says it does not
 exist."**
 
-Reproduced on Linux aarch64 by doing exactly that:
-
-```
-PUT: {"path":"/tmp/r1.txt","size":6}
-GET now: {"error":"agent operation failed: read file: failed to canonicalize target
-          /tmp/r1.txt: No such file or directory (os error 2)","code":"INTERNAL_ERROR"}
-GET after 30s: {"error":"agent operation failed: read file: failed to read /tmp/r1.txt in
-          the workload container: open /tmp/r1.txt: No such file or directory (os error 2)",
-          "code":"INTERNAL_ERROR"}
-```
-
-The upload reported success for a file that was never readable. The same sequence on macOS arm64
-returned `ROUND1` both immediately and after 30 s, so a run that works proves nothing.
+Reproduced on Linux aarch64 on v1.14.6 and on v1.18.2 by doing exactly that, with the output in
+`references/traps.md`; on v1.22.2 it did not reproduce, 0 of 3 on each host.
 
 **3. "My create call returned 200 but the machine has the wrong settings."**
 
-Verified on both hosts: a body carrying an unknown field is accepted and the field is dropped.
+On v1.22.2 a misnamed field is refused before anything is created; before v1.22.2 it was accepted
+and dropped, which `references/api-fields.md` records:
 
 ```
-POST {"name":"...","image":"alpine","network":true,"memoryMb":2048,"bogusField":1}
--> 200 {"name":"...","state":"created","network":true,"memoryMb":2048,...}
+POST /api/v1/machines {"name":"...","image":"alpine","network":true,"memory":1024}
+-> 422 Failed to deserialize the JSON body into the target type: memory: unknown field `memory`,
+   expected one of `name`, `cpus`, `memoryMb`, `mounts`, `ports`, `network`, ... at line 1 column 63
 ```
 
-and the runbook's `net`/`memory` shape was caught at create on both hosts, with a message that
-names the remedy:
+A 404 returns `{"error":"machine 'nope-does-not-exist' not found","code":"NOT_FOUND"}`.
 
-```
-400 {"error":"config operation failed: create machine: image 'alpine' must be pulled from a
-registry, but this machine has no network, so the pull can never succeed. Add --net ...",
-"code":"BAD_REQUEST"}
-```
+## Re-verified on v1.22.2
 
-A 404 on either host returns `{"error":"machine 'nope-does-not-exist' not found",
-"code":"NOT_FOUND"}`, which is the diagnostic Windows does not give you.
+Run 2026-10-03 PT against v1.22.2 from the published release, checksum checked, under an isolated
+`HOME` on macOS 27.0.1 arm64, once to write and once from a fresh `HOME` to verify. On Lima
+`linux-kvm` (Ubuntu 24.04 aarch64) guests above 2048 MiB timed out that day, so the Linux lines
+below are a single run and the Linux stamp stays on its earlier release.
 
-## Re-verified on v1.18.2
+macOS: `result=lifecycle_ok` over loopback TCP and the Unix socket, a `memory` and a `net` field
+each refused with `422`, the upload race 0 of 3, and pause and resume over the API with the counter
+at 11 before a 10 s pause and 15 three seconds after the resume. The spec says
+`info.version 0.5.2`. Mutual TLS and the second-server port are in `references/traps.md`.
 
-Run 2026-09-24 PT against v1.18.2 from the published release, under an isolated `HOME`, on macOS
-26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64), over the Unix socket.
-**`result=lifecycle_ok` on both, all eleven checks green**, including
-`failing_exec_exit_code=ok (3)`. `/health` said `"version":"1.18.2"` and the spec `0.5.2`.
-
-What moved:
-
-- **The upload trap is back on Linux.** A machine created with no `cmd`, started, then written to
-  at once:
-  ```
-  PUT: {"path":"/tmp/r1.txt","size":6}
-  GET now: {"error":"agent operation failed: read file: failed to canonicalize target /tmp/r1.txt: No such file or directory (os error 2)","code":"INTERNAL_ERROR"}
-  GET +20s: {"error":"agent operation failed: read file: failed to read /tmp/r1.txt in the workload container: open /tmp/r1.txt: No such file or directory (os error 2)","code":"INTERNAL_ERROR"}
-  ```
-  The same sequence on macOS read `ROUND1` both times.
-- **A directory path in the files route returns a listing** (#1330): `GET .../files/%2Fetc%2Fapk`
-  gave `{"entries":[{"kind":"file","name":"arch","size":8},{"kind":"dir","name":"keys","size":0},...]}`
-  on both hosts.
-- **Pause and resume**, as in the section above.
-- **Unchanged:** a body with `memory` for `memoryMb` and a `bogusField` was accepted and came back
-  with `"memoryMb":8192`, the default.
-
-## Re-verified on v1.14.6
-
-Run 2026-09-10 PT against v1.14.6 on macOS 26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04
-aarch64), over the Unix socket. **All eleven checks green on both**, including
-`failing_exec_exit_code=ok (3)`, the case that proves a guest failure arrives on an HTTP 200.
+Linux aarch64: both `422` refusals word for word and the upload race 0 of 3. The lifecycle failed
+only at `machines_empty`, on two `image-seed-*` helpers an interrupted run had left in the list.
 
 ## What was not run
 
-- **The Unix socket form on Windows.** The 2026-09-11 v1.14.6 re-run there used loopback TCP, as
-  every Windows run has.
 - **Linux x86_64.**
-- **Loopback TCP.** `serve-start.sh` accepts `--listen 127.0.0.1:8899` and the code path is the
-  same, but every run here used the Unix socket.
-- **Authenticated or TLS deployment.** There is no such thing to test: `serve start` has no flags
-  for it.
+- **Loopback TCP on Linux.**
+- **A client of a mutual TLS server driving the lifecycle.** The handshake was checked on v1.22.2,
+  a client without a certificate refused and one with a certificate answered on `/health`, but no
+  machine was created over it.
 - **The pool and rollout-executor routes** in the spec. They belong to the branch-pool feature.
 
 ## Related packets
@@ -289,7 +255,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.18.2"
+VERIFIED_VERSION="1.22.2"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -376,7 +342,6 @@ case "$kernel" in
             blocked=1
             note "your user cannot open /dev/kvm. The installer warns and continues, so a successful install says nothing about whether a VM will start. Fix: sudo usermod -aG kvm \$USER, then run the next command through sg kvm -c '...' rather than logging out."
         fi
-        emit unsupported "vulkan"
         emit unix_socket_transport yes
         ;;
     *)
@@ -385,14 +350,14 @@ case "$kernel" in
         emit accel_access unknown
         blocked=1
         emit unix_socket_transport no
-        note "this script covers macOS and Linux. On Windows the API works over loopback TCP only, and no unix:// listen form was ever attempted. See references/windows.md, written from a run and not re-run by this packet."
+        note "this script covers macOS and Linux. On Windows the API works over loopback TCP only; a unix:// listen is refused on v1.22.2. See references/windows.md."
         ;;
 esac
 
-# The API has no TLS, token or auth flag of any kind. Anyone who can reach the
-# listener can create machines, exec in them and read their files, so which
-# transport you choose IS the access control.
-emit auth none
+# A server started without the SMOLVM_SERVE_TLS_* variables has no TLS, token or
+# auth of any kind. Anyone who can reach the listener can create machines, exec
+# in them and read their files, so which transport you choose IS the access control.
+emit auth none_unless_mtls
 if command -v curl >/dev/null 2>&1; then emit curl present; else emit curl absent; blocked=1; fi
 if command -v python3 >/dev/null 2>&1; then emit python3 present; else emit python3 absent; blocked=1; fi
 
@@ -408,9 +373,9 @@ if [ "$blocked" -eq 0 ]; then emit result ready; else emit result blocked; fi
 # usage: serve-start.sh [--listen <addr>]
 #   default: a Unix socket under this packet's state directory.
 #
-# A Unix socket is the default here for the same reason it is smolvm's: the API
-# has no authentication of any kind, so the socket's file permissions are the
-# only boundary there is. Over loopback TCP the boundary is the whole machine.
+# A Unix socket is the default here for the same reason it is smolvm's: a plain
+# server has no authentication of any kind, so the socket's file permissions are
+# the only boundary there is. Over loopback TCP the boundary is the whole machine.
 
 set -uo pipefail
 
@@ -528,9 +493,9 @@ check() {
 jget() { python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get(sys.argv[1],""))' "$1"; }
 
 # 1. Create. The field names are the schema's, not the CLI's flags: `network`,
-# not `net`; `memoryMb`, not `memory`. Unknown fields are accepted with 200 and
-# silently ignored, and the machine then fails two calls later with a message
-# about the image. Export the spec rather than guessing:
+# not `net`; `memoryMb`, not `memory`. From v1.22.2 an unknown field is a 422
+# that names it; before it, it was accepted with 200 and ignored, and the
+# machine failed two calls later with a message about the image. Export the spec rather than guessing:
 #   smolvm serve openapi -o ./openapi.json
 # `cmd` gives the machine a workload that stays up. Without it the image's own
 # CMD becomes the persistent workload, and for an interpreter image that exits
@@ -610,7 +575,7 @@ exit "$fail"
 #
 # usage: cleanup.sh [--record <name>] [--reap] [--purge]
 #   --record <name>  add a machine name to the state file and exit
-#   --reap           kill leftover VM processes (see the warning it prints)
+#   --reap           kill every VM process under this HOME; run without it first
 #   --purge          also remove the state file once the list is empty
 
 set -uo pipefail
@@ -650,24 +615,10 @@ esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
 
-# List this HOME's smolvm VM processes, as "pid marker".
-#
-# Two process shapes exist and a reaper has to catch both. The plain
-# `machine run` path EXECS a child whose argv[1] is `_boot-vm` and whose argv[2]
-# is its boot-config path. The pack-run path, which is `--oci-cache` or any
-# `init`, FORKS without execing, so the child inherits the parent's argv and
-# carries no boot-config at all. Matching `_boot-vm` alone is therefore blind to
-# exactly the path whose child survives an interrupt
-# (smol-machines/smolvm#1193): measured on v1.14.6, it reported "none" while two
-# orphaned VMs held 234 MB each.
-#
-# On Linux both shapes rename themselves to `libkrun VM`, the one marker that
-# covers both and that no shell can hold. macOS exposes no rename, so there the
-# executable path scopes the search to this HOME and the parent chain separates
-# a VM from the CLI that started it.
-#
-# `pgrep -f _boot-vm` is not an alternative: it matches any shell whose text
-# contains that string, including this script.
+# List this HOME's VM processes as "pid marker". The plain run path execs a
+# `_boot-vm` child that carries its boot config; the pack-run path forks one that
+# carries none. Linux names both `libkrun VM`; on macOS the executable path and
+# the parent chain scope the search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
@@ -678,24 +629,19 @@ list_vm_processes() {
                 case "$cfg" in
                     "$VMS_DIR"/*) printf '%s %s\n' "$pid" "$cfg"; continue ;;
                 esac
-                # Forked shape: nothing in argv identifies it, so scope by the
-                # binary it is running.
                 case "$(readlink "$p/exe" 2>/dev/null)" in
                     "$SMOLVM_PREFIX"/*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
                 esac
             done
             ;;
         Darwin)
-            # shellcheck disable=SC2009  # pgrep cannot return ppid and the full
-            # command together, and pgrep -f matches this script's own text.
+            # shellcheck disable=SC2009  # pgrep -f would match this script.
             own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
             ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
-                # Forked shape: its parent is the CLI that started it, or init
-                # once that CLI is gone.
                 if [ "$ppid" = 1 ]; then
                     printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 else
@@ -706,10 +652,8 @@ list_vm_processes() {
     esac
 }
 
-# 1. Delete recorded machines. --force is not optional: without it the command
-# prompts, defaults to No, and leaves the machine in place while the script
-# carries on. --cascade removes branch children, which otherwise block the
-# delete.
+# 1. Delete recorded machines. Without --force a delete prompts and defaults to
+# No; --cascade removes branch children, which otherwise block it.
 if [ -s "$STATE_FILE" ]; then
     while read -r name; do
         [ -n "$name" ] || continue
@@ -745,8 +689,8 @@ if [ -s "$STATE_DIR/local-api.pid" ]; then
     rm -f "$STATE_DIR/local-api.listen"
 fi
 
-# 2. An ephemeral machine's entry retires after the run returns, not with it.
-# Asserting an empty list immediately fails on a healthy host.
+# 2. An ephemeral machine's entry retires after its run returns.
+printf 'waiting=20s for ephemeral entries to retire before asserting\n'
 sleep 20
 
 # 3. Assert the value, not the exit code.
@@ -757,18 +701,13 @@ if printf '%s' "$listing" | grep -q 'No machines found'; then
 else
     printf 'machines=remaining\n'
     printf '%s\n' "$listing" | sed 's/^/  /'
-    # These were not created by this packet, so nothing here will remove them.
-    # Say what does, rather than leaving the reader to guess: delete prompts and
-    # defaults to No without --force, and a branched machine also needs --cascade.
     printf 'note=this packet did not create these, so it will not delete them. By name:\n'
     printf '  smolvm machine stop --name <NAME> && smolvm machine delete --name <NAME> --force\n'
     printf '  add --cascade for a machine that was branched from another\n'
 fi
 
-# 4. Report VM processes an interrupt left behind. Ctrl-C does not stop a
-# machine: the VM outlives the CLI and `machine list` cannot see it, so this is
-# the only route to it. Only processes whose boot config lives under this HOME's
-# smolvm state are listed, so a VM another session started is left alone.
+# 4. Report VM processes left under this HOME's state, such as a killed
+# wrapper's; another session's are left alone.
 found=0
 while read -r pid cfg; do
     [ -n "$pid" ] || continue
@@ -826,7 +765,8 @@ and after 30 s. A run that happens to work proves nothing about the next one.
 **Measured again on v1.18.2, 2026-09-24**, after it had not reproduced on v1.16.1: on Lima
 `linux-kvm` (Ubuntu 24.04 aarch64) the same PUT returned the same 200, the immediate GET the same
 `failed to canonicalize target /tmp/r1.txt`, and the GET 20 s later the same `failed to read
-/tmp/r1.txt in the workload container`. macOS arm64 read `ROUND1` both times.
+/tmp/r1.txt in the workload container`. macOS arm64 read `ROUND1` both times. On v1.22.2 it did
+not reproduce, 0 of 3 on each host.
 
 **So:** wait for a successful `exec` before uploading anything, which is what
 `scripts/lifecycle-check.sh` does, or upload to a path on the overlay such as `/root` rather than
@@ -853,7 +793,7 @@ reporting those as a leak.
 ### The default listen address is derived, not hard-coded
 
 It is a Unix socket under `XDG_RUNTIME_DIR` (`unix:///run/user/<uid>/smolvm.sock`), not a fixed
-uid, despite how the help text reads when your uid happens to be 501.
+uid, although the help text can read that way when your uid happens to be 501.
 
 ### `serve openapi` writes to stdout by default
 
@@ -861,14 +801,36 @@ Pass `-o`, or you will paste a 150 KB spec into your terminal. On Windows it wri
 confirmation to stderr, which PowerShell renders as an error record even though the file is
 written and the exit code is 0.
 
-### There is no authentication of any kind
+### A plain server has no authentication of any kind
 
-`serve start` exposes create, exec and file routes with no TLS, token or auth flag. On loopback
-that is a single-user boundary; the Unix socket, whose file permissions are the boundary, is the
-safer default and is why it is smolvm's default and this packet's.
+`serve start` exposes create, exec and file routes, and started plainly it has no TLS, token or
+auth. On loopback that is a single-user boundary; the Unix socket, whose file permissions are the
+boundary, is the safer default and is why it is smolvm's default and this packet's.
+
+**Mutual TLS is configured from the environment, not by a flag.** With `SMOLVM_SERVE_TLS_CERT`,
+`SMOLVM_SERVE_TLS_KEY` and `SMOLVM_SERVE_TLS_CLIENT_CA` set, measured on macOS arm64 on v1.22.2: a
+client with no certificate was refused during the handshake, one signed by the client CA got
+`{"status":"ok","version":"1.22.2",...}` from `/health`, and with `--mtls-client-cn` set to another
+name the same certificate was refused. The server warns that without `--mtls-client-cn` any
+certificate the CA signed has full access. **It also opens a plain listener beside the TLS one**,
+`smolvm local API (loopback, plain) on http://127.0.0.1:<port + 1>`, which has no authentication,
+so the loopback boundary above still applies to that port.
+
+### Only one server per host, unless you move its rollout port
+
+Every `serve start` binds `127.0.0.1:10081` for the branch-pool rollout routes, whatever `--listen`
+says, so a second server on the same host exits at once:
+
+```
+Error: config operation failed: bind guest rollout ingress: 127.0.0.1:10081: Address already in use (os error 48)
+```
+
+Measured on macOS arm64 on v1.22.2 while another session's server held the port. With
+`SMOLVM_GUEST_ROLLOUT_HOST_PORT=10091` the second server started and answered on `/health`.
 
 ### Field names, versions and error bodies
 
 Those have their own page: `references/api-fields.md`. The short version is that unknown fields
-are accepted with 200 and ignored, `network` and `memoryMb` are not `net` and `memory`, and the
-version in the exported spec is not the binary's.
+are refused with `422` from v1.22.2 and were accepted with 200 and ignored before it, `network`
+and `memoryMb` are not `net` and `memory`, and the version in the exported spec is not the
+binary's.

@@ -4,23 +4,23 @@ title: "Throwaway machine: run untrusted code with no network"
 
 # Throwaway machine: run untrusted code with no network
 
-Runs untrusted code in a throwaway smolvm microVM against a repo it must not modify, with no network unless explicitly granted, and collects artifacts from a writable output directory. Use when executing an agent's generated script, a pull request's test suite, or any code that should not be trusted with the host; when a workload needs egress granted one host at a time; or when a run has to be cancelled, because Ctrl-C leaves the VM running and invisible to the CLI. Do not use it for a development environment that is re-entered across sessions, for running a Docker daemon inside a machine, or for installing smolvm itself, which is the install packet.
+Runs untrusted code in a throwaway smolvm microVM against a repo it must not modify, with no network unless explicitly granted, and collects artifacts from a writable output directory. Use when executing an agent's generated script, a pull request's test suite, or any code that should not be trusted with the host; when a workload needs egress granted one host at a time; or when a run has to be cancelled, because Ctrl-C on the wrapper script leaves the VM running, and on releases before v1.20.2 so does Ctrl-C on the CLI. Do not use it for a development environment that is re-entered across sessions, for running a Docker daemon inside a machine, or for installing smolvm itself, which is the install packet.
 
-Verified on **smolvm v1.18.2** on macOS arm64 and Linux aarch64, 2026-09-24, by the network-on
-route and the cancel on both; the offline route last completed on Linux aarch64 on v1.14.6, and
-"Re-verified on v1.18.2" says why. Done means the command's output landed in your writable directory,
+Verified on **smolvm v1.22.2** on macOS arm64, 2026-10-03, by the offline route, the network-on route
+and the cancel; on Linux aarch64 by the offline route and the cancel on v1.20.2, 2026-09-29, and the
+network-on route on v1.18.2, 2026-09-24. Done means the command's output landed in your writable directory,
 the repo is unchanged, the workload could not reach the network, and nothing is left running.
 
-**Two smolvm defects shape this packet and you will meet both.**
+**The cancel is `scripts/cleanup.sh --cancel`, never Ctrl-C**: on `run.sh` Ctrl-C leaves the CLI
+and its VM running on v1.20.2 too, as "Cancelling" below measures.
 
-- **[#1193](https://github.com/smol-machines/smolvm/issues/1193): Ctrl-C does not stop a cached
-  run.** The VM outlives the CLI, `machine list` reports `No machines found`, and it exits only
-  when the untrusted workload does. **The cancel is `scripts/cleanup.sh --cancel`, never Ctrl-C.**
-  On the network-on route a v1.18.2 run whose wrapper was killed stays in `machine list` as
-  `running (eph)` on both hosts here, and `--cancel` still clears it.
-- **[#1192](https://github.com/smol-machines/smolvm/issues/1192): on macOS a cached run with any
-  mount never boots.** The offline shape below is therefore Linux-only today. macOS has its own
-  page with a route that works: read `references/macos.md`.
+Two issues shaped this packet and **v1.20.2 fixed both**; older releases still have them:
+
+- **[#1193](https://github.com/smol-machines/smolvm/issues/1193)**, fixed in v1.20.2: before it,
+  a cached run's VM outlives an interrupted CLI, invisible to `machine list`.
+- **[#1192](https://github.com/smol-machines/smolvm/issues/1192)**, fixed in v1.20.2: before it, a
+  cached run with any mount never boots on macOS; `references/macos.md` gives the older releases a
+  route.
 
 ## Workflow
 
@@ -48,8 +48,9 @@ eleven IRQs: **four `-v` mounts boot and five do not, and every published port c
 slots**, so the budget is mounts plus ports. Combine directories under one mount rather than
 discovering this at boot.
 
-`offline_shape=unavailable` means this host cannot run the shape below. On macOS that is #1192; on
-any host it can also mean the bake helper's memory does not fit, which step 2 diagnoses.
+`offline_shape=unavailable` means this host cannot run the shape below. On macOS before v1.20.2 that
+is #1192; on any host it can also mean the bake helper's memory does not fit, which step 2
+diagnoses.
 
 **2. Bake the image. This is the only step that talks to a registry.**
 
@@ -67,13 +68,17 @@ egress and hoping.
 scripts/run.sh --repo ./repo --out ./out -- sh -c 'python3 /workspace/calc.py > /out/result.txt'
 ```
 
-The repo is mounted read-only at `/workspace`, the output directory writable at `/out`, and the run
-has no network. It prints `used_host_cache=yes`, which is the assertion that the bake worked and
+The repo is mounted read-only at `/workspace`, or at the path `--repo-path` names, the output
+directory writable at `/out`, and the run has no network. It prints `used_host_cache=yes`, which is the assertion that the bake worked and
 that this run reached no registry: without it the run pulled, which means it had network, which
 means it was not the isolation you asked for.
 
 It also prints `vm_pid=` and records it. **That pid is the only route back to the machine** if the
 run has to be stopped.
+
+**A script that is not in the repo** goes into the output directory before the run, and the
+command calls it from there, as `sh /out/check.sh`. The output directory is the one path the run
+can write, so nothing else on the host is exposed, and the repo stays unchanged.
 
 To grant egress, name hosts one at a time:
 
@@ -100,6 +105,12 @@ The inside half proves the workload could not write the repo and could not reach
 host half proves the artifact came out and the repo is unchanged. A run that merely exited zero
 tells you neither.
 
+`--expect` takes one value and compares it with the whole file, newlines removed. For output of
+several lines, have the command write the one value to check into a file of its own and name that
+with `--expect-file`, or leave `--expect` off and the step checks only that the file is there and
+not empty. The repo check looks for the step's own probe file; it does not compare the repo's
+other files.
+
 **5. Clean up, or cancel.**
 
 ```bash
@@ -108,19 +119,20 @@ scripts/cleanup.sh --cancel --purge   # to stop a run that is still going
 ```
 
 `--cancel` kills exactly the VMs `run.sh` recorded and then verifies that nothing is left. It waits
-before asserting an empty machine list, because the ephemeral entry retires after the run returns
-and an immediate assertion fails on a healthy host.
+20 seconds before asserting an empty machine list, and says so, because the ephemeral entry retires
+after the run returns and an immediate assertion fails on a healthy host.
 
 ## Cancelling, and why Ctrl-C is not it
 
-On the offline route, interrupting the CLI leaves the VM running with no CLI route to it, and it
-exits only when the untrusted workload finishes. For code that hangs or loops that is unbounded
-exposure, with roughly 230 MB held per survivor.
+On v1.20.2, Ctrl-C or `SIGKILL` on the CLI itself ends the VM within a second on both routes, on
+macOS arm64 and Linux aarch64. **Interrupting `run.sh` is not a cancel**: the CLI it backgrounds
+ignores `SIGINT`, so Ctrl-C on the script left the CLI and its VM running on the offline route on both
+hosts, and killing the script alone left them on either route. For code that hangs or loops that is
+unbounded exposure.
 
-**The routes differ, and `references/traps.md` has the measurements.** On the plain path a `SIGINT`
-to the CLI does take the VM with it, verified here on Linux. Do not rely on that: interrupting the
-*wrapper* rather than the CLI leaves both running on either route, which was observed on both hosts
-used for this packet. Use `--cancel`.
+Before v1.20.2 the offline route is worse: interrupting the CLI itself leaves the VM running with no
+CLI route to it, roughly 230 MB held per survivor (#1193). `references/traps.md` has the
+measurements for each release and route. Use `--cancel`.
 
 ## If the workload brings up a VPN
 
@@ -145,8 +157,8 @@ Read these when the situation calls for them; they are not needed for a normal r
 - **`references/traps.md`** for every trap with its measurement: the two routes and what Ctrl-C does
   to each, the bake helper's fixed memory, a guest VPN taking the default link, why `pgrep -f` and
   `readlink` both fail as reapers, and what counts as cache rather than residue.
-- **`references/macos.md`** if you are on macOS. The offline shape does not work there; that page
-  gives a route that does and says what it costs.
+- **`references/macos.md`** if you are on macOS with a release before v1.20.2. The offline shape
+  does not work there; that page gives a route that does and says what it costs.
 - **`references/windows.md`** if you are on Windows. The bake never completes there, so the offline
   shape is unavailable for a different reason, and the reaper has to be broader.
 
@@ -155,8 +167,9 @@ Read these when the situation calls for them; they are not needed for a normal r
 - **No network is the default because it is the only guarantee that does not depend on the
   workload's cooperation.** An egress policy is a filter on what untrusted code asks for; no network
   is a property of the machine. The bake exists so that the offline run is possible at all.
-- **`--allow-host` grants one host, and the run still has a network stack.** Prefer it to `--net`,
-  but treat it as a narrower opening rather than as no opening. A denial under it looks like a DNS
+- **`--allow-host` grants a name and its subdomains, and the run still has a network stack.**
+  `--allow-host-pattern` grants the exact name only. Prefer either to `--net`, but treat it as a
+  narrower opening rather than as no opening. A denial under it looks like a DNS
   failure, so a workload can fail confusingly rather than obviously.
 - **The repo is `:ro` because a read-only mount is enforced by the guest kernel**, not by the
   workload's good behaviour. `verify.sh` tries to write it and asserts the write failed, then checks
@@ -172,136 +185,30 @@ Read these when the situation calls for them; they are not needed for a normal r
 
 ## Platform arms
 
-- **Linux aarch64**: **the network-on route and the cancel path were run here on v1.18.2**, and
-  the offline route, the cancel path on it and the reaper on v1.14.6, the first host on which the
-  offline route completed.
-- **Linux x86_64**: the offline route is verified in the material behind this packet, not re-run.
-- **macOS arm64**: the offline shape is unavailable (#1192, reproduced 3 of 3 on v1.18.2). The
-  network-on route and the pull-once-then-disconnect route were run end to end on v1.18.2.
-  `references/macos.md`.
+- **Linux aarch64**: **the offline route and the cancel path on both routes were run here on
+  v1.20.2**, 2026-09-29; the network-on route end to end on v1.18.2, and once on v1.22.2.
+- **Linux x86_64**: the offline route was verified on v1.14.2 on an NVIDIA A10 cloud host, not
+  re-run since.
+- **macOS arm64**: **the offline route, the network-on route and the cancel path on both were run
+  here on v1.22.2**, 2026-10-03. Before v1.20.2 the offline shape is unavailable (#1192, reproduced
+  3 of 3 on v1.18.2), and `references/macos.md` gives the routes run on v1.18.2.
 - **Windows x86_64**: the offline shape is unavailable for a different reason, the bake never
-  completes. `references/windows.md`, **re-run on 2026-09-11 against v1.14.6** on Windows 11 Home
-  build 10.0.26200.0 UBR 9445: the mount and the network-off refusal confirmed, and the bake still
-  did not complete inside a ten minute cap.
+  completes. `references/windows.md`, **re-run on 2026-10-03 against v1.22.2** on Windows 11 Home
+  build 10.0.26200 UBR 9457: the mount, the artifact directory and the network-off refusal
+  confirmed, the bake still did not complete inside a five minute cap in any of four shapes, and a
+  plain foreground run interrupted by Ctrl-C or a kill left its VM running.
 
 ## Eval prompts, and what they produced
-
-Run on 2026-09-08 PT against v1.14.2 from the published release, under an isolated `HOME`, on
-macOS 26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64). Output is verbatim.
 
 **1. "Run this untrusted script against my repo without letting it modify the repo or reach the
 network, and get the output back."**
 
-On Linux aarch64 the **offline route** answers this directly on v1.14.6, with the network off for
-the whole run: `used_host_cache=yes`, `inside_network=ok (blocked)`, `artifact=ok (42)`,
-`repo_unchanged=ok`, `result=isolation_held`. On macOS, where #1192 blocks that route, the
-network-on route:
+The offline route on macOS arm64, with the network off for the whole run; this is v1.20.2's output,
+and v1.22.2 gave the same values:
 
 ```
-route=network-on
-vm_pid=74421
-cli_exit=0
-
-inside_workspace=ok (readonly)
-inside_out=ok (writable)
-inside_network=ok (REACHED)
-artifact=ok (42)
-repo_unchanged=ok
-result=isolation_held
-```
-
-`inside_network=REACHED` is the expected result on that route and the reason it is the second
-choice: the network was open for the whole run.
-
-**2. "The isolated job is hung. Stop it."**
-
-On Lima, a run with a `sleep 600` workload, wrapper interrupted:
-
-```
---- recorded pid file ---
-76773 /home/<user>/skp/.cache/smolvm/vms/77196d36f7bb8555/boot-config.json
---- VM still alive after the interrupt? ---
-STILL RUNNING 76773 ...
---- machine list after the interrupt ---
-vm-1b3d157f running (eph)   4  2048 MiB  2  0  20 GiB  10 GiB
-=== cancel with the packet reaper ===
-cancelled=76773 config=/home/<user>/skp/.cache/smolvm/vms/77196d36f7bb8555/boot-config.json
-machines=clean
-vm_processes=none
-result=clean
-```
-
-The same on macOS, cancelling pid 82510 and ending clean.
-
-**3. "Can I run untrusted code on this host?"**
-
-macOS 26.6.2 arm64, where the answer is a qualified no:
-
-```
-platform=darwin-aarch64
-accel=hypervisor_framework
-accel_access=ok
-offline_shape=unavailable
-offline_shape_blocker=smol-machines/smolvm#1192
-device_budget_ok=yes
-cancel_route=scripts/cleanup.sh --cancel
-result=blocked
-```
-
-and `bake.sh` refuses rather than baking something unusable:
-
-```
-result=unsupported_on_macos
-A baked image is only useful to a run that also mounts something, and on macOS
---oci-cache plus any -v mount times out the boot (smol-machines/smolvm#1192).
-```
-
-## Re-verified on v1.18.2
-
-Run 2026-09-24 PT against v1.18.2 from the published release, under an isolated `HOME`, on macOS
-26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64).
-
-**macOS.** #1192 still holds: a bake followed by a run with one `:ro` mount failed 3 of 3 with
-`agent did not become ready within 30 seconds`, while the mount without `--oci-cache` and
-`--oci-cache` without the mount both passed in the same session. The preflight still says
-`result=blocked` and `bake.sh` still refuses. The network-on route held:
-
-```
-inside_workspace=ok (readonly)
-inside_out=ok (writable)
-inside_network=ok (REACHED)
-artifact=ok (42)
-repo_unchanged=ok
-result=isolation_held
-```
-
-The cancel, with the wrapper killed while a `sleep 600` workload ran: `machine list` showed
-`vm-552a084a running (eph)`, and `cleanup.sh --cancel --purge` reported `cancelled=72150` and
-`result=clean`. The first choice in `references/macos.md` ran end to end for the first time here.
-
-**Linux aarch64.** The network-on route held with the same six values, and the cancel cleared its
-VM (`cancelled=141333`, `result=clean`). **The offline route was not re-run, for a host reason.**
-That box no longer boots a guest above 2048 MiB inside the fixed 30 s readiness window, v1.16.1
-installed on the same box behaves the same, and the bake helper takes 8192 MiB. `bake.sh` named it
-the way `references/traps.md` describes, with `control_boot_2048=ok` and a pointer to the
-network-on route, which is the diagnosis working rather than the route.
-
-**The VPN trap, on both hosts.** With a policy route for `100.64.0.0/10` into a dummy device added
-inside the guest, the way Tailscale adds one, a run on the default link printed
-`wget: bad address 'example.com'`; the same routes with `--guest-subnet 10.200.0.0/30` resolved and
-fetched.
-
-## Re-verified on v1.14.6
-
-Run 2026-09-10 PT against v1.14.6 from the published release. **Two things changed on this
-release and both matter.**
-
-**The offline route now runs on Linux, for the first time on any host available to this packet.**
-On Lima `linux-kvm` (Ubuntu 24.04 aarch64) the bake completed in 59 s and the run held:
-
-```
-result=baked
-Using cached image f60a20a837dc1a34 (host cache hit; no pull)
+route=offline
+egress=none
 used_host_cache=yes
 inside_workspace=ok (readonly)
 inside_out=ok (writable)
@@ -311,32 +218,83 @@ repo_unchanged=ok
 result=isolation_held
 ```
 
-`inside_network=ok (blocked)` is the line the whole packet exists for: the workload reached no
-network at all. Earlier releases could not get this far on any host here.
+On macOS before v1.20.2, where #1192 blocks that route, the network-on route gives the same values
+with `inside_network=ok (REACHED)`, which is the reason it is the second choice: the network was
+open for the whole run.
 
-**The reaper was broken on exactly this route, and is fixed.** The pack-run path forks without
-execing, so its VM child inherits the parent's argv and carries no `_boot-vm`. Measured on
-v1.14.6 before the fix: `run.sh` reported `vm_pid=not_observed`, and after the CLI was killed
-`cleanup.sh` reported `vm_processes=none` and `result=clean` while the VM held 234 MB. After the
-fix, the same sequence reports `vm_pid=71676` and
-`vm_process=... forked-under ...` with `result=vms_still_running`, and `--cancel` clears it. See
-`references/traps.md`.
+**2. "The isolated job is hung. Stop it."**
 
-**macOS is unchanged**: `--oci-cache` with any mount still times out, 3 of 3 with both controls
-passing in the same session, so the offline shape is still unavailable there and `bake.sh` still
-refuses with the reason. The network-on route held (`artifact=ok (42)`, `result=isolation_held`) and
-the cancel path recorded and killed its VM.
+With a `sleep 600` workload and the wrapper interrupted, the VM was still listed as running, and
+`scripts/cleanup.sh --cancel --purge` ended it:
+
+```
+cancelled=76773 config=/home/<user>/skp/.cache/smolvm/vms/77196d36f7bb8555/boot-config.json
+machines=clean
+vm_processes=none
+result=clean
+```
+
+That is Lima on v1.14.2, on the network-on route. On the offline route the VM is a forked child, and
+on v1.22.2 on macOS the same cancel printed `cancelled=<pid> config=forked-under <HOME>/.smolvm`.
+
+**3. "Can I run untrusted code on this host?"**
+
+On macOS arm64 on v1.22.2 the preflight says `offline_shape=available` and `result=ready`. Before
+v1.20.2 it says `offline_shape=unavailable`, `offline_shape_blocker=smol-machines/smolvm#1192` and
+`result=blocked`, and `bake.sh` refuses with `result=unsupported_on_macos` rather than baking
+something unusable.
+
+## Re-verified on v1.22.2
+
+Run 2026-10-03 PT against v1.22.2 from the published release, checksum checked, under an isolated
+`HOME` on macOS 27.0.1 arm64, once to write and once from a fresh `HOME` to verify. On Lima
+`linux-kvm` (Ubuntu 24.04 aarch64) guests above 2048 MiB timed out that day, so the Linux lines
+below are a single run and the Linux stamp stays on its earlier release.
+
+**macOS: every step on both routes.** The preflight said `result=ready` and `offline_shape=available`,
+`bake.sh` `result=baked`, the offline run `used_host_cache=yes`, and `verify.sh` gave
+`inside_workspace=ok (readonly)`, `inside_out=ok (writable)`, `inside_network=ok (blocked)`,
+`artifact=ok (42)`, `repo_unchanged=ok` and `result=isolation_held`. A run granted
+`--allow-host example.com` reached it, and the network-on route gave `inside_network=ok (REACHED)`
+with the rest unchanged. `cleanup.sh --cancel --purge` reported `cancelled=<pid>` and
+`result=clean`. Ctrl-C and `SIGKILL` on the CLI of a cached run with a mount ended the VM within a
+second; Ctrl-C to `run.sh`'s process group left the CLI and its VM alive on the offline route and
+not on the network-on route, as on v1.20.2. Once in five bakes, the first, `bake.sh` printed
+`hdiutil create failed - Resource busy` and still `result=baked`; the run that followed used the
+cache.
+
+**Linux aarch64, single run.** The network-on route held with `inside_network=ok (REACHED)` and
+`artifact=ok (42)`. The offline route did not run: the bake's helper takes 8192 MiB, `bake.sh`
+said so, and its control boot at 2048 passed.
+
+## Re-verified on v1.20.2
+
+Run 2026-09-29 PT against v1.20.2 from the published release, checksum checked, under an isolated
+`HOME`, on macOS 27.0.1 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64).
+
+**macOS: #1192 is fixed.** The command from the issue, `machine run --net -v <dir>:/tmp --oci-cache
+--image alpine:latest -- date`, passed 3 of 3, every row of the table in `references/macos.md`
+passed 3 of 3, and the offline route ran end to end with the values shown in eval 1.
+
+**Linux aarch64: the offline route ran**, the last time it has on Linux: `bake.sh` reported
+`baked in 39s` and `result=baked`, then `used_host_cache=yes`, `inside_network=ok (blocked)`,
+`artifact=ok (42)`, `repo_unchanged=ok` and `result=isolation_held`.
+
+**#1193 is fixed, and the wrapper still orphans.** On both hosts a `sleep 600` run's VM was gone
+within a second of Ctrl-C or `SIGKILL` on the CLI, on both routes, with `machine list` empty. Ctrl-C
+to `run.sh`'s process group left the VM alive on the offline route on both hosts and on the
+network-on route on Linux, and killing `run.sh` alone left it alive on both routes on both hosts;
+`cleanup.sh --cancel --purge` reported `cancelled=<pid>` and `result=clean` every time.
 
 ## What was not run
 
-- **The offline route on macOS.** Blocked by #1192, reproduced on v1.18.2 3 of 3 with both
-  controls passing. `references/macos.md` gives the route that works there and what it costs.
-- **The offline route on v1.18.2.** It last completed on Linux aarch64 on v1.14.6; the host used
-  here could not boot the bake helper's 8192 MiB this time, for the reason above.
+- **The offline route on Linux on v1.18.2 and v1.22.2.** That host could not boot the bake helper's
+  8192 MiB in time; it ran on v1.20.2.
 - **A GPU workload.** Nothing here was run against a GPU on either release.
-- **The macOS first-choice route** in `references/macos.md`, which needs a `docker`, `crane`,
+- **The macOS second-choice route** in `references/macos.md`, which needs a `docker`, `crane`,
   `podman` or `nerdctl` binary to produce an image archive. None is installed on that host.
-- **Windows.** One earlier run, recorded in `references/windows.md`.
+- **Windows, the cancel scripts.** `scripts/*.sh` do not run there; `references/windows.md` has the
+  measurements a port would need.
 - **S3 and `:staged` mounts**, and driving the packet from a CI runner.
 
 ## Related packets
@@ -365,7 +323,13 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.18.2"
+VERIFIED_VERSION="1.22.2"
+
+# v1.20.2 fixed both issues this packet was built around (#1467): a cached run
+# with a mount boots on macOS (#1192), and a cached run's VM ends with its CLI
+# (#1193). Older releases still have both.
+FIXED_IN="1.20.2"
+at_least() { [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$2" ]; }
 
 # The guest gets eleven IRQs. Four -v mounts boot and five fail with "no more
 # IRQs are available", and any published port costs one of those slots, so the
@@ -431,14 +395,18 @@ case "$kernel" in
             blocked=1
         fi
         # The offline shape is bake with --oci-cache, then run with mounts and
-        # no network. On macOS that combination never boots.
-        emit offline_shape unavailable
-        emit offline_shape_blocker "smol-machines/smolvm#1192"
-        blocked=1
-        note "on macOS --oci-cache with any -v mount times out the boot, deterministically, so the offline shape this packet is built on cannot run here. Use references/macos.md, which gives a route that works and says what it costs you."
-        for b in docker crane podman nerdctl; do
-            if command -v "$b" >/dev/null 2>&1; then emit image_archive_tool "$b"; break; fi
-        done
+        # no network. Before v1.20.2 that combination never boots on macOS.
+        if [ -n "${version:-}" ] && [ "$version" != "unknown" ] && at_least "$version" "$FIXED_IN"; then
+            emit offline_shape available
+        else
+            emit offline_shape unavailable
+            emit offline_shape_blocker "smol-machines/smolvm#1192, fixed in v$FIXED_IN"
+            blocked=1
+            note "before v$FIXED_IN, on macOS --oci-cache with any -v mount times out the boot, deterministically, so the offline shape this packet is built on cannot run here. Upgrade, or use references/macos.md, which gives a route that works on older releases and says what it costs you."
+            for b in docker crane podman nerdctl; do
+                if command -v "$b" >/dev/null 2>&1; then emit image_archive_tool "$b"; break; fi
+            done
+        fi
         ;;
     Linux)
         emit platform "linux-$arch"
@@ -462,7 +430,7 @@ case "$kernel" in
         emit accel_access unknown
         emit offline_shape unavailable
         blocked=1
-        note "this script covers macOS and Linux. On Windows the --oci-cache bake never completes, so the offline shape is unavailable there too; see references/windows.md, written from a run and not re-run by this packet."
+        note "this script covers macOS and Linux. On Windows the --oci-cache bake did not complete on v1.22.2, so the offline shape is unavailable there too; see references/windows.md."
         ;;
 esac
 
@@ -479,10 +447,17 @@ else
     note "mounts plus published ports exceeds the guest's device budget; the boot fails with 'no more IRQs are available'. Combine directories under one mount, or drop a port."
 fi
 
-# Ctrl-C does not stop a throwaway machine. Say so before anything is started, not after.
+# Ctrl-C does not stop a run started by run.sh on any release: it backgrounds
+# the CLI, and a background command in a script ignores SIGINT. Before v1.20.2
+# an interrupted CLI also leaves a cached run's VM behind. Say so before
+# anything is started, not after.
 emit cancel_route "scripts/cleanup.sh --cancel"
-emit interrupt_orphans_vm yes
-emit interrupt_blocker "smol-machines/smolvm#1193"
+if [ -n "${version:-}" ] && [ "$version" != "unknown" ] && at_least "$version" "$FIXED_IN"; then
+    emit interrupt_orphans_vm wrapper_only
+else
+    emit interrupt_orphans_vm yes
+    emit interrupt_blocker "smol-machines/smolvm#1193, fixed in v$FIXED_IN"
+fi
 
 if [ "$blocked" -eq 0 ]; then emit result ready; else emit result blocked; fi
 ```
@@ -510,11 +485,15 @@ if [ -z "$SMOLVM" ]; then
     exit 2
 fi
 
-if [ "$(uname -s)" = "Darwin" ]; then
+# Before v1.20.2, on macOS --oci-cache plus any -v mount never boots (#1192,
+# fixed by #1467), so a bake buys nothing there. v1.20.2 and later bake here.
+version="$("$SMOLVM" --version 2>/dev/null | awk '{print $NF}')"
+fixed="$(printf '%s\n%s\n' "${version:-0}" 1.20.2 | sort -V | head -1)"
+if [ "$(uname -s)" = "Darwin" ] && [ "$fixed" != "1.20.2" ]; then
     printf 'result=unsupported_on_macos\n'
     printf 'A baked image is only useful to a run that also mounts something, and on macOS\n'
     printf '%s\n' '--oci-cache plus any -v mount times out the boot (smol-machines/smolvm#1192).'
-    printf 'Read references/macos.md instead. Baking here would succeed and buy you nothing.\n'
+    printf 'Fixed in v1.20.2; this binary is %s. Upgrade, or read references/macos.md.\n' "${version:-unknown}"
     exit 2
 fi
 
@@ -576,8 +555,10 @@ exit 1
 # Run an untrusted command against a repo it must not modify, with no network,
 # and collect its artifacts.
 #
-# usage: run.sh [--repo <dir>] [--out <dir>] [--image <img>] [--allow-host <h>]... -- <command...>
-#   --repo <dir>        mounted read-only at /workspace (default ./repo)
+# usage: run.sh [--repo <dir>] [--repo-path <path>] [--out <dir>] [--image <img>]
+#               [--allow-host <h>]... -- <command...>
+#   --repo <dir>        mounted read-only at --repo-path (default ./repo)
+#   --repo-path <path>  where the repo appears in the guest (default /workspace)
 #   --out  <dir>        mounted writable at /out        (default ./out)
 #   --image <img>       must already be baked; see bake.sh (default python:3.12-alpine)
 #   --allow-host <h>    grant egress to one host. Repeatable. Weakens the isolation
@@ -586,19 +567,22 @@ exit 1
 #                       offline    bake once, then run with no network at all.
 #                       network-on no --oci-cache, the run pulls its own image and
 #                       therefore has egress for the whole run. Use it only where
-#                       offline does not work: macOS, where --oci-cache with any
-#                       mount never boots (smol-machines/smolvm#1192), and any host
-#                       that cannot give the bake helper its 8192 MiB.
+#                       offline does not work: macOS before v1.20.2, where
+#                       --oci-cache with any mount never boots
+#                       (smol-machines/smolvm#1192), and any host that cannot give
+#                       the bake helper its 8192 MiB.
 #
-# The VM's pid is recorded before the workload finishes, because Ctrl-C does not
-# stop a smolvm machine: the VM outlives the CLI, `machine list` cannot see it,
-# and it exits only when the untrusted workload does, which for code that hangs
-# or loops is never (smol-machines/smolvm#1193). Cancel with
+# The VM's pid is recorded before the workload finishes, because Ctrl-C on this
+# script does not stop the machine. The CLI runs in the background below, and a
+# background command in a script ignores SIGINT, so the CLI and its VM keep
+# running. Before v1.20.2 an interrupted CLI also leaves a cached run's VM
+# behind, invisible to `machine list` (smol-machines/smolvm#1193). Cancel with
 # `scripts/cleanup.sh --cancel`, never with Ctrl-C.
 
 set -uo pipefail
 
 REPO="./repo"
+REPO_PATH="/workspace"
 OUT="./out"
 IMAGE="python:3.12-alpine"
 ROUTE="offline"
@@ -607,6 +591,7 @@ allow=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --repo)       REPO="$2"; shift ;;
+        --repo-path)  REPO_PATH="$2"; shift ;;
         --out)        OUT="$2"; shift ;;
         --image)      IMAGE="$2"; shift ;;
         --allow-host) allow+=(--allow-host "$2"); shift ;;
@@ -652,24 +637,10 @@ esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
 
-# List this HOME's smolvm VM processes, as "pid marker".
-#
-# Two process shapes exist and a reaper has to catch both. The plain
-# `machine run` path EXECS a child whose argv[1] is `_boot-vm` and whose argv[2]
-# is its boot-config path. The pack-run path, which is `--oci-cache` or any
-# `init`, FORKS without execing, so the child inherits the parent's argv and
-# carries no boot-config at all. Matching `_boot-vm` alone is therefore blind to
-# exactly the path whose child survives an interrupt
-# (smol-machines/smolvm#1193): measured on v1.14.6, it reported "none" while two
-# orphaned VMs held 234 MB each.
-#
-# On Linux both shapes rename themselves to `libkrun VM`, the one marker that
-# covers both and that no shell can hold. macOS exposes no rename, so there the
-# executable path scopes the search to this HOME and the parent chain separates
-# a VM from the CLI that started it.
-#
-# `pgrep -f _boot-vm` is not an alternative: it matches any shell whose text
-# contains that string, including this script.
+# List this HOME's VM processes as "pid marker". The plain run path execs a
+# `_boot-vm` child that carries its boot config; the pack-run path forks one that
+# carries none. Linux names both `libkrun VM`; on macOS the executable path and
+# the parent chain scope the search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
@@ -680,24 +651,19 @@ list_vm_processes() {
                 case "$cfg" in
                     "$VMS_DIR"/*) printf '%s %s\n' "$pid" "$cfg"; continue ;;
                 esac
-                # Forked shape: nothing in argv identifies it, so scope by the
-                # binary it is running.
                 case "$(readlink "$p/exe" 2>/dev/null)" in
                     "$SMOLVM_PREFIX"/*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
                 esac
             done
             ;;
         Darwin)
-            # shellcheck disable=SC2009  # pgrep cannot return ppid and the full
-            # command together, and pgrep -f matches this script's own text.
+            # shellcheck disable=SC2009  # pgrep -f would match this script.
             own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
             ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
-                # Forked shape: its parent is the CLI that started it, or init
-                # once that CLI is gone.
                 if [ "$ppid" = 1 ]; then
                     printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 else
@@ -734,7 +700,7 @@ fi
 
 logfile="$STATE_DIR/throwaway-machine.lastrun.log"
 "$SMOLVM" machine run --mem 2048 ${cache[@]+"${cache[@]}"} --image "$IMAGE" \
-    --volume "$REPO:/workspace:ro" \
+    --volume "$REPO:$REPO_PATH:ro" \
     --volume "$OUT:/out" \
     ${allow[@]+"${allow[@]}"} \
     -- "$@" > "$logfile" 2>&1 &
@@ -907,9 +873,11 @@ exit "$fail"
 #
 # usage: cleanup.sh [--cancel] [--purge]
 #   --cancel   kill the VMs run.sh recorded. THIS IS THE PACKET'S CANCEL.
-#              Ctrl-C is not: it returns the shell to you and leaves the VM
-#              running, invisible to `machine list`, until the untrusted
-#              workload finishes on its own (smol-machines/smolvm#1193).
+#              Ctrl-C on run.sh is not: it returns the shell to you and leaves
+#              the CLI and its VM running until the untrusted workload finishes
+#              on its own. Before v1.20.2 Ctrl-C on the CLI itself leaves a
+#              cached run's VM running too, invisible to `machine list`
+#              (smol-machines/smolvm#1193).
 #   --purge    remove the recorded-pid file once nothing is left
 #
 # With no flags it waits, asserts the machine list is empty, and reports any VM
@@ -946,24 +914,10 @@ esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
 
-# List this HOME's smolvm VM processes, as "pid marker".
-#
-# Two process shapes exist and a reaper has to catch both. The plain
-# `machine run` path EXECS a child whose argv[1] is `_boot-vm` and whose argv[2]
-# is its boot-config path. The pack-run path, which is `--oci-cache` or any
-# `init`, FORKS without execing, so the child inherits the parent's argv and
-# carries no boot-config at all. Matching `_boot-vm` alone is therefore blind to
-# exactly the path whose child survives an interrupt
-# (smol-machines/smolvm#1193): measured on v1.14.6, it reported "none" while two
-# orphaned VMs held 234 MB each.
-#
-# On Linux both shapes rename themselves to `libkrun VM`, the one marker that
-# covers both and that no shell can hold. macOS exposes no rename, so there the
-# executable path scopes the search to this HOME and the parent chain separates
-# a VM from the CLI that started it.
-#
-# `pgrep -f _boot-vm` is not an alternative: it matches any shell whose text
-# contains that string, including this script.
+# List this HOME's VM processes as "pid marker". The plain run path execs a
+# `_boot-vm` child that carries its boot config; the pack-run path forks one that
+# carries none. Linux names both `libkrun VM`; on macOS the executable path and
+# the parent chain scope the search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
@@ -974,24 +928,19 @@ list_vm_processes() {
                 case "$cfg" in
                     "$VMS_DIR"/*) printf '%s %s\n' "$pid" "$cfg"; continue ;;
                 esac
-                # Forked shape: nothing in argv identifies it, so scope by the
-                # binary it is running.
                 case "$(readlink "$p/exe" 2>/dev/null)" in
                     "$SMOLVM_PREFIX"/*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
                 esac
             done
             ;;
         Darwin)
-            # shellcheck disable=SC2009  # pgrep cannot return ppid and the full
-            # command together, and pgrep -f matches this script's own text.
+            # shellcheck disable=SC2009  # pgrep -f would match this script.
             own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
             ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
-                # Forked shape: its parent is the CLI that started it, or init
-                # once that CLI is gone.
                 if [ "$ppid" = 1 ]; then
                     printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 else
@@ -1021,6 +970,7 @@ fi
 # 2. An ephemeral machine's entry retires after the run returns, not with it, so
 # an immediate assertion fails on a healthy host. This is the single most likely
 # false failure in a scripted run.
+printf 'waiting=20s for ephemeral entries to retire before asserting\n'
 sleep 20
 
 # 3. Assert values.
@@ -1030,9 +980,6 @@ if printf '%s' "$listing" | grep -q 'No machines found'; then
 else
     printf 'machines=remaining\n'
     printf '%s\n' "$listing" | sed 's/^/  /'
-    # These were not created by this packet, so nothing here will remove them.
-    # Say what does, rather than leaving the reader to guess: delete prompts and
-    # defaults to No without --force, and a branched machine also needs --cascade.
     printf 'note=this packet did not create these, so it will not delete them. By name:\n'
     printf '  smolvm machine stop --name <NAME> && smolvm machine delete --name <NAME> --force\n'
     printf '  add --cascade for a machine that was branched from another\n'
@@ -1094,22 +1041,42 @@ exit 1
 
 ## Throwaway machine traps
 
-### Ctrl-C does not stop the machine, and which route that applies to
+### Ctrl-C does not stop the machine, and which release and route that applies to
 
-**On the offline route this is the whole reason the packet has a cancel script.**
+**On v1.20.2, interrupting the CLI ends the VM; interrupting `run.sh` does not.** Measured
+2026-09-29 on macOS 27.0.1 arm64 and Ubuntu 24.04 aarch64, a `sleep 600` workload, watching the VM
+pid itself:
+
+| what was interrupted | macOS arm64 | Linux aarch64 |
+|---|---|---|
+| the CLI, Ctrl-C, offline or network-on | VM gone within 1 s | VM gone within 1 s |
+| the CLI, `SIGKILL`, offline or network-on | VM gone within 1 s | VM gone within 1 s |
+| `run.sh`'s process group, Ctrl-C, offline | CLI and VM keep running | CLI and VM keep running |
+| `run.sh`'s process group, Ctrl-C, network-on | VM gone | VM keeps running |
+| `run.sh` alone, `SIGTERM`, either route | CLI and VM keep running | CLI and VM keep running |
+
+`cleanup.sh --cancel --purge` cleared every survivor with `result=clean`. The wrapper rows are
+`run.sh`'s own doing: it starts the CLI with `&`, and a non-interactive shell starts a background
+command with `SIGINT` ignored. On macOS the same cached run backgrounded by `bash -c '... & wait'`
+kept its CLI and VM after `SIGINT`, and with `SIGINT` reset to the default before the exec both were
+gone.
+
+**Before v1.20.2, on the offline route the CLI itself is no better, and this is the reason the
+packet has a cancel script.**
 `machine run` with `--oci-cache` or `--init` takes the pack-run boot path, which on Unix forks a
 session leader that never execs, so the VM child is detached with no parent-death arming. Interrupt
 the CLI and the VM keeps running, `machine list` reports `No machines found`, no VM cache directory
 exists, and there is no CLI route to what is still running. It exits only when the untrusted
 workload does, which for code that hangs or loops is unbounded. This is
-[smol-machines/smolvm#1193](https://github.com/smol-machines/smolvm/issues/1193).
+[smol-machines/smolvm#1193](https://github.com/smol-machines/smolvm/issues/1193), fixed in v1.20.2
+by #1467: the forked child now exits when its CLI does.
 
 **On the plain path it does not happen**, and that is worth knowing rather than assuming the worst
 everywhere. Measured on Ubuntu 24.04 aarch64 on 2026-09-08: a `machine run` with no `--oci-cache`,
 one mount and a `sleep 600` workload, sent `SIGINT` on the CLI itself, left `machine list` empty
 and **no VM process at all**. The plain path spawns an exec'd `_boot-vm` that dies with the CLI.
 
-So:
+So, before v1.20.2:
 
 | route | Ctrl-C on the CLI | cancel with |
 |---|---|---|
@@ -1120,10 +1087,10 @@ On v1.18.2 the network-on route was measured again with the **wrapper** killed a
 alone: the run stayed in `machine list` as `running (eph)` on macOS arm64 and on Linux aarch64, and
 `scripts/cleanup.sh --cancel` killed the recorded pid on both.
 
-**Do not rely on the second row to cancel a run.** `run.sh` records the VM's pid on both
-routes because the difference is a boot-path detail that can change between releases, and because
-interrupting the *wrapper* rather than the CLI leaves the CLI and its VM running on either route,
-which was observed on both hosts here.
+**Do not rely on an interrupt to cancel a run.** `run.sh` records the VM's pid on both routes
+because the difference is a boot-path detail that has changed between releases, and because
+interrupting the *wrapper* rather than the CLI leaves the CLI and its VM running, on v1.20.2 as
+before.
 
 ### Assert no machines left only after a wait
 
@@ -1235,12 +1202,17 @@ the executable path under this `HOME` and the parent chain separates a VM from t
 started it. Verified against a live orphan on both hosts: the same sequence now reports
 `vm_process=... forked-under ...` and `result=vms_still_running`, and `--cancel` clears it.
 
+On v1.20.2 a forked VM exits with its CLI, so an orphan of that shape comes from an older release
+or from a CLI that is still running, as after an interrupted `run.sh`. The scan still catches it,
+observed 2026-09-29 on both hosts. On macOS it also lists that CLI, reparented to launchd, as
+`orphaned-under`; `--cancel` kills only the recorded VM, and the CLI then exits with it.
+
 ### What is cache and what is residue
 
 `ls ~/.cache/smolvm/vms/ | wc -l` is not a leak check. Two separate caches exist and neither is
 residue:
 
-- `vms/_shared`, the image store the runbooks describe.
+- `vms/_shared`, an image store under the VM cache.
 - **the pack cache**, `~/Library/Caches/smolvm-pack` on macOS and `~/.cache/smolvm-pack` on Linux.
   On v1.14.2 on macOS a bake of one alpine image landed **here** and produced no `_shared` at all:
   114 MB in the pack cache, `vms/_shared` absent. Observed 2026-09-08.
