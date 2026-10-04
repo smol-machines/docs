@@ -494,7 +494,7 @@ route, so the shape is not discoverable from it.
 
 ### `ready` is reachable, but only if you publish no port
 
-The runbooks record `ready` never becoming true. That is a consequence of the **CLI publishing
+Earlier runs recorded `ready` never becoming true. That is a consequence of the **CLI publishing
 port 8080 by default**: the readiness probe waits for something to accept a connection there, and
 an off-the-shelf image serves nothing.
 
