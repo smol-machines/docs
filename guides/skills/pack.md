@@ -4,12 +4,11 @@ title: "Pack: ship a prepared machine as one file"
 
 # Pack: ship a prepared machine as one file
 
-Turns an image, or a machine already provisioned, into a single self-contained artifact that runs on another compatible host. Use when shipping a prepared environment as one file, when a packed artifact runs but the state installed into it is missing, when pack create --from-vm fails with a ready timeout that names nothing, when an export is refused because the machine is a fork clone, or when deciding whether to pack from an image or from a machine. Do not use it to keep a machine you re-enter, which is the dev-env packet, or to run untrusted code, which is the throwaway-machine packet.
+Turns an image, or a machine already provisioned, into a single self-contained artifact that runs on another compatible host. Use when shipping a prepared environment as one file, when a packed artifact runs but the state installed into it is missing, when pack create --from-vm fails with a ready timeout that names nothing, when an older release refuses to export a branched machine, or when deciding whether to pack from an image or from a machine. Do not use it to keep a machine you re-enter, which is the dev-env packet, or to run untrusted code, which is the throwaway-machine packet.
 
-Verified on **smolvm v1.18.2** on macOS arm64, 2026-09-24, and on **v1.14.6** on Linux aarch64,
-2026-09-11; the Linux host could not run the packing steps on v1.18.2, for the reason in
-"Re-verified on v1.18.2". Done means the
-artifact runs a command in a real VM and, for a machine pack, **the state you installed is still
+Verified on **smolvm v1.22.2** on macOS arm64, 2026-10-03, and on **v1.14.6** on Linux aarch64,
+2026-09-11; the Linux host could not run the packing steps on v1.18.2 or v1.22.2, for the reason in
+"Platform arms". Done means the artifact runs a command in a real VM and, for a machine pack, **the state you installed is still
 inside it**.
 
 **The assertion that matters is a value, not a boot.** A pack that lost its rootfs still boots,
@@ -58,21 +57,27 @@ not ceremony: packing a machine whose provisioning silently failed produces an a
 perfectly and contains nothing, and nothing downstream will tell you.
 
 **Packing a machine that already exists**, the user's own rather than one `pack-machine.sh` made:
-the script refuses any name without the `smolskill-` prefix, so run its sequence by hand. The
-machine has to be stopped, since `--from-vm` packs a stopped machine's snapshot.
+the script refuses any name without the `smolskill-` prefix, so run its sequence by hand. **Stop
+the machine first**: `--from-vm` packs a stopped machine's snapshot and refuses a running one. A
+`machine start` afterwards is how the machine comes back. A machine provisioned by hand is verified
+with a file of the user's own: `--marker-path` names it and `--marker` its expected last line.
 
 ```bash
-smolvm machine exec --name myapp -- sh -c 'echo PACKED_STATE_PRESENT > /marker.txt'
-smolvm machine exec --name myapp -- cat /marker.txt          # assert it on the source first
+smolvm machine exec --name myapp -- tail -1 /root/provisioned.txt   # note the value on the source
 smolvm machine stop --name myapp
 smolvm pack create --from-vm myapp --output ./myapp-portable --single-file   # one file, no sidecar
-scripts/verify-pack.sh --machine ./myapp-portable            # reads /marker.txt back out of it
-smolvm machine start --name myapp && smolvm machine exec --name myapp -- rm -f /marker.txt
+scripts/verify-pack.sh --machine ./myapp-portable --marker-path /root/provisioned.txt --marker <that value>
+smolvm machine start --name myapp                                    # the machine comes back
 ```
 
-`verify-pack.sh --machine` works on a `--single-file` artifact as it does on a stub with a sidecar.
-A stranger given only this packet and "ship this provisioned machine as one file" took this route
-on v1.18.2, and the 58.8 MiB artifact printed the machine's own `/root/PROOF.txt` on another run.
+With no file of the user's to check, write the packet's marker before the stop,
+`smolvm machine exec --name myapp -- sh -c 'echo PACKED_STATE_PRESENT > /marker.txt'`, verify
+without `--marker-path`, and remove `/marker.txt` after the start.
+
+`verify-pack.sh --machine` reads the marker out of a `--single-file` artifact as it does from a stub
+with a sidecar. With no image artifact beside it, expect `image_pack=skipped` and
+`result=artifacts_good (1 of 2 artifacts)`; the `what the artifact says it is` block reads the
+sidecar, so a single file prints none.
 
 **4. Verify.** Both halves.
 
@@ -102,6 +107,9 @@ false clean the marker exists to prevent.
 scripts/cleanup.sh --purge --artifacts ./from-image ./from-vm
 ```
 
+`cleanup.sh` waits 20 seconds before it checks the machine list and prints `waiting=20s` first:
+an ephemeral machine's entry retires after its run returns.
+
 It prunes each recorded machine while it still exists, deletes it, removes both stubs and their
 sidecars, and runs `pack prune`. **`smolvm machine prune` with no argument does not run on this
 release**; the form is `--name <NAME>`.
@@ -118,9 +126,9 @@ enters the artifact or the VM.
 ./from-image exec -- ssh-add -l
 ```
 
-Measured on macOS arm64 on v1.18.2 with a throwaway key in a throwaway agent: both forms listed
-that key's fingerprint from inside the guest, a `run` without the flag had `SSH_AUTH_SOCK` unset,
-and with the host variable empty the flag stops before booting with
+Measured on macOS arm64 on v1.18.2 with a throwaway key in a throwaway agent, and the artifact's
+own `run --ssh-agent` again on v1.22.2: both forms listed that key's fingerprint from inside the
+guest, a `run` without the flag had `SSH_AUTH_SOCK` unset, and with the host variable empty the flag stops before booting with
 `--ssh-agent: SSH_AUTH_SOCK is not set. Start an SSH agent with: eval $(ssh-agent) && ssh-add`.
 **Forward the agent only to an artifact you trust**: the guest can ask for signatures for as long
 as it runs, and an artifact is a filesystem somebody else prepared.
@@ -161,18 +169,14 @@ Full detail with the evidence in `references/traps.md`. The ones that cost the m
   stub plus a `.smolmachine` sidecar and the CLI says `Note: Keep the .smolmachine file alongside
   the binary`; the stub on its own prints smolvm's usage and exits. `--single-file` writes one
   executable with no sidecar, and its own help warns it `may have issues with macOS notarization`.
-  Verified on macOS arm64 on v1.16.1: the default stub alone failed in a fresh directory and
-  printed `CARRIED` once the sidecar was beside it; the `--single-file` artifact, 59806048 bytes,
-  printed `CARRIED` alone.
 - **The stub takes a subcommand, and a bare `--` is rejected** with a tip that does not mention
   `run`. The working form is `./from-vm run -- sh -c '...'`.
 - **`pack run` takes `--sidecar <PATH>`, not a positional path**, and getting it wrong reports
   that your sidecar is not an executable in `$PATH`.
 - **Reported sizes understate the stub on disk**, by about 8.4 MB on Linux aarch64 and about
   10 MB on macOS arm64, where an extra signing step runs. The sidecar figure is accurate.
-- **A branched machine packs on v1.16.1, and carries both states.** This was refused at export on
-  v1.14.6; #1251 closed it. Verified on macOS arm64 on 2026-09-15: start the source
-  `--branchable`, `machine branch --from <src> --name <child>`, write a marker in the child, stop
+- **A branched machine packs from v1.16.1, and carries both states**; v1.14.6 refused it at export.
+  Start the source `--branchable`, `machine branch --from <src> --name <child>`, write a marker in the child, stop
   it, `pack create --from-vm <child>`, and the artifact prints the source's `BASE_STATE` and the
   child's `CHILD_ONLY`. The branch must be stopped before it will pack.
 - **Branchability is decided at `machine start`, not at `create`.** `machine branch` against a
@@ -180,11 +184,12 @@ Full detail with the evidence in `references/traps.md`. The ones that cost the m
   copy-on-write memory to branch from ... branchability is decided at start time and cannot be
   turned on for an already-running machine`, and `machine create --branchable` is not a flag.
 - **A checkpoint restore packs and carries its rootfs**, and the restore path is
-  `machine create --from`. There is no `machine restore` subcommand. **Taking the checkpoint needs
-  `--branchable` on macOS**: without it v1.16.1 and v1.18.2 fail with `guest RAM has no
-  file-backed regions`, which names neither the flag nor the precondition. Linux aarch64 took one
-  without it on v1.18.2. A machine created from a pack can be checkpointed from v1.18.0, and
-  `create --from` restores the newest generation a checkpoint carries; `--at ~N` picks an earlier
+  `machine create --from`. There is no `machine restore` subcommand. **On macOS before v1.20.0
+  taking the checkpoint needs `--branchable`**, and the error, `guest RAM has no file-backed
+  regions`, names neither the flag nor the precondition. From v1.20.0 a checkpoint file does not
+  need it and a `--store` capture still does; `references/traps.md` has the releases. Linux
+  aarch64 took one without it on v1.18.2. A machine created from a pack can be checkpointed from
+  v1.18.0, and `create --from` restores the newest generation a checkpoint carries; `--at ~N` picks an earlier
   one, which `branch-and-checkpoint` covers.
 - **On Linux, `SMOLVM_DATA_DIR` moves where the agent rootfs is looked up and the installer does
   not write it there**, so an isolated data root needs the rootfs copied in before the first boot.
@@ -201,26 +206,35 @@ Full detail with the evidence in `references/traps.md`. The ones that cost the m
 - **The scripts pack only a machine they created**, named under the `smolskill-` prefix and
   recorded in a state file, and cleanup deletes only those. A machine you or another session made
   by hand is never exported and never deleted.
-- **`pack run` takes the forked boot path**, so a cancelled run leaves a VM the CLI cannot see.
-  `cleanup.sh` is the way to stop one, and its process scan catches both VM shapes. Ctrl-C is not.
+- **`pack run` takes the forked boot path.** From v1.20.2 Ctrl-C or a kill of the CLI takes its VM
+  with it: on macOS arm64 on v1.22.2 both processes of a packed `run` were gone 2 s after `SIGINT`
+  and after `SIGKILL`. Before v1.20.2 a cancelled run left a VM the CLI could not see, and
+  `cleanup.sh` is the way to stop one there; its process scan catches both VM shapes.
 - **Nothing here escalates privilege**, edits smolvm configuration or touches `~/.smolvm`.
 
 ## Platform arms
 
-- **macOS arm64**: verified on v1.18.2, including the SSH agent forwarding and a pack of a
-  restored machine. An extra `Signing binary with hypervisor entitlements` step runs here that
-  does not on Linux.
-- **Linux aarch64**: verified on v1.14.6. Not re-run on v1.18.2: the host could not boot the pull
-  helper in time, see below.
+- **macOS arm64**: verified on v1.22.2, including the SSH agent forwarding, a branched source, and
+  a pack of a restored machine on v1.18.2. An extra `Signing binary with hypervisor entitlements`
+  step runs here that does not on Linux.
+- **Linux aarch64**: verified on v1.14.6. Not run on v1.18.2 or v1.22.2: `pack create --image`
+  failed with `agent did not become ready within 30 seconds`, with or without `--mem 1024`,
+  because the pull helper does not take `--mem`, and the golden machine's start failed the same
+  way. That box could not boot guests above 2048 MiB in time, which the `install` packet's traps
+  record. The preflight said `exporter_memory_ok=yes` there with 10386 MiB free, so read that line
+  as a hint about the exporter only.
 - **Linux x86_64**: verified in the material behind this packet on v1.14.6, including the branched
   and restored cases. Not re-run here.
+- **Windows x86_64**: `references/windows.md`. **On v1.22.2 an artifact is created and cannot
+  be run there**, re-run on 2026-10-03 on Windows 11 Home build 10.0.26200 UBR 9457: both paths pack, and running any artifact,
+  through its stub, `pack run --sidecar` or `machine create --from`, fails extracting its first
+  layer with `os error 123`. v1.16.1 and v1.14.6 run the same pack on the same host; v1.18.2 and
+  every later release tried fail. On v1.14.6 both paths worked end to end, with the marker read
+  back out of the artifact. The stub is written without `.exe` and will not run until it and its
+  sidecar are renamed.
 
 **Both hosts run here produce `linux/arm64` artifacts**, so two hosts is two hosts and not two
 artifact architectures. The `linux/amd64` side rests on the x86_64 run above.
-- **Windows x86_64**: `references/windows.md`, **re-run on 2026-09-11 against v1.14.6** on
-  Windows 11 Home build 10.0.26200.0 UBR 9445. Both paths work: the image pack, and `--from-vm`
-  for the first time there, with the marker read back out of the artifact. The stub is written
-  without `.exe` and will not run until it and its sidecar are renamed.
 
 ## Eval prompts, and what they produced
 
@@ -271,38 +285,24 @@ memory. Packing from an image starts no exporter and is unaffected.
 On the hosts here the export then **succeeded anyway**, on the Mac reporting 4990 MiB, which is
 why that line warns rather than blocks.
 
-## Re-verified on v1.18.2
+## Re-verified on v1.22.2
 
-Run 2026-09-24 PT against v1.18.2 from the published release, under an isolated `HOME`, on macOS
-26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64).
+Run 2026-10-03 PT against v1.22.2 from the published release, checksum checked, under an isolated
+`HOME` on macOS 27.0.1 arm64, once to write and once from a fresh `HOME` to verify. On Lima
+`linux-kvm` (Ubuntu 24.04 aarch64) guests above 2048 MiB timed out that day.
 
-**macOS: full pass.**
+macOS: `result=artifacts_good (2 of 2 artifacts)` with `machine_pack_carried_rootfs=ok
+(PACKED_STATE_PRESENT)`, the stub understated by 10657 KB, a branched machine's artifact printing
+`BASE_STATE` and `CHILD_ONLY`, a checkpoint of a machine started without `--branchable`, and the
+artifact's `run --ssh-agent` listing the host key's fingerprint. `SIGINT` and `SIGKILL` to a packed
+`run` ended both its processes within 2 s. Docker Hub's anonymous pull limit stopped the first
+verify run's image pack with `TOOMANYREQUESTS`; it passed on the re-run. The one-file route by
+hand: `pack create --from-vm --single-file` wrote one 62890688-byte file, and `verify-pack.sh
+--machine ... --marker-path` gave `image_pack=skipped` and `result=artifacts_good (1 of 2
+artifacts)`.
 
-```
-exporter_memory_ok=no                   (free_memory_mib=2707, a warning and not a gate)
-result=packed                           (image, 4.5 s; stub_understated_kb=10516)
-source_marker=PACKED_STATE_PRESENT
-  Reusing the machine's cached image layers...
-result=packed                           (machine, 1 s of export)
-image_pack_is_a_vm=ok (Linux)
-image_pack_second_run=ok (SECOND_RUN_OK)
-machine_pack_carried_rootfs=ok (PACKED_STATE_PRESENT)
-result=artifacts_good (2 of 2 artifacts)
-```
-
-The SSH agent forwarding in the section above was measured in the same session. So was a
-restore: a machine created from `from-vm.smolmachine`, started `--branchable`, a marker written,
-`Checkpointed ... (43 MiB written, 4.043s total, 0.652s source pause)`, restored with
-`machine create --from <file>.smolcheckpoint`, started, the marker read back, and
-`pack create --from-vm` of the restored machine finished in 2.3 s with an artifact that printed the
-marker.
-
-**Linux aarch64: not run, for a host reason.** `pack create --image alpine` failed with `agent did
-not become ready within 30 seconds`, with or without `--mem 1024`, because the pull helper does not
-take `--mem`; the golden machine's start failed the same way. That box could not boot guests above
-2048 MiB in time that day, on v1.16.1 as well, which the `install` packet's traps record. The
-preflight reported `exporter_memory_ok=yes` there, since the host had 10386 MiB free: free memory
-is not what failed, so read that line as a hint about the exporter only.
+Linux aarch64: not run. Both the exporter and a default-size source machine need 8192 MiB and
+timed out.
 
 ## What was not run
 
@@ -313,12 +313,12 @@ is not what failed, so read that line as a hint about the exporter only.
 - **`pack push`, `pack pull` and `pack inspect` against a registry.** Nothing here touched a
   registry.
 - **Windows through these scripts.** `scripts/*.sh` are POSIX shell and do not run there; the
-  2026-09-11 v1.14.6 run on Windows issued the CLI by hand. `references/windows.md` has it.
-- **The branched source on aarch64**, and the restored source on Linux aarch64. The restored
-  source was run on macOS on v1.18.2 and the branched one on v1.16.1; both are answered on Linux
+  Windows runs issued the CLI by hand. `references/windows.md` has them.
+- **The branched and restored sources on Linux aarch64.** The restored source was run on macOS on
+  v1.18.2 and the branched one on v1.22.2; both are answered on Linux
   x86_64 in the material behind this packet.
 - **SSH agent forwarding on Linux.** Measured on macOS only.
-- **Linux aarch64 on v1.18.2**, as above.
+- **Linux aarch64 on v1.18.2 and v1.22.2**, as above.
 
 ## Related packets
 
@@ -350,7 +350,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.18.2"
+VERIFIED_VERSION="1.22.2"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -436,14 +436,13 @@ case "$kernel" in
             blocked=1
             note "your user cannot open /dev/kvm. The installer warns and continues, so a successful install says nothing about whether a VM will start. Fix: sudo usermod -aG kvm \$USER, then run the next command through sg kvm -c '...' rather than logging out."
         fi
-        emit unsupported "vulkan"
         ;;
     *)
         emit platform "unsupported-$kernel"
         emit accel unknown
         emit accel_access unknown
         blocked=1
-        note "this script covers macOS and Linux. Windows packs an image and packs --from-vm fine as of v1.14.6, but writes the stub without .exe; see references/windows.md."
+        note "this script covers macOS and Linux. On Windows v1.22.2 packs both ways but no artifact runs there (os error 123), and the stub is written without .exe; see references/windows.md."
         ;;
 esac
 
@@ -675,9 +674,11 @@ printf 'next: scripts/verify-pack.sh, which reads that marker back out of the ar
 # pack that the state is inside it.
 #
 # usage: verify-pack.sh [--image <stub>] [--machine <stub>] [--marker <value>]
-#   --image   <stub>  an artifact packed from an image   (default ./from-image)
-#   --machine <stub>  an artifact packed from a machine  (default ./from-vm)
-#   --marker  <value> what pack-machine.sh wrote         (default PACKED_STATE_PRESENT)
+#                       [--marker-path <path>]
+#   --image   <stub>       an artifact packed from an image   (default ./from-image)
+#   --machine <stub>       an artifact packed from a machine  (default ./from-vm)
+#   --marker  <value>      the file's expected last line      (default PACKED_STATE_PRESENT)
+#   --marker-path <path>   the file in the guest to read      (default /marker.txt)
 #
 # Every check asserts a value. A pack that lost its rootfs still boots, still
 # prints a guest kernel and still exits zero, so "it ran" proves nothing about
@@ -688,11 +689,13 @@ set -uo pipefail
 IMAGE_STUB="./from-image"
 MACHINE_STUB="./from-vm"
 MARKER="PACKED_STATE_PRESENT"
+MARKER_PATH="/marker.txt"
 while [ $# -gt 0 ]; do
     case "$1" in
         --image)   IMAGE_STUB="$2"; shift ;;
         --machine) MACHINE_STUB="$2"; shift ;;
         --marker)  MARKER="$2"; shift ;;
+        --marker-path) MARKER_PATH="$2"; shift ;;
         *) printf 'unknown argument: %s\n' "$1" >&2; exit 2 ;;
     esac
     shift
@@ -746,7 +749,7 @@ fi
 # --- the machine pack: the load-bearing assertion ----------------------------
 if [ -f "$MACHINE_STUB" ]; then
     checked=$((checked + 1))
-    got="$("$MACHINE_STUB" run -- cat /marker.txt 2>&1 | tr -d '\r' | tail -1)"
+    got="$("$MACHINE_STUB" run -- cat "$MARKER_PATH" 2>&1 | tr -d '\r' | tail -1)"
     check machine_pack_carried_rootfs "$got" "$MARKER"
 
     mkernel="$("$MACHINE_STUB" run -- uname -sr 2>&1 | tr -d '\r' | grep -m1 '^Linux ' | awk '{print $1}')"
@@ -786,13 +789,13 @@ exit "$fail"
 #
 # usage: cleanup.sh [--record <name>] [--reap] [--purge] [--artifacts <stub>...]
 #   --record <name>     add a machine name to the state file and exit
-#   --reap              kill leftover VM processes (see the warning it prints)
+#   --reap              kill every VM process under this HOME; run without it first
 #   --purge             also remove the state file once the list is empty
 #   --artifacts <stub>  also remove that stub and its .smolmachine sidecar
 #
-# `pack run` takes the forked boot path, so a cancelled run leaves a VM the CLI
-# cannot see. The process scan below catches both shapes, which is why this
-# script and not Ctrl-C is the way to stop one.
+# `pack run` takes the forked boot path, and before v1.20.2 a cancelled run left
+# a VM the CLI cannot see. The process scan below catches both shapes, which is
+# why this script and not Ctrl-C is the way to stop one on those releases.
 
 set -uo pipefail
 
@@ -833,24 +836,10 @@ esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
 
-# List this HOME's smolvm VM processes, as "pid marker".
-#
-# Two process shapes exist and a reaper has to catch both. The plain
-# `machine run` path EXECS a child whose argv[1] is `_boot-vm` and whose argv[2]
-# is its boot-config path. The pack-run path, which is `--oci-cache` or any
-# `init`, FORKS without execing, so the child inherits the parent's argv and
-# carries no boot-config at all. Matching `_boot-vm` alone is therefore blind to
-# exactly the path whose child survives an interrupt
-# (smol-machines/smolvm#1193): measured on v1.14.6, it reported "none" while two
-# orphaned VMs held 234 MB each.
-#
-# On Linux both shapes rename themselves to `libkrun VM`, the one marker that
-# covers both and that no shell can hold. macOS exposes no rename, so there the
-# executable path scopes the search to this HOME and the parent chain separates
-# a VM from the CLI that started it.
-#
-# `pgrep -f _boot-vm` is not an alternative: it matches any shell whose text
-# contains that string, including this script.
+# List this HOME's VM processes as "pid marker". The plain run path execs a
+# `_boot-vm` child that carries its boot config; the pack-run path forks one that
+# carries none. Linux names both `libkrun VM`; on macOS the executable path and
+# the parent chain scope the search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
@@ -861,24 +850,19 @@ list_vm_processes() {
                 case "$cfg" in
                     "$VMS_DIR"/*) printf '%s %s\n' "$pid" "$cfg"; continue ;;
                 esac
-                # Forked shape: nothing in argv identifies it, so scope by the
-                # binary it is running.
                 case "$(readlink "$p/exe" 2>/dev/null)" in
                     "$SMOLVM_PREFIX"/*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
                 esac
             done
             ;;
         Darwin)
-            # shellcheck disable=SC2009  # pgrep cannot return ppid and the full
-            # command together, and pgrep -f matches this script's own text.
+            # shellcheck disable=SC2009  # pgrep -f would match this script.
             own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
             ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
-                # Forked shape: its parent is the CLI that started it, or init
-                # once that CLI is gone.
                 if [ "$ppid" = 1 ]; then
                     printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 else
@@ -889,10 +873,8 @@ list_vm_processes() {
     esac
 }
 
-# 1. Delete recorded machines. --force is not optional: without it the command
-# prompts, defaults to No, and leaves the machine in place while the script
-# carries on. --cascade removes branch children, which otherwise block the
-# delete.
+# 1. Delete recorded machines. Without --force a delete prompts and defaults to
+# No; --cascade removes branch children, which otherwise block it.
 if [ -s "$STATE_FILE" ]; then
     while read -r name; do
         [ -n "$name" ] || continue
@@ -901,11 +883,16 @@ if [ -s "$STATE_FILE" ]; then
             continue ;;
         esac
         # Reclaim this machine's cached layers while it still exists. The bare
-        # `smolvm machine prune` the runbooks used is rejected on this release:
+        # `smolvm machine prune` is rejected on this release:
         #     Usage: smolvm machine prune --name <NAME>
         "$SMOLVM" machine prune --name "$name" 2>&1 | sed 's/^/  /'
-        "$SMOLVM" machine stop   --name "$name" >/dev/null 2>&1
-        "$SMOLVM" machine delete --name "$name" --force --cascade 2>&1 | sed 's/^/  /'
+        # Only names still listed: a second stop of a missing name leaves a
+        # directory that reads as a leak. The list is read first because grep -q
+        # under pipefail can fail the pipeline and skip a listed machine.
+        listed="$("$SMOLVM" machine list </dev/null 2>/dev/null | awk 'NR>2{print $1}')"
+        grep -qx -- "$name" <<<"$listed" || continue
+        "$SMOLVM" machine stop   --name "$name" </dev/null >/dev/null 2>&1
+        "$SMOLVM" machine delete --name "$name" --force --cascade </dev/null 2>&1 | sed 's/^/  /'
     done < "$STATE_FILE"
 fi
 
@@ -918,15 +905,15 @@ for a in ${ARTIFACTS:-}; do
 done
 
 # 1c. Reclaim the pack caches. `pack prune` takes no required argument; the
-# machine form does, and the bare `smolvm machine prune` the runbooks used is
-# rejected outright on this release:
+# machine form does, and a bare `smolvm machine prune` is rejected outright on
+# this release:
 #     Usage: smolvm machine prune --name <NAME>
 if [ -n "$SMOLVM" ]; then
     "$SMOLVM" pack prune 2>&1 | sed 's/^/  /'
 fi
 
-# 2. An ephemeral machine's entry retires after the run returns, not with it.
-# Asserting an empty list immediately fails on a healthy host.
+# 2. An ephemeral machine's entry retires after its run returns.
+printf 'waiting=20s for ephemeral entries to retire before asserting\n'
 sleep 20
 
 # 3. Assert the value, not the exit code.
@@ -937,18 +924,13 @@ if printf '%s' "$listing" | grep -q 'No machines found'; then
 else
     printf 'machines=remaining\n'
     printf '%s\n' "$listing" | sed 's/^/  /'
-    # These were not created by this packet, so nothing here will remove them.
-    # Say what does, rather than leaving the reader to guess: delete prompts and
-    # defaults to No without --force, and a branched machine also needs --cascade.
     printf 'note=this packet did not create these, so it will not delete them. By name:\n'
     printf '  smolvm machine stop --name <NAME> && smolvm machine delete --name <NAME> --force\n'
     printf '  add --cascade for a machine that was branched from another\n'
 fi
 
-# 4. Report VM processes an interrupt left behind. Ctrl-C does not stop a
-# machine: the VM outlives the CLI and `machine list` cannot see it, so this is
-# the only route to it. Only processes whose boot config lives under this HOME's
-# smolvm state are listed, so a VM another session started is left alone.
+# 4. Report VM processes left under this HOME's state, such as a killed
+# wrapper's; another session's are left alone.
 found=0
 while read -r pid cfg; do
     [ -n "$pid" ] || continue
@@ -1038,7 +1020,7 @@ packet. That is why the preflight warns rather than blocks. The citation has dri
 
 **A pack that lost its rootfs still boots, still prints a guest kernel and still exits zero.**
 Packing a machine whose provisioning silently failed produces an artifact that runs perfectly and
-contains nothing. That happened in the runbook session behind this packet: a provisioning `exec`
+contains nothing. That happened once while this packet was written: a provisioning `exec`
 had failed unnoticed and the resulting pack reported `MISSING` for both markers.
 
 The shape that makes it impossible is the one these scripts use: write a marker into the source,
@@ -1082,7 +1064,8 @@ is nothing to verify afterwards.
 
 ### A checkpoint restore packs, and the restore path is not `machine restore`
 
-**First you have to be able to take the checkpoint, and on macOS that needs `--branchable`.**
+**First you have to be able to take the checkpoint, and on macOS before v1.20.0 that needs
+`--branchable`.**
 Verified on macOS arm64 on v1.16.1, 2026-09-15: `machine checkpoint` against a machine started
 without it fails with
 
@@ -1099,6 +1082,19 @@ v1.18.2 on macOS, 2026-09-24**, with the same message. On Linux aarch64 v1.18.2 
 of a machine started without the flag: `Checkpointed ... (55 MiB written, 1.781s total, 1.242s
 source pause)`.
 
+**v1.20.0 lifted it on macOS for a checkpoint file**, measured on 2026-10-03 with a 1024 MiB alpine
+machine started without the flag on each release: v1.19.0 and v1.19.3 failed with the message above,
+and v1.20.0, v1.20.2, v1.21.1, v1.22.0 and v1.22.2 each wrote one, for example
+`Checkpointed 'nb' to ./c.smolcheckpoint (54 MiB written, 0.911s total, 0.300s source pause)` on
+v1.20.0. **A stored checkpoint still needs the flag**: `--store` against the same kind of machine
+on v1.22.2 fails with
+
+```
+Error: agent operation failed: checkpoint machine: libkrun save failed: ERR ENOTSUP VM
+snapshot/restore failed: retain COW guest-memory generation: deferred durable save requires
+file-backed guest RAM
+```
+
 A machine **created from a pack** checkpoints from v1.18.0 (#1361), and its restore reattaches the
 pack's layers: on macOS on v1.18.2 a machine created from `from-vm.smolmachine`, checkpointed,
 restored and packed again gave an artifact carrying the marker written after the pack.
@@ -1109,7 +1105,8 @@ A machine restored from a checkpoint packs, runs, and carries its rootfs. This i
 There is **no `machine restore` subcommand**, which is the obvious guess and gives
 `unrecognized subcommand`. The restore path is `machine create --from <PATH>`, the same flag that
 takes a `.smolmachine`, documented as "Create from a `.smolmachine` pack or restore a
-`.smolcheckpoint`".
+`.smolcheckpoint`". From v1.19.1 `machine checkpoint --help` names the file `.checkpoint` instead,
+and its error for any other name is `output must end in .checkpoint`; v1.22.2 accepts both.
 
 ### An isolated data root on Linux does not carry the agent rootfs
 

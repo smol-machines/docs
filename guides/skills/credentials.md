@@ -6,15 +6,16 @@ title: "Credentials: an API key the machine uses and never holds"
 
 Gives a workload in a smolvm machine an API key or token it can use but never read, by binding the credential to named HTTPS hosts so the guest holds only a placeholder and the host substitutes the value on the way out, then proves on the host that the value never entered the machine. Use when an agent or untrusted code inside a machine has to call an API with your key; when deciding between a credential binding and --secret-env; when a request from a credentialed machine comes back 403 or 502 from smolvm itself; or when you need evidence that a key stayed out of a machine. Do not use it for a value the program must read and parse, such as a database URL, which is --secret-env, or for git and ssh keys, which is SSH agent forwarding.
 
-Verified on **smolvm v1.18.2** on macOS arm64 and Linux aarch64, 2026-09-24, for everything that
+Verified on **smolvm v1.22.2** on macOS arm64, 2026-10-03, and on **v1.18.2** on Linux aarch64, 2026-09-24, for everything that
 is decided on the host; **the substitution arriving at a real API was not observed in this run**,
 for the reason under "What was not run". Done means the guest's variable is a placeholder, the value
 is nowhere in the guest, the machine's record or smolvm's database, TLS to the bound host goes
 through the machine's own CA, and a placeholder anywhere but a request header is refused before it
 leaves the host.
 
-`README.md` is how the feature works: bindings, where the value comes from, what the guest sees,
-what happens to each request, and the limits. This file is how to set it up and prove it.
+`docs/credential-substitution.md` in the smolvm repository is how the feature works: bindings,
+where the value comes from, what the guest sees, what happens to each request, and the limits.
+`README.md` has what was measured beside it. This file is how to set it up and prove it.
 
 ## Procedure
 
@@ -32,6 +33,9 @@ what happens to each request, and the limits. This file is how to set it up and 
 export API_TOKEN=...          # however your secrets manager hands it over
 scripts/preflight.sh --var API_TOKEN --host api.example.com
 ```
+
+Every script here reads the value from its own environment, so keep it exported in the shell that
+runs `create-credentialed.sh` and `verify-containment.sh` as well as this one.
 
 ```
 has_credential_flag=yes
@@ -64,7 +68,7 @@ result=up
 
 The command it runs is `smolvm machine create ... --credential api-token=API_TOKEN@api.example.com`
 and then `machine start`. `--credential` implies `--net`. In a Smolfile the same binding is a
-`[[network.credentials]]` table, in `README.md`.
+`[[network.credentials]]` table, in `docs/credential-substitution.md`.
 
 **3. Prove the value stayed out.** Nothing this sends carries the placeholder where it would be
 substituted, so the value goes nowhere during the check.
@@ -89,7 +93,8 @@ result=contained
 `interception` reads the issuer of the bound host's certificate as the guest sees it, which is
 `smolvm <machine> credential CA`, while `--other-host` keeps its real issuer.
 
-**4. Use it.** The workload sends the placeholder in a header, exactly where the real key would go:
+**4. Use it.** The workload sends the placeholder in a header, exactly where the real key would go.
+`smolskill-cred` is the machine `create-credentialed.sh` makes unless you pass `--name`:
 
 ```bash
 smolvm machine exec --name smolskill-cred -- sh -c \
@@ -105,15 +110,19 @@ by the API's answer, the way you would without smolvm.
 scripts/cleanup.sh --purge
 ```
 
+`cleanup.sh` waits 20 seconds before it checks the machine list and prints `waiting=20s` first:
+an ephemeral machine's entry retires after its run returns.
+
 ## Traps
 
 Full detail in `references/traps.md`.
 
-- **The value is the one the machine started with.** Unsetting or changing the host variable for
-  a later `machine exec` changed nothing: the interceptor runs in the process `machine start`
-  launched. Start with the variable unset and every substituted request answers
-  `smolvm credentials: credential unavailable` with a `502`. Rotate an environment value with a
-  restart, or use a file reference, which `README.md` says is read per request.
+- **An environment value behaved as the one the machine started with.**
+  `docs/credential-substitution.md` says it is read at `machine start` and `machine exec` time. On
+  v1.18.2, unsetting or changing the host variable for a later `machine exec` changed nothing, and a
+  machine started with it unset answered every substituted request `smolvm credentials: credential
+  unavailable` with a `502`. Rotate an environment value with a restart, or use a file reference,
+  which the same page says is read per request.
 - **Never put the real value on an `exec` command line.** smolvm writes exec commands into the
   machine's console log on the host, so a check that interpolated the value into its own `grep`
   planted it in `agent-console.log` and failed itself. `verify-containment.sh` splits the value
@@ -121,9 +130,8 @@ Full detail in `references/traps.md`.
 - **A 403 from smolvm is a refusal, not the API.** The body says which rule: a placeholder in the
   path, query or body; in a routing or framing header such as `Cookie`; more than one in a request;
   or one the machine did not mint. A `405` means the binding does not allow this host or method.
-- **On v1.18.2 a machine created from a pack ignores `--credential`**, silently: no placeholder and
-  no CA in the guest. Create it from an image, as the script does; the fix is upstream after the
-  release.
+- **On v1.18.2 a machine created from a pack ignores `--credential`**, silently; on v1.22.2 it
+  binds. `references/traps.md` has both.
 - **Port 80 is not intercepted.** Plaintext HTTP is relayed untouched, so a placeholder there
   travels as the literal string and the API sees garbage.
 - **The machine's CA is the only one the guest trusts for the bound host.** curl, Python, Node,
@@ -146,8 +154,9 @@ Full detail in `references/traps.md`.
 
 ## Platform arms
 
-`references/platforms.md`. Both hosts here gave the same results on v1.18.2, on the default
-virtio-net backend and on `--net-backend tsi`. Linux x86_64 and Windows were not run.
+`references/platforms.md`. macOS arm64 ran every script on v1.22.2, and both hosts gave the same
+results on v1.18.2, on the default virtio-net backend and on `--net-backend tsi`. Linux x86_64 and
+Windows were not run.
 
 ## Eval prompts, and what they produced
 
@@ -192,6 +201,19 @@ Create-time rules, both hosts: `*.example.com` and an IP address are refused wit
 lowercase DNS name`, and a credential host outside the machine's `--allow-host` with `is not
 reachable under the machine's network allow_hosts`.
 
+## Re-verified on v1.22.2
+
+Run 2026-10-03 PT against v1.22.2 from the published release, checksum checked, under an isolated
+`HOME` on macOS 27.0.1 arm64, once to write and once from a fresh `HOME` to verify. On Lima
+`linux-kvm` (Ubuntu 24.04 aarch64) guests above 2048 MiB timed out that day, and this packet was
+not run there.
+
+macOS, bound to a local HTTPS server with a throwaway value: `result=contained` on all seven
+checks, the `Cookie` and forged placeholders refused with `403`, and the request carrying the
+placeholder answered `502 smolvm credentials: upstream request failed`, because the server's
+certificate was self-signed; the server received nothing. With the disk images left out of the
+record search, `verify-containment.sh` and the rest of the procedure took 25 s.
+
 ## What was not run
 
 - **The value arriving at a real API.** Observing it needs an HTTPS service that reports the header
@@ -199,8 +221,8 @@ reachable under the machine's network allow_hosts`.
   run's own safety controls. Everything on the host side of that request was observed; the far
   side is the one step not seen. One request did reach `example.com` with a dummy value substituted,
   by mistake, in the check that led to the first trap above; `example.com` ignores the header.
-- **File references and rotation in place**, which `README.md` describes; nothing here changed a
-  value under a running machine except by the variable.
+- **File references and rotation in place**, which `docs/credential-substitution.md` describes;
+  nothing here changed a value under a running machine except by the variable.
 - **Credentials over the HTTP API**, branches and checkpoints carrying bindings, and portable
   restores on another host.
 - **Linux x86_64 and Windows.**
@@ -231,7 +253,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.18.2"
+VERIFIED_VERSION="1.22.2"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -540,7 +562,9 @@ check value_in_guest "${hits:-unknown}" 0
 # 3. Nor in the machine's directory or smolvm's database on the host.
 dir="$("$SMOLVM" machine data-dir --name "$NAME" 2>/dev/null)"
 case "$(uname -s)" in Darwin) db="$HOME/Library/Application Support/smolvm" ;; *) db="${SMOLVM_DATA_DIR:-$HOME/.local/share/smolvm}" ;; esac
-rec="$( { grep -rlF "$value" "$dir" "$db" 2>/dev/null || true; } | wc -l | tr -d ' ')"
+# The *.raw disk images are the guest filesystem step 2 searched from inside, and
+# grep took about 19 minutes over their 30 GiB of sparse space on macOS.
+rec="$( { grep -rlF --exclude='*.raw' "$value" "$dir" "$db" 2>/dev/null || true; } | wc -l | tr -d ' ')"
 check value_in_record "$rec" 0
 
 # 4. TLS to the bound host is terminated by the machine's own CA: the interceptor
@@ -575,7 +599,7 @@ if [ "$fail" -eq 0 ]; then printf 'result=contained\n'; else printf 'result=FAIL
 #
 # usage: cleanup.sh [--record <name>] [--reap] [--purge]
 #   --record <name>  add a machine name to the state file and exit
-#   --reap           kill leftover VM processes (see the warning it prints)
+#   --reap           kill every VM process under this HOME; run without it first
 #   --purge          also remove the state file once the list is empty
 
 set -uo pipefail
@@ -615,24 +639,10 @@ esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
 
-# List this HOME's smolvm VM processes, as "pid marker".
-#
-# Two process shapes exist and a reaper has to catch both. The plain
-# `machine run` path EXECS a child whose argv[1] is `_boot-vm` and whose argv[2]
-# is its boot-config path. The pack-run path, which is `--oci-cache` or any
-# `init`, FORKS without execing, so the child inherits the parent's argv and
-# carries no boot-config at all. Matching `_boot-vm` alone is therefore blind to
-# exactly the path whose child survives an interrupt
-# (smol-machines/smolvm#1193): measured on v1.14.6, it reported "none" while two
-# orphaned VMs held 234 MB each.
-#
-# On Linux both shapes rename themselves to `libkrun VM`, the one marker that
-# covers both and that no shell can hold. macOS exposes no rename, so there the
-# executable path scopes the search to this HOME and the parent chain separates
-# a VM from the CLI that started it.
-#
-# `pgrep -f _boot-vm` is not an alternative: it matches any shell whose text
-# contains that string, including this script.
+# List this HOME's VM processes as "pid marker". The plain run path execs a
+# `_boot-vm` child that carries its boot config; the pack-run path forks one that
+# carries none. Linux names both `libkrun VM`; on macOS the executable path and
+# the parent chain scope the search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
@@ -643,24 +653,19 @@ list_vm_processes() {
                 case "$cfg" in
                     "$VMS_DIR"/*) printf '%s %s\n' "$pid" "$cfg"; continue ;;
                 esac
-                # Forked shape: nothing in argv identifies it, so scope by the
-                # binary it is running.
                 case "$(readlink "$p/exe" 2>/dev/null)" in
                     "$SMOLVM_PREFIX"/*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
                 esac
             done
             ;;
         Darwin)
-            # shellcheck disable=SC2009  # pgrep cannot return ppid and the full
-            # command together, and pgrep -f matches this script's own text.
+            # shellcheck disable=SC2009  # pgrep -f would match this script.
             own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
             ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
-                # Forked shape: its parent is the CLI that started it, or init
-                # once that CLI is gone.
                 if [ "$ppid" = 1 ]; then
                     printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 else
@@ -671,10 +676,8 @@ list_vm_processes() {
     esac
 }
 
-# 1. Delete recorded machines. --force is not optional: without it the command
-# prompts, defaults to No, and leaves the machine in place while the script
-# carries on. --cascade removes branch children, which otherwise block the
-# delete.
+# 1. Delete recorded machines. Without --force a delete prompts and defaults to
+# No; --cascade removes branch children, which otherwise block it.
 if [ -s "$STATE_FILE" ]; then
     while read -r name; do
         [ -n "$name" ] || continue
@@ -682,13 +685,18 @@ if [ -s "$STATE_FILE" ]; then
             printf 'skipping %s: not created by this packet (no %s prefix)\n' "$name" "$PREFIX"
             continue ;;
         esac
-        "$SMOLVM" machine stop   --name "$name" >/dev/null 2>&1
-        "$SMOLVM" machine delete --name "$name" --force --cascade 2>&1 | sed 's/^/  /'
+        # Only names still listed: a second stop of a missing name leaves a
+        # directory that reads as a leak. The list is read first because grep -q
+        # under pipefail can fail the pipeline and skip a listed machine.
+        listed="$("$SMOLVM" machine list </dev/null 2>/dev/null | awk 'NR>2{print $1}')"
+        grep -qx -- "$name" <<<"$listed" || continue
+        "$SMOLVM" machine stop   --name "$name" </dev/null >/dev/null 2>&1
+        "$SMOLVM" machine delete --name "$name" --force --cascade </dev/null 2>&1 | sed 's/^/  /'
     done < "$STATE_FILE"
 fi
 
-# 2. An ephemeral machine's entry retires after the run returns, not with it.
-# Asserting an empty list immediately fails on a healthy host.
+# 2. An ephemeral machine's entry retires after its run returns.
+printf 'waiting=20s for ephemeral entries to retire before asserting\n'
 sleep 20
 
 # 3. Assert the value, not the exit code.
@@ -699,18 +707,13 @@ if printf '%s' "$listing" | grep -q 'No machines found'; then
 else
     printf 'machines=remaining\n'
     printf '%s\n' "$listing" | sed 's/^/  /'
-    # These were not created by this packet, so nothing here will remove them.
-    # Say what does, rather than leaving the reader to guess: delete prompts and
-    # defaults to No without --force, and a branched machine also needs --cascade.
     printf 'note=this packet did not create these, so it will not delete them. By name:\n'
     printf '  smolvm machine stop --name <NAME> && smolvm machine delete --name <NAME> --force\n'
     printf '  add --cascade for a machine that was branched from another\n'
 fi
 
-# 4. Report VM processes an interrupt left behind. Ctrl-C does not stop a
-# machine: the VM outlives the CLI and `machine list` cannot see it, so this is
-# the only route to it. Only processes whose boot config lives under this HOME's
-# smolvm state are listed, so a VM another session started is left alone.
+# 4. Report VM processes left under this HOME's state, such as a killed
+# wrapper's; another session's are left alone.
 found=0
 while read -r pid cfg; do
     [ -n "$pid" ] || continue
@@ -735,7 +738,7 @@ fi
 Each entry was measured on v1.18.2 on 2026-09-24 on macOS arm64 and Linux aarch64, with a random
 throwaway value, unless it says otherwise.
 
-### The value is the one `machine start` saw
+### An environment value behaved as the one `machine start` saw
 
 The interceptor runs in the host process that `machine start` launched, and resolves a value from
 the host environment out of that process. So:
@@ -746,8 +749,8 @@ the host environment out of that process. So:
 - The same machine stopped and started with the variable unset answered every substituted request
   with `smolvm credentials: credential unavailable` and a `502`, and forwarded nothing.
 
-`README.md` says an environment value is read at `machine start` and `machine exec` time; what was
-observed is start time. Rotate a value from the environment by restarting the machine, and use a
+`docs/credential-substitution.md` says an environment value is read at `machine start` and
+`machine exec` time; what was observed is start time. Rotate a value from the environment by restarting the machine, and use a
 file reference for a value that has to rotate under a running machine.
 
 ### A check that interpolates the value plants it
@@ -772,7 +775,7 @@ Measured refusals, each decided on the host before anything was forwarded:
 | placeholder in `Cookie` | `403 smolvm credentials: placeholders are not substituted in routing or framing headers` |
 | any substituted request, machine started without the value | `502 smolvm credentials: credential unavailable` |
 
-`README.md` also lists a `405` for a binding that does not allow the host or method; not measured
+`docs/credential-substitution.md` also lists a `405` for a binding that does not allow the host or method; not measured
 here. A request to the bound host with no placeholder was forwarded and answered normally.
 
 ### The create-time rules
@@ -819,3 +822,7 @@ not exist: no placeholder, no CA, no binding. Measured on macOS arm64. The fix l
 the release (#1400, which also makes `--credential` on a restore from a `.smolcheckpoint` an
 explicit error, since a checkpoint keeps the bindings it was captured with). On v1.18.2 create the
 credentialed machine from an image, which is what `scripts/create-credentialed.sh` does.
+
+**On v1.22.2 it binds.** The same `create --from` of an image pack with `--credential`, then
+`machine start`, measured on macOS arm64 on 2026-10-03: one `SMOL_PLACEHOLDER` variable in the
+guest's environment and `/run/smol/credentials/ca.pem` present.

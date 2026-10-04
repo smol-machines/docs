@@ -4,25 +4,26 @@ title: "Docker in machine: run a Docker daemon inside a machine"
 
 # Docker in machine: run a Docker daemon inside a machine
 
-Runs a Docker daemon inside a smolvm machine, for workloads that must call Docker themselves such as Testcontainers, Compose, image builds, or a coding agent that launches containers. Use when dockerd will not start inside a machine; when Docker worked on the first boot and broke after a stop and start; when deciding where Docker's data directory has to live; or when checking whether this is possible on a given platform at all. Do not use it to run OCI images, which smolvm boots natively without Docker, and do not attempt it on Windows, where the bundled guest kernel cannot support it.
+Runs a Docker daemon inside a smolvm machine and shows it working there, which is what tools that call Docker themselves need, such as a test suite that starts containers, an image build, or a coding agent that launches containers. Use when dockerd will not start inside a machine; when Docker worked on the first boot and broke after a stop and start; when deciding where Docker's data directory has to live; or when checking whether this is possible on a given platform at all. Do not use it to run OCI images, which smolvm boots natively without Docker, and do not attempt it on Windows, where the bundled guest kernel cannot support it.
 
-Verified on **smolvm v1.18.2** on macOS arm64 and Linux aarch64, 2026-09-24; the Linux run used
+Verified on **smolvm v1.22.2** on macOS arm64, 2026-10-03, and on **v1.18.2** on Linux aarch64, 2026-09-24; the Linux runs used
 the Smolfile with `memory = 1024`, for a host reason given below. Done means `docker info` succeeds inside the guest, a nested container runs, and
 Docker's data sits on the ext4 storage disk rather than the rootfs overlay.
 
 smolvm boots OCI images without Docker. This is only for software **inside** the machine that must
 call Docker itself.
 
-**This use case does not exist on Windows, up to and including v1.14.6.** The bundled guest kernel
+**This use case does not exist on Windows, up to and including v1.22.2.** The bundled guest kernel
 there has neither bridge networking nor POSIX message queues, so `dockerd` will not start and,
-forced past that, containers still cannot be created. `references/windows.md` has the evidence, and
-the direct kernel probe to re-check it on a newer build.
+forced past that, containers still cannot be created. `references/windows.md` has the evidence and
+the direct kernel probe, which gave the same answer on v1.22.2.
 
 ## The trap this packet exists for
 
-**`init` runs once, so the bind mounts are gone on the second boot.** The upstream example puts
-them in `init` alone, which is correct for exactly one boot. Reproduced on both hosts, again on
-macOS arm64 on v1.16.1 on 2026-09-15, and on both hosts on v1.18.2 on 2026-09-24:
+**`init` runs once, so the bind mounts are gone on the second boot** and have to be re-applied on
+every start. The upstream example says so in its comments and re-applies them in its "Start
+dockerd" recipe, which `scripts/start-dockerd.sh` is. Reproduced on both hosts on v1.14.2, v1.18.2
+and v1.22.2, and on macOS on v1.16.1:
 
 ```
 Init already completed, skipping 5 command(s)
@@ -34,9 +35,9 @@ Running `scripts/start-dockerd.sh` afterwards restored everything, and `docker i
 listed `alpine:latest`, because the images are on `/storage`. **The failure mode is a daemon that
 will not start, or one running on the wrong filesystem, not lost data.**
 
-`smolvm machine create --help` still describes `--init` as running "on every VM start" at
-v1.18.2, which is what makes the upstream example look correct. The docs have been corrected and
-now say init runs once. More in `references/traps.md`.
+`smolvm machine create --help` describes `--init` as "Run command on every VM start" at v1.22.2;
+`init` runs on the first start only, as [`smolfile.md`](https://github.com/smol-machines/smolvm/blob/main/docs/smolfile.md) says. More in
+`references/traps.md`.
 
 ## Procedure
 
@@ -49,8 +50,8 @@ scripts/preflight.sh
 `docker_in_machine=verified` on macOS and Linux, `unavailable` on Windows with the reason.
 
 **2. Create and install.** `assets/docker.smolfile` is the upstream example's configuration,
-shipped here because **the release tarball does not contain `examples/`**, so the guide's
-`git clone` step is not something a released install can follow.
+shipped here because **the release tarball does not contain `examples/`**, so the `git clone` step
+in the docs site's guide (smolmachines.com/docs) is not something a released install can follow.
 
 ```bash
 scripts/create-docker-machine.sh              # name defaults to smolskill-docker
@@ -97,12 +98,16 @@ sits on the rootfs overlay, and the failure that follows is confusing and much l
 **5. Use it, and clean up only when it is no longer wanted.** A machine someone asked for is the
 deliverable: leave it running and give them its name. Their own code gets in with
 `smolvm machine cp <file> smolskill-docker:/workspace/` or a `-v` mount on create, and runs with
-`smolvm machine exec --name smolskill-docker -- ...`; with no `docker` client on the host, that is
-also how a Testcontainers suite reaches the daemon.
+`smolvm machine exec --name smolskill-docker -- ...`; with no `docker` client on the host, code
+that calls Docker runs inside the machine against this daemon. What this packet shows is the
+daemon: `docker info`, a nested container and host networking.
 
 ```bash
 scripts/cleanup.sh --purge
 ```
+
+`cleanup.sh` waits 20 seconds before it checks the machine list and prints `waiting=20s` first:
+an ephemeral machine's entry retires after its run returns.
 
 ## Why Docker's data has to live on `/storage`
 
@@ -133,9 +138,9 @@ verified**: neither host used here has a `docker` client.
   machine, mount paths the machine can see and read anything they hold. Leave it off unless a host
   tool actually needs it, which is why nothing in this packet's own checks depends on it.
 - **A Docker daemon inside the machine is root inside the machine, and that is the point.** The VM
-  boundary is what makes it acceptable: treat root in the guest as untrusted, and remember that
-  every forwarded mount, port and network permission becomes part of what the nested containers
-  can reach.
+  boundary is what makes it acceptable: treat root in the guest as untrusted, as the
+  [security model](https://github.com/smol-machines/smolvm/blob/main/docs/security-model.md) says, and every forwarded mount, port and network
+  permission becomes part of what the nested containers can reach.
 - **`--network=host` inside the guest is the guest's network, not yours.** It is verified here
   because Testcontainers and Compose commonly need it, and it is contained by the VM rather than
   by Docker.
@@ -147,32 +152,29 @@ verified**: neither host used here has a `docker` client.
 
 ## Platform arms
 
-- **Linux aarch64**: the scripts were run here on v1.18.2 with the Smolfile's memory at 1024 MiB,
-  and on v1.14.6 at 2048.
-- **macOS arm64**: the scripts were run here on v1.18.2 as shipped, and every check passed,
-  including the restart trap and its recovery.
+- **macOS arm64**: v1.22.2 as shipped, every check passed, the restart trap and its recovery
+  included.
+- **Linux aarch64**: v1.18.2 and once on v1.22.2, with the Smolfile's memory at 1024 MiB: that box
+  could not boot larger guests inside the fixed 30 s readiness window, and the `install` packet's
+  traps have the numbers. On a small or busy host, lower `memory` before suspecting Docker; 1024
+  MiB was enough for `dockerd` and a nested alpine container.
 - **Linux x86_64**: not run anywhere for this use case.
-- **Windows x86_64**: **not possible**, on the evidence of one v1.14.2 run. A re-run on
-  2026-09-11 against v1.14.6 **did not reach the question**: both attempts died pulling the image,
-  so nothing was confirmed or refuted there. `references/windows.md` has both, and the direct
-  kernel probe that answers it without a large pull.
+- **Windows x86_64**: **not possible**. A v1.14.2 run showed `dockerd` failing; on 2026-10-03 on
+  v1.22.2 (Windows 11 Home build 10.0.26200 UBR 9457) the direct kernel probe in a plain `alpine` guest gave
+  `RTNETLINK answers: Not supported` for a bridge and `No such device` for `mqueue`.
+  `references/windows.md` has both.
 
 ## Eval prompts, and what they produced
 
-Run on 2026-09-07 PT against v1.14.2 from the published release, under an isolated `HOME`, on
-macOS 26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64). Output is verbatim.
-
-**1. "Give me a machine where I can run Testcontainers, and show me Docker actually works in
+**1. "Give me a machine with a Docker daemon inside it, and show me Docker actually works in
 it."**
 
-Both hosts, identical:
+On v1.18.2, both hosts identical:
 
 ```
 docker_version=Docker version 25.0.5, build d260a54c81efcc3f00fe67dee78c94b16c2f8692
 result=installed
- Server Version: 25.0.5
- Storage Driver: overlay2
- Docker Root Dir: /var/lib/docker
+server_version=25.0.5
 result=dockerd_up
 storage_driver=ok (overlay2)
 docker_root_device=ok (/dev/vda)
@@ -183,22 +185,9 @@ result=docker_ok
 
 **2. "Docker worked yesterday and today `dockerd` will not start. Nothing changed."**
 
-Reproduced on both hosts by stopping and starting the machine, then checking before running
-anything:
-
-```
-Init already completed, skipping 5 command(s)
-NO_BIND_MOUNTS_AFTER_RESTART
-DOCKERD_DOWN
-```
-
-`scripts/start-dockerd.sh` then brought it back to `result=docker_ok` on both, and the images
-were still there:
-
-```
-$ smolvm machine exec --name smolskill-docker -- docker images --format '{{.Repository}}:{{.Tag}}'
-alpine:latest
-```
+Reproduced on both hosts by stopping and starting the machine, with the lines shown under the
+trap above; `scripts/start-dockerd.sh` then brought it back to `result=docker_ok` with
+`alpine:latest` still listed.
 
 **3. "Can I do this on Windows?"**
 
@@ -206,53 +195,26 @@ alpine:latest
 has `CONFIG_BRIDGE` and `CONFIG_POSIX_MQUEUE` both off, so `dockerd` fails on
 `error creating default "bridge" network: operation not supported`, and with `--bridge=none` the
 daemon comes up healthy while every container fails on `/dev/mqueue`. That result is from an
-earlier run on Windows 11 against v1.14.2. The 2026-09-11 attempt on v1.14.6 died pulling the
-image and confirmed nothing either way, so that answer still rests on the one run.
+earlier run on Windows 11 against v1.14.2, and the kernel probe on `references/windows.md` gave
+the same two answers on v1.22.2.
 
-## Re-verified on v1.18.2
+## Re-verified on v1.22.2
 
-Run 2026-09-24 PT against v1.18.2 from the published release, under an isolated `HOME`, on macOS
-26.6.2 arm64 and Lima `linux-kvm` (Ubuntu 24.04 aarch64). **Full pass on both**, the restart trap
-and its recovery included:
+Run 2026-10-03 PT against v1.22.2 from the published release, checksum checked, under an isolated
+`HOME` on macOS 27.0.1 arm64, once to write and once from a fresh `HOME` to verify. On Lima
+`linux-kvm` (Ubuntu 24.04 aarch64) guests above 2048 MiB timed out that day, so the Linux lines
+below are a single run and the Linux stamp stays on its earlier release.
 
-```
-machine_running=yes
-docker_version=Docker version 25.0.5, build d260a54c81efcc3f00fe67dee78c94b16c2f8692
-result=installed
-server_version=25.0.5
-result=dockerd_up
-storage_driver=ok (overlay2)
-docker_root_device=ok (/dev/vda)
-nested_container=ok (NESTED_OK)
-host_network=ok (HOSTNET_OK)
-result=docker_ok
-Init already completed, skipping 5 command(s)
-NO_BIND_MOUNTS_AFTER_RESTART
-DOCKERD_DOWN
-result=dockerd_up
-alpine:latest
-result=docker_ok
-```
+macOS: `result=docker_ok` with `docker_root_device=ok (/dev/vda)`, then after a stop and start
+`Init already completed, skipping 5 command(s)`, `NO_BIND_MOUNTS_AFTER_RESTART`, `DOCKERD_DOWN`,
+and `start-dockerd.sh` brought it back with `alpine:latest` still listed.
 
-The install took 9.3 s on macOS and 23.4 s on Linux. **The Linux run used a copy of
-`assets/docker.smolfile` with `memory = 1024`**: that box could not boot guests above 2048 MiB
-inside the fixed 30 s readiness window that day and was borderline at 2048, on v1.16.1 as well,
-and the `install` packet's traps have the numbers. On a small or busy host, lower `memory` before
-suspecting Docker; 1024 MiB was enough for `dockerd` and a nested alpine container.
-
-## Re-verified on v1.14.6
-
-Run 2026-09-10 PT against v1.14.6 on macOS 26.6.2 arm64 **and Lima `linux-kvm` (Ubuntu 24.04
-aarch64)**: `Docker version 25.0.5`, `Server Version: 25.0.5`, `storage_driver=ok (overlay2)`,
-`docker_root_device=ok (/dev/vda)`, `nested_container=ok (NESTED_OK)`,
-`host_network=ok (HOSTNET_OK)`, `result=docker_ok` on both. The Linux arm was not re-run on
-v1.14.3; it is re-run here.
+Linux aarch64 at `memory = 1024`: the same lines.
 
 ## What was not run
 
-- **Windows on v1.14.6.** The 2026-09-11 attempt never got past the image pull, so the conclusion
-  in `references/windows.md` is still the v1.14.2 one. That page carries a direct kernel probe that
-  answers it from a plain `alpine` guest without the large pull.
+- **`dockerd` itself on Windows after v1.14.2.** The v1.22.2 answer is the kernel probe, not a
+  daemon run.
 - **Linux x86_64.** Not run for this use case on any host, then or now.
 - **Driving the host-side `docker.sock` from a host `docker` client.** The socket is created and
   asserted; neither host here has a docker client to drive it with.
@@ -280,7 +242,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.18.2"
+VERIFIED_VERSION="1.22.2"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -367,7 +329,6 @@ case "$kernel" in
             blocked=1
             note "your user cannot open /dev/kvm. The installer warns and continues, so a successful install says nothing about whether a VM will start. Fix: sudo usermod -aG kvm \$USER, then run the next command through sg kvm -c '...' rather than logging out."
         fi
-        emit unsupported "vulkan"
         emit docker_in_machine verified
         ;;
     *)
@@ -391,10 +352,9 @@ if [ "$blocked" -eq 0 ]; then emit result ready; else emit result blocked; fi
 # launch containers. smolvm boots OCI images without Docker, so this is only for
 # software inside the machine that needs the daemon.
 #
-# The bind mounts below are in `init`, which is where the upstream example puts
-# them, and `init` runs ONCE. They are correct for the first boot and gone on
-# every boot after it, so scripts/start-dockerd.sh re-applies them before
-# starting dockerd. Do not rely on this block alone.
+# The bind mounts below are in `init`, as in the upstream example, and `init`
+# runs ONCE: they hold for the first boot only. scripts/start-dockerd.sh, the
+# example's "Start dockerd" recipe, re-applies them on every start.
 cpus = 2
 memory = 2048
 net = true
@@ -478,8 +438,7 @@ exit "$fail"
 # Run this on EVERY start, not only the first. `init` runs once, so on any start
 # after the first the guest comes up with /var/lib/docker back on the rootfs
 # overlay, and dockerd either refuses to start or starts on the wrong
-# filesystem. The upstream example puts these mounts in `init` alone, which is
-# correct for exactly one boot.
+# filesystem. This is the upstream example's "Start dockerd" recipe.
 
 set -uo pipefail
 
@@ -589,7 +548,7 @@ exit "$fail"
 #
 # usage: cleanup.sh [--record <name>] [--reap] [--purge]
 #   --record <name>  add a machine name to the state file and exit
-#   --reap           kill leftover VM processes (see the warning it prints)
+#   --reap           kill every VM process under this HOME; run without it first
 #   --purge          also remove the state file once the list is empty
 
 set -uo pipefail
@@ -629,24 +588,10 @@ esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
 
-# List this HOME's smolvm VM processes, as "pid marker".
-#
-# Two process shapes exist and a reaper has to catch both. The plain
-# `machine run` path EXECS a child whose argv[1] is `_boot-vm` and whose argv[2]
-# is its boot-config path. The pack-run path, which is `--oci-cache` or any
-# `init`, FORKS without execing, so the child inherits the parent's argv and
-# carries no boot-config at all. Matching `_boot-vm` alone is therefore blind to
-# exactly the path whose child survives an interrupt
-# (smol-machines/smolvm#1193): measured on v1.14.6, it reported "none" while two
-# orphaned VMs held 234 MB each.
-#
-# On Linux both shapes rename themselves to `libkrun VM`, the one marker that
-# covers both and that no shell can hold. macOS exposes no rename, so there the
-# executable path scopes the search to this HOME and the parent chain separates
-# a VM from the CLI that started it.
-#
-# `pgrep -f _boot-vm` is not an alternative: it matches any shell whose text
-# contains that string, including this script.
+# List this HOME's VM processes as "pid marker". The plain run path execs a
+# `_boot-vm` child that carries its boot config; the pack-run path forks one that
+# carries none. Linux names both `libkrun VM`; on macOS the executable path and
+# the parent chain scope the search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
@@ -657,24 +602,19 @@ list_vm_processes() {
                 case "$cfg" in
                     "$VMS_DIR"/*) printf '%s %s\n' "$pid" "$cfg"; continue ;;
                 esac
-                # Forked shape: nothing in argv identifies it, so scope by the
-                # binary it is running.
                 case "$(readlink "$p/exe" 2>/dev/null)" in
                     "$SMOLVM_PREFIX"/*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
                 esac
             done
             ;;
         Darwin)
-            # shellcheck disable=SC2009  # pgrep cannot return ppid and the full
-            # command together, and pgrep -f matches this script's own text.
+            # shellcheck disable=SC2009  # pgrep -f would match this script.
             own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
             ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
-                # Forked shape: its parent is the CLI that started it, or init
-                # once that CLI is gone.
                 if [ "$ppid" = 1 ]; then
                     printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 else
@@ -685,10 +625,8 @@ list_vm_processes() {
     esac
 }
 
-# 1. Delete recorded machines. --force is not optional: without it the command
-# prompts, defaults to No, and leaves the machine in place while the script
-# carries on. --cascade removes branch children, which otherwise block the
-# delete.
+# 1. Delete recorded machines. Without --force a delete prompts and defaults to
+# No; --cascade removes branch children, which otherwise block it.
 if [ -s "$STATE_FILE" ]; then
     while read -r name; do
         [ -n "$name" ] || continue
@@ -696,13 +634,18 @@ if [ -s "$STATE_FILE" ]; then
             printf 'skipping %s: not created by this packet (no %s prefix)\n' "$name" "$PREFIX"
             continue ;;
         esac
-        "$SMOLVM" machine stop   --name "$name" >/dev/null 2>&1
-        "$SMOLVM" machine delete --name "$name" --force --cascade 2>&1 | sed 's/^/  /'
+        # Only names still listed: a second stop of a missing name leaves a
+        # directory that reads as a leak. The list is read first because grep -q
+        # under pipefail can fail the pipeline and skip a listed machine.
+        listed="$("$SMOLVM" machine list </dev/null 2>/dev/null | awk 'NR>2{print $1}')"
+        grep -qx -- "$name" <<<"$listed" || continue
+        "$SMOLVM" machine stop   --name "$name" </dev/null >/dev/null 2>&1
+        "$SMOLVM" machine delete --name "$name" --force --cascade </dev/null 2>&1 | sed 's/^/  /'
     done < "$STATE_FILE"
 fi
 
-# 2. An ephemeral machine's entry retires after the run returns, not with it.
-# Asserting an empty list immediately fails on a healthy host.
+# 2. An ephemeral machine's entry retires after its run returns.
+printf 'waiting=20s for ephemeral entries to retire before asserting\n'
 sleep 20
 
 # 3. Assert the value, not the exit code.
@@ -713,18 +656,13 @@ if printf '%s' "$listing" | grep -q 'No machines found'; then
 else
     printf 'machines=remaining\n'
     printf '%s\n' "$listing" | sed 's/^/  /'
-    # These were not created by this packet, so nothing here will remove them.
-    # Say what does, rather than leaving the reader to guess: delete prompts and
-    # defaults to No without --force, and a branched machine also needs --cascade.
     printf 'note=this packet did not create these, so it will not delete them. By name:\n'
     printf '  smolvm machine stop --name <NAME> && smolvm machine delete --name <NAME> --force\n'
     printf '  add --cascade for a machine that was branched from another\n'
 fi
 
-# 4. Report VM processes an interrupt left behind. Ctrl-C does not stop a
-# machine: the VM outlives the CLI and `machine list` cannot see it, so this is
-# the only route to it. Only processes whose boot config lives under this HOME's
-# smolvm state are listed, so a VM another session started is left alone.
+# 4. Report VM processes left under this HOME's state, such as a killed
+# wrapper's; another session's are left alone.
 found=0
 while read -r pid cfg; do
     [ -n "$pid" ] || continue
@@ -761,9 +699,9 @@ NO_BIND_MOUNTS_AFTER_RESTART
 DOCKERD_DOWN
 ```
 
-**Putting the mounts in `init`, as the upstream example does, is correct for exactly one boot.**
-Re-apply them in the same command that starts `dockerd`, which is what `scripts/start-dockerd.sh`
-does. After it ran, the same host reported `dockerd_up` and every check passed again.
+**Mounts applied in `init` hold for the first boot only.** Re-apply them in the same command that
+starts `dockerd`, as the upstream example's "Start dockerd" recipe does and
+`scripts/start-dockerd.sh` does. After it ran, the same host reported `dockerd_up` and every check passed again.
 
 **Your images do survive**, because they are on `/storage`. After the restart and the re-mount,
 `docker images` still listed `alpine:latest`. So the failure mode is "dockerd will not start" or
@@ -792,8 +730,9 @@ device is the value that matters.
 on the rootfs overlay. The upstream Smolfile mounts both and its own comments say container start
 fails without the second one, with containerd's overlay mount rejected as `invalid argument`.
 
-`guides/docker-in-a-machine.md` gives a `dockerd` start command that bind-mounts only
-`/storage/docker`. That command is incomplete.
+The `dockerd` start command in the docs site's guide (`guides/docker-in-a-machine.md` in
+`smol-machines/docs`, at v1.14.6) bind-mounts only `/storage/docker`; `/storage/containerd` is
+needed as well.
 
 ### A `docker run` that pulls interleaves two streams
 
@@ -803,24 +742,24 @@ on macOS arm64 it was not. A check that takes the last line passes on one host a
 other. `scripts/verify-docker.sh` pulls first, separately, so the run's output stands alone
 without discarding the stderr that would explain a real failure.
 
-### `machine delete` prompts and defaults to No
+### `machine delete` asks for confirmation
 
-Pass `--force` in a script, or the cleanup reports success and leaves a 20 GiB machine behind.
+Pass `--force` in a script. From v1.17.0 a delete without it on a non-terminal stdin exits 1;
+before that it exited 0 and left a 20 GiB machine behind.
 
-### What the guide and the CLI still get wrong for this use case, at v1.14.6
+### Where the docs site's guide differs from this packet, at v1.14.6
 
-- `guides/docker-in-a-machine.md` bind-mounts only one path in its `dockerd` command, while the
-  upstream Smolfile mounts two.
-- The same guide shows `machine create ... -s examples/docker-in-vm/docker.smolfile` after a
-  `git clone` of the smolvm repo. **The release tarball does not contain `examples/`**, so a user
-  who installed from the release has to clone the repo to follow the guide at all. This packet
-  ships its own `assets/docker.smolfile` for that reason.
-- The same guide says bind mounts "do not survive a stop and start, so reapply that mount before
-  starting `dockerd`", which is correct and verified. But the page's own example puts them in
-  `init`, where they run once, and never connects the two facts.
-- `smolvm machine create --help` describes `--init` as "Run command on every VM start" at
-  v1.14.6. If that were true the example would be correct, and **it is the surviving copy of the
-  wrong promise**: `introduction/concepts/smolfile.md` has been corrected and now documents under
-  "When init runs" that init runs once, on the first start.
-- The guide carries no platform note at all, and on Windows the procedure cannot succeed. See
-  `references/windows.md`.
+The guide is `guides/docker-in-a-machine.md` in `smol-machines/docs`, published at
+smolmachines.com/docs.
+
+- Its `dockerd` command bind-mounts one path; the upstream Smolfile mounts two.
+- It runs `machine create ... -s examples/docker-in-vm/docker.smolfile` after a `git clone` of the
+  smolvm repo. **The release tarball does not contain `examples/`**, so this packet ships its own
+  `assets/docker.smolfile`.
+- It says bind mounts "do not survive a stop and start, so reapply that mount before starting
+  `dockerd`", which was verified; its example applies them in `init`, which runs on the first start
+  only.
+- `smolvm machine create --help` describes `--init` as "Run command on every VM start", at v1.14.6
+  and at v1.22.2. The docs site's `introduction/concepts/smolfile.md` says under "When init runs"
+  that init runs once, on the first start, as does [`smolfile.md`](https://github.com/smol-machines/smolvm/blob/main/docs/smolfile.md) here.
+- It has no platform note; on Windows the procedure cannot succeed. See `references/windows.md`.
