@@ -45,6 +45,13 @@ smolvm machine run \
 
 `--allow-host` limits egress to the named host. Add multiple flags when the workload needs multiple hosts.
 
+What a policy filters depends on which kind you give it. A hostname list filters name resolution
+too: a name that is not on it fails to resolve, and `machine egress-events` records the refusal as
+a `resolve` row. An address list does not. Under `--allow-cidr` alone, or under
+`--outbound-localhost-only`, the guest still resolves any name through the host's resolver and gets
+real addresses back; only the connection that follows is refused. So an address list does not keep
+a workload from learning where something lives.
+
 ## Persistent machines
 
 `machine create` no longer needs networking for an uncached registry image: the host fetches it on
