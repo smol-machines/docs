@@ -12,7 +12,8 @@ Prepare a branchable machine as a source environment, start the workload, and br
 
 Copy-on-write avoids duplicating all memory and disk data at branch time. The source and children remain separate machines after the branch.
 
-Branch support is host and feature dependent. Native Windows does not currently support VM branching.
+Branch support is host and feature dependent. Native Windows branches a machine only with
+`--freeze-source`, which pauses the source for the clone instead of branching it live.
 
 ### The older fork names
 

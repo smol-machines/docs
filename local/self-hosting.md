@@ -26,7 +26,7 @@ The invoking service account needs permission to access `/dev/kvm` and the runti
 
 ### Other supported hosts
 
-macOS uses Hypervisor.framework and is suitable for local workstations. Native Windows x86_64 uses Windows Hypervisor Platform. Windows does not currently support VM branching, checkpoints, or GPU acceleration, so verify feature requirements before choosing it for a self-hosted node.
+macOS uses Hypervisor.framework and is suitable for local workstations. Native Windows x86_64 uses Windows Hypervisor Platform. Windows branches and checkpoints machines, a live branch there needing `--freeze-source` and the incremental store being refused, and it has no Vulkan acceleration. A packed artifact is created on Windows but does not run there, so verify feature requirements before choosing it for a self-hosted node.
 
 Guest and artifact architecture must match the host architecture.
 

@@ -11,7 +11,9 @@ project is required.
 ## Install and check the host
 
 This Bash recipe targets Linux x86_64 with accessible `/dev/kvm`, or macOS on
-Apple Silicon. Native Windows does not support this branching workflow.
+Apple Silicon. It does not run on native Windows, which has no POSIX shell for
+it; the branching and checkpoint commands themselves work there, a live branch
+needing `--freeze-source`.
 Allow several GiB of free disk and RAM for the example. The first image pull
 needs internet access.
 
