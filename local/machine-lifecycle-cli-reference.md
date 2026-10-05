@@ -28,7 +28,8 @@ when it does not happen the pull falls back into your own machine, which then
 needs `--net`. The pull running in the builder machine has one consequence worth
 knowing: an egress allow list on your machine governs the workload and not the
 image, so a machine restricted to one hostname still starts from an image on a
-registry that list does not name. On the default backend the guest has no visible network interface and `ping` does
+registry that list does not name. Add `--seed-digest-ttl SECONDS` to reuse a
+digest resolved that recently instead of checking the registry on every run. On the default backend the guest has no visible network interface and `ping` does
 not work, even though TCP and UDP do — see [how networking behaves inside a
 machine](#how-networking-behaves-inside-a-machine). An ephemeral run pulls every time unless you add `--oci-cache`,
 which keeps the image on the host for later runs to start from without a pull.
@@ -46,10 +47,11 @@ smolvm machine run \
 
 ## Persistent machines
 
-`machine create` is stricter than `machine run` about images. An ephemeral run starts from the
-image seed described above and needs no networking of its own, while `create` refuses an uncached
-registry image on a machine with none, even when a previous run already seeded that image locally. Pass `--net`, or
-supply the image locally with `--image -`.
+`machine create` no longer needs networking for an uncached registry image: the host fetches it on
+the machine's behalf, so neither a non-default `--storage` nor `SMOLVM_IMAGE_SEEDS=0` stops it,
+where both of those send an ephemeral run back to pulling in the guest. An image whose registry serves an older manifest format is the
+case that still fails, at `start` rather than at `create`, with `parse manifest: missing field
+mediaType`. Supply such an image locally with `--image -`, or pass `--net`.
 
 
 A persistent machine separates creation from execution:
@@ -323,7 +325,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only) requ
 
 | Flag | Meaning |
 |---|---|
-| `--image`, `-I` | OCI image, local image archive, stdin archive (`-`), or unpacked rootfs |
+| `--image`, `-I` | OCI image, local image archive, stdin archive (`-`), or unpacked rootfs. A reference may carry a tag and a digest together, `alpine:3.20@sha256:...`, which pins the bytes while keeping the tag readable |
 | `--name`, `-n` | Machine name |
 | `--net` | Enable networking |
 | `--allow-host` | Allow egress to a hostname |
@@ -338,6 +340,8 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only) requ
 | `--tty`, `-t` | Allocate a TTY |
 | `--smolfile`, `-s` | Read configuration from a Smolfile |
 | `--block-io` | Host block I/O engine, `sync` or `async` |
+| `--stop-on-exit` | Stop the machine once its workload exits, whatever the status, flushing storage first |
+| `--seed-digest-ttl` | Reuse an image digest resolved at most this many seconds ago when seeding |
 | `--guest-subnet` | IPv4 subnet for the guest link, such as `10.200.0.0/30` |
 | `--net-backend` | Networking implementation, `tsi` (default) or `virtio-net` |
 
