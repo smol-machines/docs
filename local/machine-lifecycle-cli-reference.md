@@ -234,6 +234,17 @@ smolvm machine start --name dev
 it says so rather than guessing: on a running machine the command fails with `invalid vm state:
 expected stopped, got Running`.
 
+It also edits the egress policy, which is otherwise fixed at create time. `--allow-host`,
+`--allow-host-pattern`, `--allow-cidr` and `--outbound-localhost-only` add to the policy, and
+`--remove-allow-host` and `--remove-allow-cidr` take entries back out; `--net` and `--no-net` turn
+networking on and off. The new policy applies from the next start, and only the named destinations
+answer afterwards:
+
+```bash
+smolvm machine update --name dev --allow-host example.com
+smolvm machine start --name dev
+```
+
 ### Mount a host directory
 
 ```bash
