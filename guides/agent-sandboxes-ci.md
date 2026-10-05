@@ -140,7 +140,13 @@ smolvm machine run --ssh-agent --net --image alpine:3.20 -- \
   sh -c "apk add -q openssh-client && ssh-add -l"
 ```
 
-There is no shipped general HTTP credential broker or cloud-native secrets store. Avoid passing production credentials to untrusted agent code. Prefer short-lived, least-privilege credentials and scope them to one job.
+For an HTTPS credential the workload must use but never hold, `--credential NAME=ENV_VAR@HOST`
+binds one: the guest gets a placeholder in `ENV_VAR` and the host substitutes the real value only
+on requests to the listed hosts, so the code in the machine never sees it. The value comes from a
+`--secret-env` or `--secret-file` reference of the same name, or from that host variable, and the
+flag implies `--net`. `[[network.credentials]]` is the Smolfile form. There is still no
+cloud-native secrets store, so prefer short-lived, least-privilege credentials and scope them to
+one job.
 
 ## Cleanup on every path
 
