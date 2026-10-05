@@ -187,17 +187,16 @@ smolvm machine cp dev:/workspace/result.json ./result.json
 
 `machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.smolcheckpoint` file. The machine keeps running.
 
-The machine has to have been started branchable, because a checkpoint reads the same copy-on-write guest memory a branch does. Start it with `--branchable`, which the engine also accepts as `--forkable`:
-
-```bash
-smolvm machine start --name dev --branchable
-```
-
-Then capture it:
+Capture it while it runs:
 
 ```bash
 smolvm machine checkpoint --name dev -o ./dev.smolcheckpoint
 ```
+
+The source is paused only for the copy-on-write snapshot, a fraction of a second, and the command
+reports that pause separately from the packaging that continues behind it. A machine does not have
+to have been started `--branchable` to be checkpointed, though starting it that way makes the pause
+shorter.
 
 Restore it through `machine create`, which accepts a checkpoint wherever it accepts a pack:
 
@@ -206,7 +205,31 @@ smolvm machine create --name dev-restored --from ./dev.smolcheckpoint
 smolvm machine start --name dev-restored
 ```
 
-The restored machine resumes from the captured instant instead of booting. Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
+The restored machine resumes from the captured instant instead of booting, and it gets an identity
+of its own: its hostname is the new machine's name. Add `--keep-identity` to keep the hostname and
+machine ID the checkpoint was saved with, which is what rewinding one machine to an earlier save
+point wants. Do not run two machines from one checkpoint with it.
+
+Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
+
+Adding `--store DIR` writes an incremental checkpoint instead of one file. `--output` is still
+what names the result, and with `--store` it becomes a self-contained directory on the same
+filesystem as `DIR`, sharing unchanged chunks with the generations it keeps so history costs only
+the differences:
+
+```bash
+smolvm machine start --name dev --branchable
+smolvm machine checkpoint --name dev --store ./store -o ./store/dev.checkpoint
+```
+
+The machine has to have been started `--branchable` for this, unlike a single-file checkpoint:
+without it the capture is refused with `deferred durable save requires file-backed guest RAM`.
+`machine checkpoint-log PATH` shows the generations a store holds and the command to restore any
+of them, and `machine checkpoint-prune` removes what nothing references. `machine checkpoint-warm
+--from PATH` prepares a store so a later restore clones a kept copy rather than rebuilding its
+RAM; `--restore-cache-entries` sets how many checkpoints stay ready, three by default, and
+`--restore-cache-gib` caps what they may hold together, 16 GiB by default. Both flags are also
+accepted on `machine create`.
 
 See [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots) for what a checkpoint preserves and where it can be restored.
 
