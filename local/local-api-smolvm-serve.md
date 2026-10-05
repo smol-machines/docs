@@ -28,6 +28,28 @@ Generate the OpenAPI specification for the installed version:
 smolvm serve openapi
 ```
 
+### One server to a host, unless you move a second port
+
+Every `smolvm serve` also binds a fixed guest ingress port, `127.0.0.1:10081`, which `--listen`
+does not move. A second server on the same host therefore fails at start whatever address it was
+given:
+
+```text
+Error: config operation failed: bind guest rollout ingress: 127.0.0.1:10081: Address already in use
+```
+
+Set `SMOLVM_GUEST_ROLLOUT_HOST_PORT` to a free port for the second server, and the two run side by
+side.
+
+### Operator flags
+
+| Flag | What it does |
+|---|---|
+| `--allow-nested-virt` | Permit machines created with `nestedVirt`. Off by default, because it exposes the host kernel's nested virtualization to the guest; turning it off again also stops existing nested machines from starting |
+| `--egress-watchlist PATH` | Record, without blocking, guest traffic to destinations named in a file of `<label> dns-sha256:<hex>` or `<label> ip-sha256:<hex>` lines. Matches come back as `egressSignals` on the machine, the file is re-read when it changes, and it applies to virtio-net machines |
+| `--shutdown-grace SECS` | Seconds in-flight requests get once the server stops accepting connections, five by default and capped at 3600. Connections are refused for the whole grace, so to restart without cutting off a long `exec`, wait for `GET /inflight` on the loopback door to report nothing in flight |
+| `--mtls-client-cn CN` | Require this subject CN on the mTLS client certificate. Only applies when serve TLS is configured; unset, every certificate the client CA signed is accepted for every route |
+
 ## Selected HTTP endpoints
 
 | Method | Path | Operation |
@@ -46,6 +68,10 @@ smolvm serve openapi
 | `POST` | `/api/v1/machines/:name/images/pull` | Pull an OCI image |
 
 The HTTP API covers common lifecycle, execution, file, image, volume, export, and branch operations. It does not have complete parity with every CLI command or interactive CLI behavior. Use the generated OpenAPI document as the wire-level reference for your installed release.
+
+A create body is validated strictly: an unknown field is refused with `422` and a message naming
+the field and listing the ones it accepts, and so is a known field of the wrong type. A field this
+release does not have is refused rather than dropped in silence.
 
 ## Choose an integration
 
