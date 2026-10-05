@@ -210,6 +210,18 @@ The restored machine resumes from the captured instant instead of booting. Becau
 
 See [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots) for what a checkpoint preserves and where it can be restored.
 
+### Resize a running machine
+
+```bash
+smolvm machine resize --name dev --cpus 4 --mem 2048
+```
+
+`machine resize` grows a running machine without rebooting it, and the guest sees the change at
+once: `nproc` and `/proc/meminfo` report the new figures on the next command. It takes `--cpus`,
+`--mem`, `--storage` and `--overlay`, at least one of them. Memory, storage and overlay grow only,
+and platform alignment applies to a memory target; CPU shrinking works only on compatible Linux
+x86_64 runtimes. To make a smaller machine on any host, stop it and use `machine update`.
+
 ### Update a stopped machine
 
 ```bash
@@ -218,7 +230,9 @@ smolvm machine update --name dev --cpus 6 --mem 12288
 smolvm machine start --name dev
 ```
 
-`machine update` changes configuration for the next start. The machine must be stopped first.
+`machine update` changes configuration for the next start. The machine must be stopped first, and
+it says so rather than guessing: on a running machine the command fails with `invalid vm state:
+expected stopped, got Running`.
 
 ### Mount a host directory
 
