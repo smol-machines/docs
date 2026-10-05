@@ -261,10 +261,10 @@ unreleased behavior, the pull request is held open until that feature ships,
 per [When your change gets merged](#when-your-change-gets-merged).
 
 Once merged, the change is picked up by the website's twice-daily sync (00:00
-and 12:00 UTC) and deployed. So there is a delay of up to twelve hours between
-your pull request merging and the page changing at smolmachines.com. **If the
-page has not changed after that, it is worth reporting** — it means the sync
-failed rather than that it is still pending.
+and 12:00 UTC) and deployed. So the page at smolmachines.com usually changes
+within twelve hours of your pull request merging. **If it has not changed after
+that, it is worth reporting.** The sync moves its pin before it deploys, so a
+failed deploy leaves the site behind and no later run picks it up on its own.
 
 The most likely cause of a failed sync is a new page that is not yet registered
 in the site's navigation: the sync runs a check that the nav and the Markdown
