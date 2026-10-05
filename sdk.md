@@ -92,7 +92,7 @@ with Machine.create(config, ConnectOptions(target="local")) as machine:
 
 :::
 
-Guest networking is disabled by default, and the image pull runs inside the guest, so an uncached registry image needs `resources.network` enabled, as the examples above set. Beyond the pull, enable networking only when the workload itself needs outbound access.
+Guest networking is disabled by default, and an uncached registry image does not need it at the default storage size with image seeding on: the engine builds a shared seed for the image and the machine starts from a copy of it. Ask for a different `storageGb`, or set `SMOLVM_IMAGE_SEEDS=0`, and the pull moves into the guest, which then does need `resources.network`. Enable it when the workload itself needs outbound access, which is what the examples above do.
 
 ## Complete examples
 
