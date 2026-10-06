@@ -12,7 +12,7 @@ The package is named `smolmachines` on npm and PyPI, and the crate is `smolmachi
 crates.io. This page covers Node and Python; Rust has its own page,
 [Rust SDK](/docs/sdk/rust), because its install and its host requirements differ.
 
-Do not install the older package named `smolvm` for these examples. It is a REST client for `smolvm serve`, not the unified embedded/cloud SDK documented here.
+Install `smolmachines`. The `smolvm` package on npm is an empty placeholder and `smolvm` on PyPI is a different project; neither is this SDK.
 
 ::: code-group
 
