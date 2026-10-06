@@ -6,9 +6,11 @@ title: "Install: set up smolvm and prove the host boots"
 
 Installs smolvm from a published release and proves the host can actually boot a microVM before any other work starts. Use when setting smolvm up on a new machine, a CI runner or an agent's own environment; when a first boot fails with krun_start_enter -22, KVM_DENIED or "agent did not become ready"; when checking whether a host meets smolvm's requirements at all; or when an install has to be isolated from an existing one and then removed. Do not use it to remove an existing install (see the teardown packet) or for anything after the first boot has succeeded.
 
-Verified on **smolvm v1.22.2** on macOS arm64, 2026-10-03, and on **v1.18.2** on Linux aarch64, 2026-09-24. Done means `smolvm --version` prints the release version **and** a throwaway VM has run
+Verified on **smolvm v1.23.0** on macOS arm64, 2026-10-04, and on **v1.18.2** on Linux aarch64, 2026-09-24. Done means `smolvm --version` prints the release version **and** a throwaway VM has run
 one command and exited. A version number alone proves nothing: on every
 platform here there is at least one way for the install to succeed and every VM start to fail.
+The Linux runs used the scripts of their date; this version's preflight and cleanup scripts ran
+on Linux aarch64 on v1.22.2 on 2026-10-03.
 
 `scripts/preflight.sh` reports the host as `key=value` lines and ends with `result=ready`,
 `result=not_installed` or `result=blocked`. Run it first, and run it again after the install if
@@ -50,15 +52,16 @@ is what the packet was last verified on, not what you should install. Pin only t
 recorded run:
 
 ```bash
-curl -sSL https://smolmachines.com/install.sh | bash -s -- --version 1.22.2   # a recorded run
+curl -sSL https://smolmachines.com/install.sh | bash -s -- --version 1.23.0   # a recorded run
 ```
 
 On macOS two `warning:` lines about notarization appear on every install and are not a problem.
 On Linux `info: KVM access verified` appears only when your user can already open `/dev/kvm`.
 
 To install without touching an existing one, point `HOME` at a scratch directory: every path
-smolvm uses moves with it on macOS and Linux. Keep that directory shallow on macOS. This does not
-work on Windows, where state cannot be relocated at all. See `references/layout.md`.
+smolvm uses moves with it on macOS, and on Linux once `XDG_DATA_HOME` and `XDG_CACHE_HOME` are
+unset, since both outrank `HOME` there. Keep that directory shallow on macOS. This does not work on
+Windows, where state cannot be relocated at all. See `references/layout.md`.
 
 Windows does not use this installer. See `references/windows.md`.
 
@@ -91,10 +94,11 @@ limit.
 scripts/cleanup.sh
 ```
 
-It waits 20 seconds, printing `waiting=20s` first, before asserting an empty machine list,
-because a successful `machine run` returns
-before its entry retires and an immediate assertion fails on a healthy host. It then reports VM
-processes an interrupt left behind, and kills them only with `--reap`.
+It waits up to 20 seconds, polling the machine list and printing `waiting=up to 20s` first,
+before asserting an empty machine list, because a successful `machine run` returns before its
+entry retires and an immediate assertion fails on a healthy host. It then reports VM processes
+left under this `HOME`, and `--reap` kills every one of them, a running machine you meant to keep
+included, so read the plain report first.
 
 ## What the preflight reports
 
@@ -104,7 +108,7 @@ processes an interrupt left behind, and kills them only with `--reap`.
 | `verified_version`, `version_status` | `match`, `newer`, `older` or `unknown` against the version this packet was last verified on. `newer` is the expected state on a current host and is not a failure |
 | `platform` | `darwin-aarch64`, `linux-aarch64`, `linux-x86_64` |
 | `accel`, `accel_access` | `hvf` and `kern.hv_support`, or `kvm` and whether `/dev/kvm` is readable and writable |
-| `macos_version`, `hardware_verified` | `hardware_verified=no` on an Intel Mac: the installer accepts it and nothing here was run on one |
+| `macos_version`, `hardware_verified` | `hardware_verified=no` and `result=blocked` on an Intel Mac: no `darwin-x86_64` archive is published for v1.23.0 |
 | `socket_path_bytes`, `socket_path_status` | macOS only, and the single most common cause of "macOS is broken" |
 | `unsupported` | features this platform does not have |
 | `result` | `ready`, `not_installed` (the host is fit and smolvm is missing) or `blocked` |
@@ -128,14 +132,13 @@ text here.
 
 ## Platform arms
 
-- **macOS arm64**: verified on v1.22.2. The path-length rule in `references/traps.md` applies to
+- **macOS arm64**: verified on v1.23.0. The path-length rule in `references/traps.md` applies to
   every install.
 - **Linux aarch64**: verified on v1.18.2, and run once on v1.22.2. **Linux x86_64**: verified on
   v1.14.2, and installed on v1.14.6 for the gpu-cuda run. The `kvm` group check applies to every
   fresh host.
-- **Intel Mac**: **unverified.** The installer accepts macOS 11 or later on Intel and nothing in
-  the material behind this packet was run on one. `preflight.sh` reports `hardware_verified=no`
-  there rather than implying it works.
+- **Intel Mac**: the installer accepts macOS 11 or later on Intel and then stops at the download,
+  because no `darwin-x86_64` archive is published for v1.23.0; `preflight.sh` says so.
 - **Windows x86_64**: `references/windows.md`, **re-run on 2026-10-03 against v1.22.2** on
   Windows 11 Home build 10.0.26200 UBR 9457, where it confirmed. The
   three facts that break a Unix-shaped script are there: the zip unpacks into a nested versioned
@@ -145,7 +148,7 @@ text here.
 ## Eval prompts, and what they produced
 
 **1. "Install smolvm on this machine and tell me whether it can actually run a VM."** On macOS
-arm64 on v1.22.2: `result=not_installed`, the install, then `result=ready`, `guest_ran=yes`,
+arm64 on v1.23.0: `result=not_installed`, the install, then `result=ready`, `guest_ran=yes`,
 `guest_kernel=Linux 6.12.95`, `is_a_vm=yes`, `result=boot_ok`.
 
 **2. "smolvm is installed but every `machine run` fails with `krun_start_enter returned: -22`.
@@ -165,12 +168,30 @@ disks and device options.
 it."** Install under a scratch `HOME`, then `install.sh --uninstall`; on v1.22.2 it printed
 `success: smolvm has been uninstalled`, and `find "$HOME" -iname '*smolvm*'` was empty afterwards.
 
+## Re-verified on v1.23.0
+
+Run 2026-10-04 PT against v1.23.0 from the published release, checksum checked, under a fresh
+isolated `HOME` on macOS 27.0.1 arm64, once. On Lima `linux-kvm` (Ubuntu 24.04 aarch64) the
+checks named below ran once, so the Linux stamp stays on its earlier release.
+
+macOS: `result=not_installed` on the empty `HOME`; the installer with no `--version` printed
+`Installing version: 1.23.0` and `Checksum verified`, and the pinned command above did the same.
+Then `version_status=match`, `result=ready`, `guest_kernel=Linux 6.12.95`, `result=boot_ok` in
+15 s and a clean cleanup, 23 s for the whole packet. Eval 2 repeated in a 52-character `HOME`:
+`socket_path_bytes=106`, `socket_path_status=too_long`, `result=blocked`, and the boot failed with
+the same `-22` text, printed twice. Eval 3 repeated: after an install, one boot and
+`--uninstall`, `find` printed nothing.
+
+Linux aarch64: `result=not_installed`, the installer took 1.23.0 with `Checksum verified`, then
+`version_status=match` and `result=ready`. A first boot at 1024 MiB took 33 s and one at 2048 MiB
+9 s.
+
 ## Re-verified on v1.22.2
 
 Run 2026-10-03 PT against v1.22.2 from the published release, checksum checked, under an isolated
-`HOME` on macOS 27.0.1 arm64, once to write and once from a fresh `HOME` to verify. On Lima
-`linux-kvm` (Ubuntu 24.04 aarch64) guests above 2048 MiB timed out that day, so the Linux lines
-below are a single run and the Linux stamp stays on its earlier release.
+`HOME` on macOS 27.0.1 arm64, twice, the second time from a fresh `HOME`. On Lima `linux-kvm`
+(Ubuntu 24.04 aarch64) on 2026-10-03 guests above 2048 MiB timed out, so the Linux lines below are
+a single run and the Linux stamp stays on its earlier release.
 
 macOS: `result=not_installed` on the empty `HOME`, the installer took the newest release,
 `smolvm 1.22.2`, then `result=ready`, `guest_kernel=Linux 6.12.95`, `result=boot_ok` and a clean
@@ -190,12 +211,11 @@ verified on v1.18.2.
   `references/windows.md` by hand, and no PowerShell script ships with this packet.
 - **The unprivileged Windows symlink path.** The Windows preflight check for Developer Mode or
   `SeCreateSymbolicLinkPrivilege` is written from reading the release's extraction path and from a
-  session that already held the privilege. The failure it guards against has been reported from
-  outside and reproduced by forcing the state, but the unprivileged install itself has not been
-  run by anyone here.
-- **Linux x86_64** was verified for install and boot in the material behind this packet, on a
-  cloud GPU instance that no longer exists. The scripts here were re-run on macOS arm64 and Linux
-  aarch64 only.
+  Windows run whose account already held the privilege. The failure it guards against has been
+  reported from outside and reproduced by forcing the state, but the unprivileged install itself
+  has not been run.
+- **Linux x86_64** was verified for install and boot on v1.14.2, and installed on v1.14.6 for the
+  gpu-cuda run. The scripts here were re-run on macOS arm64 and Linux aarch64 only.
 
 ## Related packets
 
@@ -219,7 +239,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.22.2"
+VERIFIED_VERSION="1.23.0"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -280,7 +300,8 @@ case "$kernel" in
         if [ "$hv" = "1" ]; then emit accel_access ok; else emit accel_access denied; blocked=1; fi
         if [ "$arch" != "aarch64" ]; then
             emit hardware_verified no
-            note "Intel Mac is not verified by this packet; the installer accepts it and nothing here was run on one"
+            blocked=1
+            note "no darwin-x86_64 archive is published for v1.23.0, so the installer accepts an Intel Mac and then stops at the download"
         else
             emit hardware_verified yes
         fi
@@ -405,7 +426,7 @@ else
     fi
     printf '  - "agent did not become ready within 30 seconds" is usually host load or a guest too large for this host, not the install. The 30s limit is fixed and no flag raises it for machine run or machine start; retry with a smaller --mem to tell the two apart.\n'
     printf '  - "krun_start_enter returned: -22" on macOS is almost always the socket path length, not the disks its text names. Run preflight.sh and read socket_path_status.\n'
-    printf '  - the boot child sends its own output to /dev/null. To see the real failure, copy <vm-dir>/boot-config.json while a start is in flight and run: smolvm-bin _boot-vm <copy>\n'
+    printf '  - the boot child sends its own output to /dev/null. To see the real failure, copy <vm-dir>/boot-config.json in a loop while a start is in flight (the child deletes it as soon as it reads it) and run: smolvm-bin _boot-vm <copy>\n'
 fi
 
 exit "$fail"
@@ -417,9 +438,10 @@ exit "$fail"
 #!/usr/bin/env bash
 # Delete the machines this packet's scripts created, then prove the host is clean.
 #
-# Only machines recorded in the state file are deleted, so a machine you or
-# another session created by hand is never touched. Scripts record a name by
-# calling: cleanup.sh --record <name>
+# Only machines recorded in the state file are deleted, with --cascade, so any
+# machine branched from one of them goes too, whatever its name. Any other
+# machine you or another session created by hand is never deleted. Scripts
+# record a name by calling: cleanup.sh --record <name>
 #
 # usage: cleanup.sh [--record <name>] [--reap] [--purge]
 #   --record <name>  add a machine name to the state file and exit
@@ -456,22 +478,32 @@ if [ -z "$SMOLVM" ]; then
     exit 2
 fi
 
+# With SMOLVM_DATA_DIR set, smolvm runs with HOME there on Linux, so its cache
+# is under .cache in it.
 case "$(uname -s)" in
     Darwin) VMS_DIR="$HOME/Library/Caches/smolvm/vms" ;;
-    *)      VMS_DIR="${SMOLVM_DATA_DIR:-$HOME/.cache/smolvm}/vms" ;;
+    *)      cache_root="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.cache}"
+            VMS_DIR="${cache_root:-${XDG_CACHE_HOME:-$HOME/.cache}}/smolvm/vms" ;;
 esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
+if [ -n "${SMOLVM:-}" ]; then
+    case "$(readlink "$SMOLVM" 2>/dev/null || printf '%s' "$SMOLVM")" in
+        "$SMOLVM_PREFIX"/*) ;;
+        *) printf 'note=%s is not under %s, so the process scan cannot see its forked VMs (all of its VMs on macOS); set SMOLVM_PREFIX to its directory\n' "$SMOLVM" "$SMOLVM_PREFIX" ;;
+    esac
+fi
 
 # List this HOME's VM processes as "pid marker". The plain run path execs a
 # `_boot-vm` child that carries its boot config; the pack-run path forks one that
-# carries none. Linux names both `libkrun VM`; on macOS the executable path and
-# the parent chain scope the search. The teardown packet's traps have the why.
+# carries none. Linux names both `libkrun VM`, or `VM:<hostname>` when HOSTNAME
+# is exported; on macOS the executable path and the parent chain scope the
+# search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
             for p in /proc/[0-9]*; do
-                [ "$(cat "$p/comm" 2>/dev/null)" = "libkrun VM" ] || continue
+                case "$(cat "$p/comm" 2>/dev/null)" in "libkrun VM"|VM:*) ;; *) continue ;; esac
                 pid="${p#/proc/}"
                 cfg="$(tr '\0' '\n' < "$p/cmdline" 2>/dev/null | sed -n '3p')"
                 case "$cfg" in
@@ -484,16 +516,21 @@ list_vm_processes() {
             ;;
         Darwin)
             # shellcheck disable=SC2009  # pgrep -f would match this script.
-            own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
-            ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
+            procs="$(ps -axo pid=,ppid=,command= 2>/dev/null)"
+            printf '%s\n' "$procs" | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
+                # An orphan counts only if it is a run; a fork has its parent's command line.
                 if [ "$ppid" = 1 ]; then
-                    printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
+                    case "$rest" in
+                        *" machine run "*|*" vm run "*|*" pack run "*)
+                            printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
+                    esac
                 else
-                    case "$own" in *" $ppid "*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;; esac
+                    parent="$(printf '%s\n' "$procs" | while read -r q qp qrest; do [ "$q" = "$ppid" ] && { printf '%s' "$qrest"; break; }; done)"
+                    [ "$parent" = "$rest" ] && printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 fi
             done
             ;;
@@ -519,13 +556,18 @@ if [ -s "$STATE_FILE" ]; then
     done < "$STATE_FILE"
 fi
 
-# 2. An ephemeral machine's entry retires after its run returns.
-printf 'waiting=20s for ephemeral entries to retire before asserting\n'
-sleep 20
+# 2. An ephemeral machine's entry retires after its run returns: poll, 20 s at most.
+printf 'waiting=up to 20s for ephemeral entries to retire before asserting\n'
+waited=0
+listing="$("$SMOLVM" machine list 2>&1)"
+while ! grep -q 'No machines found' <<<"$listing" && [ "$waited" -lt 20 ]; do
+    sleep 1; waited=$((waited + 1))
+    listing="$("$SMOLVM" machine list 2>&1)"
+done
+printf 'waited=%ss\n' "$waited"
 
 # 3. Assert the value, not the exit code.
-listing="$("$SMOLVM" machine list 2>&1)"
-if printf '%s' "$listing" | grep -q 'No machines found'; then
+if grep -q 'No machines found' <<<"$listing"; then
     printf 'machines=clean\n'
     [ "$purge" -eq 1 ] && rm -f "$STATE_FILE"
 else
@@ -536,8 +578,8 @@ else
     printf '  add --cascade for a machine that was branched from another\n'
 fi
 
-# 4. Report VM processes left under this HOME's state, such as a killed
-# wrapper's; another session's are left alone.
+# 4. Report VM processes under this HOME's state, such as a killed wrapper's.
+# With --reap every one is killed, including a machine another packet kept.
 found=0
 while read -r pid cfg; do
     [ -n "$pid" ] || continue
@@ -581,13 +623,12 @@ into `$HOME` directories of increasing length:
 `scripts/preflight.sh` computes that path and reports `socket_path_bytes` and
 `socket_path_status` before you install anything.
 
-This is the single most expensive trap in the material behind this packet: it cost most of a
-session and produced a false "macOS is broken" conclusion. Everything else was ruled out by
-running it. The same release boots from a short `$HOME` on the same machine; v1.14.1, v1.13.0 and
-v1.11.0 all fail identically at a long path, so it is not a regression; the installed binary
-matches the tarball byte for byte; `kern.hv_support` is 1; and an ad-hoc-signed C program linking
-the release's own `libkrun.dylib` runs a VM to completion and accepts smolvm's own `storage.raw`
-and `overlay.raw`.
+Of the traps here this one took longest to diagnose, and it was first concluded to be "macOS is
+broken". Everything else was ruled out by running it. The same release boots from a short `$HOME`
+on the same machine; v1.14.1, v1.13.0 and v1.11.0 all fail identically at a long path, so it is
+not a regression; the installed binary matches the tarball byte for byte; `kern.hv_support` is 1;
+and an ad-hoc-signed C program linking the release's own `libkrun.dylib` runs a VM to completion
+and accepts smolvm's own `storage.raw` and `overlay.raw`.
 
 **A CI job or an agent harness that installs under a deep temporary directory will hit this and
 will not be able to tell why.** Nothing in the README or the installer mentions a path-length
@@ -613,7 +654,7 @@ which is what you want over SSH or inside a script.
 ### `agent did not become ready within 30 seconds`
 
 **Suspect host load before you suspect the install.** This was reproduced on both macOS and a
-nested-virt Linux box purely by running other VMs at the same time, and the identical command
+nested-virt Linux host purely by running other VMs at the same time, and the identical command
 passed on a quiet host seconds later.
 
 **Then suspect the guest's size.** A host that is slow to fault in guest memory can boot a small
@@ -628,7 +669,7 @@ guest and time out on a large one, and the message is the same. Measured on Lima
 
 The default is 8192, so on such a host `machine create` without `--mem` gives a machine that never
 starts, while `scripts/verify-boot.sh` at 2048 passes. Bisect on `--mem` before designing around
-it: the same box booted 8192 on v1.14.6 on 2026-09-10, when its host was not paging.
+it: the same host booted 8192 on v1.14.6 on 2026-09-10, when its host was not paging.
 
 **From v1.22.0 a first boot can wait out that timeout before it starts.** The first run of each
 registry image builds a shared seed of it in a helper machine, `image-seed-<hash>-<pid>`, which
@@ -680,8 +721,10 @@ showed nothing useful. To see the real failure, run the child yourself:
 smolvm-bin _boot-vm <vm-dir>/boot-config.json
 ```
 
-That is how the vCPU panics behind the macOS `-22` were finally read. **The child deletes its own
-`boot-config.json` on exit**, so copy it while a start is in flight if you want to re-run it.
+That is how the vCPU panics behind the macOS `-22` were read. **The child deletes its own
+`boot-config.json` as soon as it has read it**, before the VM starts, so a copy has to be taken in
+the moment between the CLI writing it and the child reading it: loop on `cp` while you start the
+machine.
 `RUST_LOG=debug` on the CLI shows the disk-template and boot timeline, which separates a template
 problem from a hypervisor problem.
 
@@ -697,13 +740,15 @@ so the stripping is harmless and tells you nothing about a library problem.
   guest command that fails still returns HTTP 200 from the local API; a CUDA program can link and
   exit zero without ever reaching a GPU. `scripts/verify-boot.sh` asserts a marker the guest
   printed and that the guest kernel differs from the host's, for this reason.
-- **Find leftover VMs by argv, not by `pgrep -f _boot-vm` and not by `readlink /proc/<pid>/exe`.**
-  The pattern form matches any shell whose text contains that string, including the cleanup script
-  itself, and it produced a phantom "1 orphan survived" result in the runs behind this packet.
+- **Find leftover VMs by the process name, not by `pgrep -f _boot-vm` and not by `readlink
+  /proc/<pid>/exe`.** The pattern form matches any shell whose text contains that string, including
+  the cleanup script itself, and it produced a phantom "1 orphan survived" result.
   **The `/proc/<pid>/exe` route then fails for a different reason**: the VM process is not
   dumpable, so its `/proc/<pid>/exe` is root-owned and `readlink` returns `Permission denied` to
   the very user who started it, leaving a reaper that reports "no orphans" while an orphan runs.
-  Both were observed on Ubuntu 24.04 aarch64 on 2026-09-07. `scripts/cleanup.sh` reads
-  `/proc/<pid>/cmdline` and requires `argv[1]` to be exactly `_boot-vm`, which a shell cannot
-  match, then keeps only the processes whose boot config lives under this `HOME`'s smolvm state so
-  another session's VM is left alone. On macOS the same test runs over `ps -axo pid=,command=`.
+  Both were observed on Ubuntu 24.04 aarch64 on 2026-09-07. `scripts/cleanup.sh` matches the VM
+  process's name in `/proc/<pid>/comm` (`libkrun VM`, or `VM:<hostname>` when `HOSTNAME` is
+  exported), which a shell cannot hold, then keeps only those whose boot config lives under this
+  `HOME`'s smolvm state, or whose executable is under the install prefix, so another session's VM
+  is left alone. On macOS it scopes by the executable path under the prefix and the parent chain
+  over `ps -axo pid=,ppid=,command=`.

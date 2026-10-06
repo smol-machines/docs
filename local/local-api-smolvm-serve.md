@@ -88,7 +88,7 @@ See [SDK Quick Start](/docs/sdk) and [Use SDK in Local](/docs/sdk/with-local) fo
 
 ### Legacy REST client: `smolvm-sdk`
 
-The older [`smolvm-sdk`](https://github.com/smol-machines/smolvm-sdk) repository publishes npm and PyPI packages named `smolvm`, plus a Go REST client. These clients send HTTP requests to a running `smolvm serve` process.
+The older [`smolvm-sdk`](https://github.com/smol-machines/smolvm-sdk) repository holds npm, Python and Go REST clients for a running `smolvm serve` process. Its npm and Python packages are named `smolvm` in source, but the `smolvm` on npm is an empty placeholder and the `smolvm` on PyPI is a different project, so neither registry installs these clients.
 
 Use this path when:
 
@@ -101,7 +101,7 @@ Do not confuse the package names:
 | Package | Connection model | Recommended use |
 |---|---|---|
 | `smolmachines` | Embedded local engine; optional cloud transport | New Node.js and Python applications |
-| `smolvm` from `smolvm-sdk` | HTTP client to `smolvm serve` | Existing or server-oriented REST integrations |
+| The `smolvm-sdk` clients, named `smolvm` in source | HTTP client to `smolvm serve` | Existing or server-oriented REST integrations |
 
 ## Security and deployment boundary
 
@@ -110,3 +110,5 @@ The local server does not provide authentication. Bind it to loopback or a prote
 If another host or user must reach the API, place it behind an authenticated, encrypted proxy and enforce host-level account isolation. Anyone who can call the API can ask the runtime to create machines and execute workloads with the capabilities granted to the server process.
 
 `smolvm serve` is a per-host runtime API. It is not the standalone smol cloud fleet control plane.
+
+A machine `serve` starts cannot reach a private, carrier-NAT or loopback address even when its `allowedCidrs` names one: `serve` raises the egress floor for every machine it starts, and no allow-list entry lowers it. To lift it, set `SMOLVM_EGRESS_FLOOR` before starting `serve`: `metadata` keeps only the link-local range that holds cloud metadata blocked, and `off` blocks nothing. Neither is the CLI's default, which also blocks the host's loopback.

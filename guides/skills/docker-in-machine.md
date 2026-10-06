@@ -9,14 +9,17 @@ Runs a Docker daemon inside a smolvm machine and shows it working there, which i
 Verified on **smolvm v1.22.2** on macOS arm64, 2026-10-03, and on **v1.18.2** on Linux aarch64, 2026-09-24; the Linux runs used
 the Smolfile with `memory = 1024`, for a host reason given below. Done means `docker info` succeeds inside the guest, a nested container runs, and
 Docker's data sits on the ext4 storage disk rather than the rootfs overlay.
+The Linux runs used the scripts of their date; this version's preflight and cleanup scripts ran
+on Linux aarch64 on v1.22.2 on 2026-10-03.
 
 smolvm boots OCI images without Docker. This is only for software **inside** the machine that must
 call Docker itself.
 
-**This use case does not exist on Windows, up to and including v1.22.2.** The bundled guest kernel
-there has neither bridge networking nor POSIX message queues, so `dockerd` will not start and,
-forced past that, containers still cannot be created. `references/windows.md` has the evidence and
-the direct kernel probe, which gave the same answer on v1.22.2.
+**On Windows, up to and including v1.22.2, `dockerd` does not start in a machine.** The Windows
+guest kernel is built without bridge networking and POSIX message queues, so `dockerd` cannot
+create its default network and, forced past that, containers still cannot be created.
+`references/windows.md` has the evidence and the direct kernel probe, which gave the same answer on
+v1.22.2.
 
 ## The trap this packet exists for
 
@@ -97,8 +100,8 @@ sits on the rootfs overlay, and the failure that follows is confusing and much l
 
 **5. Use it, and clean up only when it is no longer wanted.** A machine someone asked for is the
 deliverable: leave it running and give them its name. Their own code gets in with
-`smolvm machine cp <file> smolskill-docker:/workspace/` or a `-v` mount on create, and runs with
-`smolvm machine exec --name smolskill-docker -- ...`; with no `docker` client on the host, code
+`smolvm machine cp <file> smolskill-docker:/workspace/<file>` or a `-v` mount on create, and runs
+with `smolvm machine exec --name smolskill-docker -- ...`; with no `docker` client on the host, code
 that calls Docker runs inside the machine against this daemon. What this packet shows is the
 daemon: `docker info`, a nested container and host networking.
 
@@ -106,8 +109,8 @@ daemon: `docker info`, a nested container and host networking.
 scripts/cleanup.sh --purge
 ```
 
-`cleanup.sh` waits 20 seconds before it checks the machine list and prints `waiting=20s` first:
-an ephemeral machine's entry retires after its run returns.
+`cleanup.sh` waits up to 20 seconds, polling the machine list, and prints `waiting=up to 20s`
+first: an ephemeral machine's entry retires after its run returns.
 
 ## Why Docker's data has to live on `/storage`
 
@@ -154,15 +157,15 @@ verified**: neither host used here has a `docker` client.
 
 - **macOS arm64**: v1.22.2 as shipped, every check passed, the restart trap and its recovery
   included.
-- **Linux aarch64**: v1.18.2 and once on v1.22.2, with the Smolfile's memory at 1024 MiB: that box
-  could not boot larger guests inside the fixed 30 s readiness window, and the `install` packet's
-  traps have the numbers. On a small or busy host, lower `memory` before suspecting Docker; 1024
-  MiB was enough for `dockerd` and a nested alpine container.
+- **Linux aarch64**: v1.18.2 and once on v1.22.2, with the Smolfile's memory at 1024 MiB: the Lima
+  host could not boot larger guests inside the fixed 30 s readiness window, and the `install`
+  packet's traps have the numbers. On a small or busy host, lower `memory` before suspecting
+  Docker; 1024 MiB was enough for `dockerd` and a nested alpine container.
 - **Linux x86_64**: not run anywhere for this use case.
-- **Windows x86_64**: **not possible**. A v1.14.2 run showed `dockerd` failing; on 2026-10-03 on
-  v1.22.2 (Windows 11 Home build 10.0.26200 UBR 9457) the direct kernel probe in a plain `alpine` guest gave
-  `RTNETLINK answers: Not supported` for a bridge and `No such device` for `mqueue`.
-  `references/windows.md` has both.
+- **Windows x86_64**: **does not run on v1.22.2**. A v1.14.2 run showed `dockerd` failing; on
+  2026-10-03 on v1.22.2 (Windows 11 Home build 10.0.26200 UBR 9457) the direct kernel probe in a
+  plain `alpine` guest gave `RTNETLINK answers: Not supported` for a bridge and `No such device` for
+  `mqueue`. `references/windows.md` has both.
 
 ## Eval prompts, and what they produced
 
@@ -201,9 +204,9 @@ the same two answers on v1.22.2.
 ## Re-verified on v1.22.2
 
 Run 2026-10-03 PT against v1.22.2 from the published release, checksum checked, under an isolated
-`HOME` on macOS 27.0.1 arm64, once to write and once from a fresh `HOME` to verify. On Lima
-`linux-kvm` (Ubuntu 24.04 aarch64) guests above 2048 MiB timed out that day, so the Linux lines
-below are a single run and the Linux stamp stays on its earlier release.
+`HOME` on macOS 27.0.1 arm64, twice, the second time from a fresh `HOME`. On Lima `linux-kvm`
+(Ubuntu 24.04 aarch64) guests above 2048 MiB timed out on 2026-10-03, so the Linux lines below are
+a single run and the Linux stamp stays on its earlier release.
 
 macOS: `result=docker_ok` with `docker_root_device=ok (/dev/vda)`, then after a stop and start
 `Init already completed, skipping 5 command(s)`, `NO_BIND_MOUNTS_AFTER_RESTART`, `DOCKERD_DOWN`,
@@ -542,9 +545,10 @@ exit "$fail"
 #!/usr/bin/env bash
 # Delete the machines this packet's scripts created, then prove the host is clean.
 #
-# Only machines recorded in the state file are deleted, so a machine you or
-# another session created by hand is never touched. Scripts record a name by
-# calling: cleanup.sh --record <name>
+# Only machines recorded in the state file are deleted, with --cascade, so any
+# machine branched from one of them goes too, whatever its name. Any other
+# machine you or another session created by hand is never deleted. Scripts
+# record a name by calling: cleanup.sh --record <name>
 #
 # usage: cleanup.sh [--record <name>] [--reap] [--purge]
 #   --record <name>  add a machine name to the state file and exit
@@ -581,22 +585,32 @@ if [ -z "$SMOLVM" ]; then
     exit 2
 fi
 
+# With SMOLVM_DATA_DIR set, smolvm runs with HOME there on Linux, so its cache
+# is under .cache in it.
 case "$(uname -s)" in
     Darwin) VMS_DIR="$HOME/Library/Caches/smolvm/vms" ;;
-    *)      VMS_DIR="${SMOLVM_DATA_DIR:-$HOME/.cache/smolvm}/vms" ;;
+    *)      cache_root="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.cache}"
+            VMS_DIR="${cache_root:-${XDG_CACHE_HOME:-$HOME/.cache}}/smolvm/vms" ;;
 esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
+if [ -n "${SMOLVM:-}" ]; then
+    case "$(readlink "$SMOLVM" 2>/dev/null || printf '%s' "$SMOLVM")" in
+        "$SMOLVM_PREFIX"/*) ;;
+        *) printf 'note=%s is not under %s, so the process scan cannot see its forked VMs (all of its VMs on macOS); set SMOLVM_PREFIX to its directory\n' "$SMOLVM" "$SMOLVM_PREFIX" ;;
+    esac
+fi
 
 # List this HOME's VM processes as "pid marker". The plain run path execs a
 # `_boot-vm` child that carries its boot config; the pack-run path forks one that
-# carries none. Linux names both `libkrun VM`; on macOS the executable path and
-# the parent chain scope the search. The teardown packet's traps have the why.
+# carries none. Linux names both `libkrun VM`, or `VM:<hostname>` when HOSTNAME
+# is exported; on macOS the executable path and the parent chain scope the
+# search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
             for p in /proc/[0-9]*; do
-                [ "$(cat "$p/comm" 2>/dev/null)" = "libkrun VM" ] || continue
+                case "$(cat "$p/comm" 2>/dev/null)" in "libkrun VM"|VM:*) ;; *) continue ;; esac
                 pid="${p#/proc/}"
                 cfg="$(tr '\0' '\n' < "$p/cmdline" 2>/dev/null | sed -n '3p')"
                 case "$cfg" in
@@ -609,16 +623,21 @@ list_vm_processes() {
             ;;
         Darwin)
             # shellcheck disable=SC2009  # pgrep -f would match this script.
-            own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
-            ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
+            procs="$(ps -axo pid=,ppid=,command= 2>/dev/null)"
+            printf '%s\n' "$procs" | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
+                # An orphan counts only if it is a run; a fork has its parent's command line.
                 if [ "$ppid" = 1 ]; then
-                    printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
+                    case "$rest" in
+                        *" machine run "*|*" vm run "*|*" pack run "*)
+                            printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
+                    esac
                 else
-                    case "$own" in *" $ppid "*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;; esac
+                    parent="$(printf '%s\n' "$procs" | while read -r q qp qrest; do [ "$q" = "$ppid" ] && { printf '%s' "$qrest"; break; }; done)"
+                    [ "$parent" = "$rest" ] && printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 fi
             done
             ;;
@@ -644,13 +663,18 @@ if [ -s "$STATE_FILE" ]; then
     done < "$STATE_FILE"
 fi
 
-# 2. An ephemeral machine's entry retires after its run returns.
-printf 'waiting=20s for ephemeral entries to retire before asserting\n'
-sleep 20
+# 2. An ephemeral machine's entry retires after its run returns: poll, 20 s at most.
+printf 'waiting=up to 20s for ephemeral entries to retire before asserting\n'
+waited=0
+listing="$("$SMOLVM" machine list 2>&1)"
+while ! grep -q 'No machines found' <<<"$listing" && [ "$waited" -lt 20 ]; do
+    sleep 1; waited=$((waited + 1))
+    listing="$("$SMOLVM" machine list 2>&1)"
+done
+printf 'waited=%ss\n' "$waited"
 
 # 3. Assert the value, not the exit code.
-listing="$("$SMOLVM" machine list 2>&1)"
-if printf '%s' "$listing" | grep -q 'No machines found'; then
+if grep -q 'No machines found' <<<"$listing"; then
     printf 'machines=clean\n'
     [ "$purge" -eq 1 ] && rm -f "$STATE_FILE"
 else
@@ -661,8 +685,8 @@ else
     printf '  add --cascade for a machine that was branched from another\n'
 fi
 
-# 4. Report VM processes left under this HOME's state, such as a killed
-# wrapper's; another session's are left alone.
+# 4. Report VM processes under this HOME's state, such as a killed wrapper's.
+# With --reap every one is killed, including a machine another packet kept.
 found=0
 while read -r pid cfg; do
     [ -n "$pid" ] || continue

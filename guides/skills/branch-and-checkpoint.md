@@ -6,10 +6,12 @@ title: "Branch and checkpoint: scheduled checkpoints, restores and branch points
 
 Saves a running smolvm machine as checkpoints on a schedule, keeps a bounded history, restores any generation in it, pauses and resumes machines without losing running processes, and branches a warm machine into children with a checkpoint of the exact point they started from. Use when a machine's state has to survive the machine; when an agent or a job needs to roll back; when checkpoints must be taken periodically, since smolvm has no scheduler or retention of its own; when fanning a prepared machine out into workers; or when a checkpoint, a pause or a branch fails with an error that names none of its preconditions. Do not use it to ship an environment to another host as a file, which is the pack packet, or for state that only has to survive a stop and start, which is the dev-env packet.
 
-Verified on **smolvm v1.22.2** on macOS arm64, 2026-10-03, and on **v1.18.2** on Linux aarch64, 2026-09-24. Done means a restore
+Verified on **smolvm v1.23.0** on macOS arm64, 2026-10-04, and on **v1.18.2** on Linux aarch64, 2026-09-24. Done means a restore
 brings back both the disk and the memory you left, the schedule keeps exactly the checkpoints you
 asked for and no fewer, and every child of a branch starts from a state you still hold as a
 checkpoint after the children are gone.
+The Linux runs used the scripts of their date; this version's preflight and cleanup scripts ran
+on Linux aarch64 on v1.22.2 on 2026-10-03.
 
 `README.md` says what each of these operations is. This file is how to run them, and the traps.
 
@@ -77,11 +79,16 @@ That restart is a normal stop and start: disk state survives, and anything in RA
 lost, once. Say so to the user before doing it. Every start of that machine needs the flag from
 then on for it to stay checkpointable.
 
+A capture also refuses a machine with resources bound to this host: a host mount (`-v`), a
+published socket, a remote volume, a host secret reference, custom DNS, a named network, a GPU,
+CUDA, Rosetta, `--ssh-agent` or a Docker socket. The error, `the initial portable checkpoint
+profile does not support ...; stop or detach these resources before capture`, names which.
+
 **3. Capture, once or on a schedule.**
 
 ```bash
 scripts/checkpoint.sh --name smolskill-src --store ./store --keep 6 --history 2
-scripts/schedule.sh   --name smolskill-src --store ./store --every 600 --times 3 --keep 6 --history 2
+scripts/schedule.sh   --name smolskill-src --store ./store --every 10 --times 4 --keep 2 --history 2
 ```
 
 Each capture goes to a new directory named `<machine>-<label>-<UTC time>.smolcheckpoint` beside the
@@ -98,9 +105,13 @@ run=2 rc=0 took_s=5 ... kept=2 store_size= 76M result=captured
 run=3 rc=0 took_s=2 ... kept=2 store_size= 95M result=captured
 run=4 rc=0 took_s=1 ... kept=2 store_size=114M result=captured
 captures_ok=4
+captures_failed=0
 longest_capture_s=5
 result=schedule_ok
 ```
+
+That is the v1.18.2 run. Ten seconds is for watching it work; a schedule uses minutes,
+`references/scheduling.md`.
 
 **Set the interval from `longest_capture_s`, not from the pause.** The source pauses for a few
 hundredths of a second; the command takes seconds, because retained RAM is hashed and compressed
@@ -176,7 +187,7 @@ scripts/cleanup.sh --purge --restore-base --checkpoints ./store ./*.smolcheckpoi
 It deletes the machines the scripts recorded, children first by `--cascade`, removes the named
 checkpoint directories and stores, and with `--restore-base` removes smolvm's copies of restored
 checkpoints, which otherwise stay after every machine and checkpoint is gone, printing a
-`removed=` or `absent` line for each. It waits 20 seconds before checking the machine list, and
+`removed=` or `absent` line for each. It waits up to 20 seconds, polling the machine list, and
 says so, because an ephemeral entry retires after its run returns.
 
 ## Traps
@@ -198,7 +209,7 @@ Full detail in `references/traps.md`. The ones that cost the most:
   leak. `cleanup.sh` stops only names still listed.
 - **smolvm keeps restored checkpoints** in its VM cache, memory included: `vms/_restore-base` on
   macOS, 243 MB on v1.18.2, and from v1.22.0 `vms/_restore-checkpoints`, the last three restored,
-  266 MB after this procedure on macOS on v1.22.2. Deleting the checkpoint does not delete them.
+  258 MB after this procedure on macOS on v1.23.0. Deleting the checkpoint does not delete them.
 
 ## Security defaults, and why they are the defaults
 
@@ -209,18 +220,20 @@ Full detail in `references/traps.md`. The ones that cost the most:
   leaves you with fewer good checkpoints than before.
 - **A store is local.** It protects against a bad change, not a lost host; export a checkpoint
   with `machine checkpoint --export-from` and copy it elsewhere for that.
-- **Cleanup deletes only machines the scripts recorded under the `smolskill-` prefix**, and removes
-  only the checkpoint paths you name.
+- **Cleanup deletes only machines the scripts recorded under the `smolskill-` prefix, and through
+  `--cascade` any machine branched from one of them, whatever its name**, and removes only the
+  checkpoint paths you name.
 - **Nothing here escalates privilege** or edits smolvm configuration.
 
 ## Platform arms
 
-`references/platforms.md` has each arm. In short: **macOS arm64** ran every step here on v1.22.2,
+`references/platforms.md` has each arm. In short: **macOS arm64** ran every step here on v1.23.0,
 and **Linux aarch64** on v1.18.2 and once on v1.22.2, with the one difference that Linux needs no
 `--branchable`. On v1.16.1 Linux aarch64 refused `--store` and froze a branch source; from v1.18.2
 it does neither. **Linux x86_64**
 was not re-run. **Windows** on v1.22.2 checkpoints to a file, pauses and branches with
 `--freeze-source` on every branch, and refuses `--store`, so `checkpoint.sh` cannot run there.
+From v1.23.0 a checkpoint from an arm64 Mac restores on arm64 Linux, run once from this Mac to Lima.
 
 ## Eval prompts, and what they produced
 
@@ -256,31 +269,55 @@ full failed its first resume with `extract paused checkpoint: failed to unpack .
 `machine resume` succeeded once space was freed: counter 8 before the pause, 14 after, still
 counting.
 
+## Re-verified on v1.23.0
+
+Run 2026-10-04 PT against v1.23.0 from the published release, checksum checked, under a fresh
+isolated `HOME` on macOS 27.0.1 arm64, once. On Lima `linux-kvm` (Ubuntu 24.04 aarch64) the
+checks named below ran once, so the Linux stamp stays on its earlier release.
+
+macOS: every script. Three scheduled captures (`captures_ok=3`, `longest_capture_s=1`),
+`checkpoint-log` listing three generations, restores of `~2` and the newest, the counter at 20
+before a pause and 24 after the resume, both children of a batch branch holding the source's token,
+and `cleanup.sh --restore-base` removing 258 MB of `_restore-checkpoints`. A capture now reports
+when the source resumed, `Source resumed after 0.024s; packaging continued in the background`
+([#1519](https://github.com/smol-machines/smolvm/pull/1519)).
+
+**A checkpoint taken on this Mac restored on Linux aarch64**
+([#1531](https://github.com/smol-machines/smolvm/pull/1531)). `create-source.sh`, then
+`machine checkpoint --name smolskill-mac --output mac.checkpoint` on the Mac with the RAM counter
+at 6, which printed `40 MiB written` and `0.066s source pause`. Copied to Lima unchanged,
+`machine create --from` and `machine start` there took a second each; the counter read 7 and five
+seconds later 12, the RAM token and the disk marker matched the Mac's, and the guest said
+`Linux 6.12.95`.
+
 ## Re-verified on v1.22.2
 
 Run 2026-10-03 PT against v1.22.2 from the published release, checksum checked, under an isolated
-`HOME` on macOS 27.0.1 arm64, once to write and once from a fresh `HOME` to verify. On Lima
-`linux-kvm` (Ubuntu 24.04 aarch64) guests above 2048 MiB timed out that day, so the Linux lines
-below are a single run and the Linux stamp stays on its earlier release.
+`HOME` on macOS 27.0.1 arm64, twice, the second time from a fresh `HOME`. On Lima `linux-kvm`
+(Ubuntu 24.04 aarch64) on 2026-10-03 guests above 2048 MiB timed out, so the Linux lines below are
+a single run and the Linux stamp stays on its earlier release.
 
 macOS: every script. Three scheduled captures (`captures_ok=3`, `longest_capture_s=1`),
 `checkpoint-log` listing three generations, restores of `~2` and the newest, the counter at 21
 before a pause and 25 after the resume, both children of a batch branch holding the source's token,
 and `cleanup.sh --restore-base` removing 275 MB of `_restore-checkpoints`. The `--branchable`
-facts in "Branchability is decided at start" were measured on releases v1.18.2 to v1.22.2 the same
-day.
+facts in "Branchability is decided at start" were measured on releases v1.18.2 to v1.22.2 on
+2026-10-03.
 
 Linux aarch64: every script, with `checkpoint_needs_branchable=no`, the counter 63 then 66 and both
 children holding the same token.
 
 ## What was not run
 
-- **Linux x86_64**, and the scripts on Windows, which are POSIX shell.
+- **Linux x86_64**, and the scripts on Windows, which are bash.
 - **A schedule over hours.** Four captures ten seconds apart on each host, and single captures
-  across the session; the growth of a store under `--history 32` over a day was not measured.
-- **Restores on another host.** A checkpoint is host, CPU and device specific, and nothing here
-  moved one between the two hosts.
-- **GPU and CUDA machines**, and `--share-weights`.
+  within each run; the growth of a store under `--history 32` over a day was not measured.
+- **Restores on another host, beyond Mac to Linux.** Through v1.22.2 a checkpoint restores only on
+  a host of the same platform, and another is refused with `checkpoint host platform '...' does not
+  match '...'`. From v1.23.0 one taken on an arm64 Mac restores on arm64 Linux, run once above;
+  [Moving a running machine from a Mac to Linux](https://github.com/smol-machines/smolvm/blob/main/docs/mac-to-linux.md) has the requirements. Linux to
+  Mac, and a stored capture rather than a file, were not run.
+- **GPU and CUDA machines**, which a capture refuses, and `--share-weights`.
 - **Branch pools** (`--hold`, `branch-release`), and `--freeze-source` outside Windows.
 - **The API's restore route**, the `from` field on create; the `local-api` packet covers pause and
   resume over HTTP.
@@ -311,7 +348,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.22.2"
+VERIFIED_VERSION="1.23.0"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -547,8 +584,8 @@ exit 1
 #   --out <dir>      where the checkpoint directories go (default: the store's
 #                    parent); must be on the same filesystem as the store
 #   --label <word>   goes into the output name (default: ckpt)
-#   --keep <K>       keep the K newest checkpoints with this label in --out,
-#                    delete the older ones, then run checkpoint-prune
+#   --keep <K>       keep the K newest (K at least 1) checkpoints with this label
+#                    in --out, delete the older ones, then run checkpoint-prune
 #   --history <N>    earlier generations each new checkpoint retains (smolvm's
 #                    default is 32). Retention frees space only for generations
 #                    no kept checkpoint still retains, so bound this too.
@@ -587,6 +624,13 @@ if [ -z "$NAME" ] || [ -z "$STORE" ]; then
     printf 'usage: checkpoint.sh --name <machine> --store <dir> [--out <dir>] [--keep <K>] [--history <N>]\n' >&2
     exit 2
 fi
+if [ -n "$KEEP" ]; then
+    case "$KEEP" in
+        *[!0-9]*) printf 'result=FAILED --keep takes a whole number of at least 1, not %s\n' "$KEEP"; exit 2 ;;
+    esac
+    [ "$KEEP" -ge 1 ] || { printf 'result=FAILED --keep takes a whole number of at least 1, not %s\n' "$KEEP"; exit 2; }
+fi
+STAMP_GLOB='[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z'
 
 SMOLVM="${SMOLVM:-$(command -v smolvm 2>/dev/null)}"
 if [ -z "$SMOLVM" ]; then
@@ -653,16 +697,21 @@ printf 'generation=%s\n' "$(printf '%s\n' "$log" | awk '$1=="~0"{print $2}')"
 printf 'generations_retained=%s\n' "$(printf '%s\n' "$log" | grep -c '^~')"
 
 # Retention: only after the new checkpoint is published, and by whole
-# directory. Output names sort by time because the stamp is UTC and fixed width.
+# directory. Output names sort by time because the stamp is UTC and fixed width,
+# and a glob expands sorted and unsplit, so the oldest come first and a space in
+# the path stays inside one name. Matching the stamp's shape keeps another label
+# that starts with this one, such as ckpt-daily, out of the count.
 if [ -n "$KEEP" ]; then
-    n=0
-    for d in $(ls -1d "$OUT/$NAME-$LABEL"-*.smolcheckpoint 2>/dev/null | sort -r); do
-        n=$((n + 1))
-        [ "$n" -le "$KEEP" ] && continue
-        rm -rf "$d" && printf 'deleted=%s\n' "$d"
+    set -- "$OUT/$NAME-$LABEL"-$STAMP_GLOB.smolcheckpoint
+    [ -e "$1" ] || set --
+    while [ "$#" -gt "$KEEP" ]; do
+        rm -rf -- "$1" && printf 'deleted=%s\n' "$1"
+        shift
     done
     "$SMOLVM" machine checkpoint-prune --store "$STORE" 2>&1 | sed 's/^/  /'
-    printf 'kept=%s\n' "$(ls -1d "$OUT/$NAME-$LABEL"-*.smolcheckpoint 2>/dev/null | wc -l | tr -d ' ')"
+    set -- "$OUT/$NAME-$LABEL"-$STAMP_GLOB.smolcheckpoint
+    [ -e "$1" ] || set --
+    printf 'kept=%s\n' "$#"
 fi
 
 printf 'store_size=%s\n' "$(du -sh "$STORE" 2>/dev/null | cut -f1)"
@@ -762,7 +811,12 @@ SMOLVM="${SMOLVM:-$(command -v smolvm 2>/dev/null)}"
 
 at=()
 [ -n "$AT" ] && at=(--at "$AT")
-"$SMOLVM" machine create --name "$NAME" --from "$FROM" ${at[@]+"${at[@]}"} 2>&1 | sed 's/^/  /'
+# create refuses a name that exists, and the listing below would then find the
+# old machine, so the create's own status decides; pipefail carries it.
+if ! "$SMOLVM" machine create --name "$NAME" --from "$FROM" ${at[@]+"${at[@]}"} 2>&1 | sed 's/^/  /'; then
+    printf 'result=FAILED machine create --from did not succeed, so nothing was restored\n'
+    exit 1
+fi
 # Read the list first: under pipefail, grep -q closing the pipe early can fail
 # the pipeline and report a machine missing that exists.
 listing="$("$SMOLVM" machine list 2>/dev/null)"
@@ -885,9 +939,10 @@ fi
 #!/usr/bin/env bash
 # Delete the machines this packet's scripts created, then prove the host is clean.
 #
-# Only machines recorded in the state file are deleted, so a machine you or
-# another session created by hand is never touched. Scripts record a name by
-# calling: cleanup.sh --record <name>
+# Only machines recorded in the state file are deleted, with --cascade, so any
+# machine branched from one of them goes too, whatever its name. Any other
+# machine you or another session created by hand is never deleted. Scripts
+# record a name by calling: cleanup.sh --record <name>
 #
 # usage: cleanup.sh [--record <name>] [--reap] [--purge] [--restore-base] [--checkpoints <dir>...]
 #   --record <name>       add a machine name to the state file and exit
@@ -914,7 +969,6 @@ STATE_FILE="$STATE_DIR/$PACKET.machines"
 reap=0
 purge=0
 restore_base=0
-CHECKPOINTS=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --record)
@@ -925,7 +979,7 @@ while [ $# -gt 0 ]; do
         --reap)  reap=1 ;;
         --purge) purge=1 ;;
         --restore-base) restore_base=1 ;;
-        --checkpoints) shift; CHECKPOINTS="$*"; break ;;
+        --checkpoints) shift; break ;;
         *) printf 'unknown argument: %s\n' "$1" >&2; exit 2 ;;
     esac
     shift
@@ -936,22 +990,32 @@ if [ -z "$SMOLVM" ]; then
     exit 2
 fi
 
+# With SMOLVM_DATA_DIR set, smolvm runs with HOME there on Linux, so its cache
+# is under .cache in it.
 case "$(uname -s)" in
     Darwin) VMS_DIR="$HOME/Library/Caches/smolvm/vms" ;;
-    *)      VMS_DIR="${SMOLVM_DATA_DIR:-$HOME/.cache/smolvm}/vms" ;;
+    *)      cache_root="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.cache}"
+            VMS_DIR="${cache_root:-${XDG_CACHE_HOME:-$HOME/.cache}}/smolvm/vms" ;;
 esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
+if [ -n "${SMOLVM:-}" ]; then
+    case "$(readlink "$SMOLVM" 2>/dev/null || printf '%s' "$SMOLVM")" in
+        "$SMOLVM_PREFIX"/*) ;;
+        *) printf 'note=%s is not under %s, so the process scan cannot see its forked VMs (all of its VMs on macOS); set SMOLVM_PREFIX to its directory\n' "$SMOLVM" "$SMOLVM_PREFIX" ;;
+    esac
+fi
 
 # List this HOME's VM processes as "pid marker". The plain run path execs a
 # `_boot-vm` child that carries its boot config; the pack-run path forks one that
-# carries none. Linux names both `libkrun VM`; on macOS the executable path and
-# the parent chain scope the search. The teardown packet's traps have the why.
+# carries none. Linux names both `libkrun VM`, or `VM:<hostname>` when HOSTNAME
+# is exported; on macOS the executable path and the parent chain scope the
+# search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
             for p in /proc/[0-9]*; do
-                [ "$(cat "$p/comm" 2>/dev/null)" = "libkrun VM" ] || continue
+                case "$(cat "$p/comm" 2>/dev/null)" in "libkrun VM"|VM:*) ;; *) continue ;; esac
                 pid="${p#/proc/}"
                 cfg="$(tr '\0' '\n' < "$p/cmdline" 2>/dev/null | sed -n '3p')"
                 case "$cfg" in
@@ -964,16 +1028,21 @@ list_vm_processes() {
             ;;
         Darwin)
             # shellcheck disable=SC2009  # pgrep -f would match this script.
-            own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
-            ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
+            procs="$(ps -axo pid=,ppid=,command= 2>/dev/null)"
+            printf '%s\n' "$procs" | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
+                # An orphan counts only if it is a run; a fork has its parent's command line.
                 if [ "$ppid" = 1 ]; then
-                    printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
+                    case "$rest" in
+                        *" machine run "*|*" vm run "*|*" pack run "*)
+                            printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
+                    esac
                 else
-                    case "$own" in *" $ppid "*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;; esac
+                    parent="$(printf '%s\n' "$procs" | while read -r q qp qrest; do [ "$q" = "$ppid" ] && { printf '%s' "$qrest"; break; }; done)"
+                    [ "$parent" = "$rest" ] && printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 fi
             done
             ;;
@@ -1005,11 +1074,15 @@ if [ -s "$STATE_FILE" ]; then
 fi
 
 # 1b. Checkpoints and stores named on the command line, then the restore base.
-for d in ${CHECKPOINTS:-}; do
-    case "$d" in *.smolcheckpoint|*.checkpoint|*store*) ;; *)
-        printf 'skipping %s: not a .checkpoint, a .smolcheckpoint or a store directory\n' "$d"; continue ;;
+# A store is known by the objects directory and .lock its first capture makes, not by its name.
+for d in "$@"; do
+    case "$d" in
+        *.smolcheckpoint|*.checkpoint) ;;
+        *) if [ ! -d "$d/objects" ] || [ ! -e "$d/.lock" ]; then
+               printf 'skipping %s: not a .checkpoint, a .smolcheckpoint or a checkpoint store\n' "$d"; continue
+           fi ;;
     esac
-    [ -e "$d" ] && rm -rf "$d" && printf 'removed=%s\n' "$d"
+    [ -e "$d" ] && rm -rf -- "$d" && printf 'removed=%s\n' "$d"
 done
 for cache in _restore-base _restore-checkpoints; do
     if [ "$restore_base" -eq 1 ] && [ -d "$VMS_DIR/$cache" ]; then
@@ -1023,13 +1096,18 @@ done
 
 rm -f "$STATE_DIR/.listed"
 
-# 2. An ephemeral machine's entry retires after its run returns.
-printf 'waiting=20s for ephemeral entries to retire before asserting\n'
-sleep 20
+# 2. An ephemeral machine's entry retires after its run returns: poll, 20 s at most.
+printf 'waiting=up to 20s for ephemeral entries to retire before asserting\n'
+waited=0
+listing="$("$SMOLVM" machine list 2>&1)"
+while ! grep -q 'No machines found' <<<"$listing" && [ "$waited" -lt 20 ]; do
+    sleep 1; waited=$((waited + 1))
+    listing="$("$SMOLVM" machine list 2>&1)"
+done
+printf 'waited=%ss\n' "$waited"
 
 # 3. Assert the value, not the exit code.
-listing="$("$SMOLVM" machine list 2>&1)"
-if printf '%s' "$listing" | grep -q 'No machines found'; then
+if grep -q 'No machines found' <<<"$listing"; then
     printf 'machines=clean\n'
     [ "$purge" -eq 1 ] && rm -f "$STATE_FILE"
 else
@@ -1040,8 +1118,8 @@ else
     printf '  add --cascade for a machine that was branched from another\n'
 fi
 
-# 4. Report VM processes left under this HOME's state, such as a killed
-# wrapper's; another session's are left alone.
+# 4. Report VM processes under this HOME's state, such as a killed wrapper's.
+# With --reap every one is killed, including a machine another packet kept.
 found=0
 while read -r pid cfg; do
     [ -n "$pid" ] || continue
@@ -1210,7 +1288,7 @@ every checkpoint file was deleted. `smolvm serve start`'s reclaim did not touch 
 
 From v1.22.0 the cache is `vms/_restore-checkpoints`, which keeps the last three restored
 checkpoints, up to 16 GiB, so jumping back to one clones it instead of rebuilding its RAM. After
-this packet's procedure on macOS on v1.22.2 it held 266 MB with every machine and checkpoint
+this packet's procedure on macOS on v1.23.0 it held 258 MB with every machine and checkpoint
 deleted, and no `_restore-base` was made. `machine create --from` takes `--restore-cache-entries`
 and `--restore-cache-gib`; `0` entries turns it off. `scripts/cleanup.sh --restore-base` removes
 both.

@@ -6,15 +6,18 @@ title: "Throwaway machine: run untrusted code with no network"
 
 Runs untrusted code in a throwaway smolvm microVM against a repo it must not modify, with no network unless explicitly granted, and collects artifacts from a writable output directory. Use when executing an agent's generated script, a pull request's test suite, or any code that should not be trusted with the host; when a workload needs egress granted one host at a time; or when a run has to be cancelled, because Ctrl-C on the wrapper script leaves the VM running, and on releases before v1.20.2 so does Ctrl-C on the CLI. Do not use it for a development environment that is re-entered across sessions, for running a Docker daemon inside a machine, or for installing smolvm itself, which is the install packet.
 
-Verified on **smolvm v1.22.2** on macOS arm64, 2026-10-03, by the offline route, the network-on route
+Verified on **smolvm v1.23.0** on macOS arm64, 2026-10-04, by the offline route, the network-on route
 and the cancel; on Linux aarch64 by the offline route and the cancel on v1.20.2, 2026-09-29, and the
 network-on route on v1.18.2, 2026-09-24. Done means the command's output landed in your writable directory,
 the repo is unchanged, the workload could not reach the network, and nothing is left running.
+The Linux runs used the scripts of their date; this version's preflight, run and cleanup scripts
+ran on Linux aarch64 on v1.22.2 on 2026-10-03.
 
 **The cancel is `scripts/cleanup.sh --cancel`, never Ctrl-C**: on `run.sh` Ctrl-C leaves the CLI
 and its VM running on v1.20.2 too, as "Cancelling" below measures.
 
-Two issues shaped this packet and **v1.20.2 fixed both**; older releases still have them:
+Two issues shaped this packet and **v1.20.2 fixed both on macOS and Linux**; older releases still
+have them:
 
 - **[#1193](https://github.com/smol-machines/smolvm/issues/1193)**, fixed in v1.20.2: before it,
   a cached run's VM outlives an interrupted CLI, invisible to `machine list`.
@@ -43,24 +46,28 @@ asked the user instead of building one.
 scripts/preflight.sh --mounts 2 --ports 0
 ```
 
-`device_budget_ok=no` means the boot will fail with `no more IRQs are available`. The guest has
-eleven IRQs: **four `-v` mounts boot and five do not, and every published port costs one of those
-slots**, so the budget is mounts plus ports. Combine directories under one mount rather than
-discovering this at boot.
+`device_budget_ok=no` means the boot will fail with `no more IRQs are available`. On x86_64
+through v1.22.2 the guest has eleven IRQs: **four `-v` mounts boot and five do not, and publishing
+any port, or granting egress, adds one device**. arm64 guests have 128, and the preflight prints
+`device_budget_ok=not_limiting` there. v1.23.0 ships a libkrun whose x86_64 guests have IRQs 5 to 23
+(#1521); its ceiling was not measured, and the preflight applies the budget through v1.22.2 only.
+Combine directories under one mount rather than discovering this at boot.
 
-`offline_shape=unavailable` means this host cannot run the shape below. On macOS before v1.20.2 that
-is #1192; on any host it can also mean the bake helper's memory does not fit, which step 2
-diagnoses.
+`offline_shape=unavailable` means this host cannot run the shape below: macOS before v1.20.2
+(#1192), or Windows. The preflight cannot see whether the 8192 MiB bake helper fits; `bake.sh`
+finds that out in step 2 and says so.
 
-**2. Bake the image. This is the only step that talks to a registry.**
+**2. Bake the image. This is the only step in which a machine has a network.**
 
 ```bash
 scripts/bake.sh python:3.12-alpine
 ```
 
 Network on, nothing untrusted mounted, done before the untrusted code is anywhere near the machine.
-Afterwards the runs need no network at all, which is materially stronger isolation than granting
-egress and hoping.
+Afterwards the runs' machines need no network at all, which is materially stronger isolation than
+granting egress and hoping. The host CLI still asks the registry for the image's manifest on every
+`--oci-cache` run, to authorize the pull and to notice a tag that moved, so the host needs to reach
+the registry; the workload does not.
 
 **3. Run the untrusted command.**
 
@@ -69,9 +76,9 @@ scripts/run.sh --repo ./repo --out ./out -- sh -c 'python3 /workspace/calc.py > 
 ```
 
 The repo is mounted read-only at `/workspace`, or at the path `--repo-path` names, the output
-directory writable at `/out`, and the run has no network. It prints `used_host_cache=yes`, which is the assertion that the bake worked and
-that this run reached no registry: without it the run pulled, which means it had network, which
-means it was not the isolation you asked for.
+directory writable at `/out`, and the run has no network. It prints `used_host_cache=yes`, which
+is the assertion that the bake worked and that this run's machine pulled nothing: without it the
+guest pulled, which means it had network, which means it was not the isolation you asked for.
 
 It also prints `vm_pid=` and records it. **That pid is the only route back to the machine** if the
 run has to be stopped.
@@ -105,6 +112,9 @@ The inside half proves the workload could not write the repo and could not reach
 host half proves the artifact came out and the repo is unchanged. A run that merely exited zero
 tells you neither.
 
+`verify.sh` probes the shape without a grant. After a run with `--allow-host`, its
+`inside_network` line does not describe that run's egress.
+
 `--expect` takes one value and compares it with the whole file, newlines removed. For output of
 several lines, have the command write the one value to check into a file of its own and name that
 with `--expect-file`, or leave `--expect` off and the step checks only that the file is there and
@@ -119,7 +129,7 @@ scripts/cleanup.sh --cancel --purge   # to stop a run that is still going
 ```
 
 `--cancel` kills exactly the VMs `run.sh` recorded and then verifies that nothing is left. It waits
-20 seconds before asserting an empty machine list, and says so, because the ephemeral entry retires
+up to 20 seconds, polling, before asserting an empty machine list, and says so, because the ephemeral entry retires
 after the run returns and an immediate assertion fails on a healthy host.
 
 ## Cancelling, and why Ctrl-C is not it
@@ -190,7 +200,7 @@ Read these when the situation calls for them; they are not needed for a normal r
 - **Linux x86_64**: the offline route was verified on v1.14.2 on an NVIDIA A10 cloud host, not
   re-run since.
 - **macOS arm64**: **the offline route, the network-on route and the cancel path on both were run
-  here on v1.22.2**, 2026-10-03. Before v1.20.2 the offline shape is unavailable (#1192, reproduced
+  here on v1.23.0**, 2026-10-04. Before v1.20.2 the offline shape is unavailable (#1192, reproduced
   3 of 3 on v1.18.2), and `references/macos.md` gives the routes run on v1.18.2.
 - **Windows x86_64**: the offline shape is unavailable for a different reason, the bake never
   completes. `references/windows.md`, **re-run on 2026-10-03 against v1.22.2** on Windows 11 Home
@@ -204,7 +214,7 @@ Read these when the situation calls for them; they are not needed for a normal r
 network, and get the output back."**
 
 The offline route on macOS arm64, with the network off for the whole run; this is v1.20.2's output,
-and v1.22.2 gave the same values:
+and v1.22.2 and v1.23.0 gave the same values:
 
 ```
 route=offline
@@ -235,21 +245,43 @@ result=clean
 ```
 
 That is Lima on v1.14.2, on the network-on route. On the offline route the VM is a forked child, and
-on v1.22.2 on macOS the same cancel printed `cancelled=<pid> config=forked-under <HOME>/.smolvm`.
+on v1.22.2 and v1.23.0 on macOS the same cancel printed `cancelled=<pid> config=forked-under
+<HOME>/.smolvm`.
 
 **3. "Can I run untrusted code on this host?"**
 
-On macOS arm64 on v1.22.2 the preflight says `offline_shape=available` and `result=ready`. Before
+On macOS arm64 on v1.23.0 the preflight says `offline_shape=available` and `result=ready`. Before
 v1.20.2 it says `offline_shape=unavailable`, `offline_shape_blocker=smol-machines/smolvm#1192` and
 `result=blocked`, and `bake.sh` refuses with `result=unsupported_on_macos` rather than baking
 something unusable.
 
+## Re-verified on v1.23.0
+
+Run 2026-10-04 PT against v1.23.0 from the published release, checksum checked, under a fresh
+isolated `HOME` on macOS 27.0.1 arm64, once. On Lima `linux-kvm` (Ubuntu 24.04 aarch64) the
+checks named below ran once, so the Linux stamp stays on its earlier release.
+
+**macOS: every step on both routes.** The preflight said `result=ready`, `offline_shape=available`
+and `device_budget_ok=not_limiting`, `bake.sh` `baked in 5s` and `result=baked`, the offline run
+`used_host_cache=yes`, and `verify.sh` gave `inside_workspace=ok (readonly)`, `inside_out=ok
+(writable)`, `inside_network=ok (blocked)`, `artifact=ok (42)`, `repo_unchanged=ok` and
+`result=isolation_held`. A run granted `--allow-host example.com` reached it, and the network-on
+route gave `inside_network=ok (REACHED)` with the rest unchanged. `cleanup.sh --cancel --purge`
+reported `cancelled=<pid> config=forked-under <HOME>/.smolvm` and `result=clean`. The persistent
+machine with no network in `README.md` booted `python:3.12-alpine` with the repo read-only.
+
+Linux aarch64: the same persistent machine with no network started in 12 s, the guest's `touch`
+on `/workspace` gave `Read-only file system`, `wget` gave `bad address 'example.com'`, and `42`
+reached the output directory. The offline route ran end to end: `baked in 72s`,
+`used_host_cache=yes`, `inside_network=ok (blocked)`, `artifact=ok (42)`, `repo_unchanged=ok`
+and `result=isolation_held`.
+
 ## Re-verified on v1.22.2
 
 Run 2026-10-03 PT against v1.22.2 from the published release, checksum checked, under an isolated
-`HOME` on macOS 27.0.1 arm64, once to write and once from a fresh `HOME` to verify. On Lima
-`linux-kvm` (Ubuntu 24.04 aarch64) guests above 2048 MiB timed out that day, so the Linux lines
-below are a single run and the Linux stamp stays on its earlier release.
+`HOME` on macOS 27.0.1 arm64, twice, the second time from a fresh `HOME`. On Lima `linux-kvm`
+(Ubuntu 24.04 aarch64) on 2026-10-03 guests above 2048 MiB timed out, so the Linux lines below are
+a single run and the Linux stamp stays on its earlier release.
 
 **macOS: every step on both routes.** The preflight said `result=ready` and `offline_shape=available`,
 `bake.sh` `result=baked`, the offline run `used_host_cache=yes`, and `verify.sh` gave
@@ -288,11 +320,14 @@ network-on route on Linux, and killing `run.sh` alone left it alive on both rout
 
 ## What was not run
 
-- **The offline route on Linux on v1.18.2 and v1.22.2.** That host could not boot the bake helper's
-  8192 MiB in time; it ran on v1.20.2.
+- **The offline route on Linux on v1.18.2 and v1.22.2.** The Lima `linux-kvm` host could not boot
+  the bake helper's 8192 MiB in time on those releases; it ran on v1.20.2 and v1.23.0. The branch
+  of `bake.sh` that reports a helper too large for the host ran on v1.23.0 only against a stub
+  that failed the bake, not on a host that could not boot the helper.
 - **A GPU workload.** Nothing here was run against a GPU on either release.
-- **The macOS second-choice route** in `references/macos.md`, which needs a `docker`, `crane`,
-  `podman` or `nerdctl` binary to produce an image archive. None is installed on that host.
+- **The macOS second-choice route** in `references/macos.md` since v1.16.1. An agent following
+  this packet ran it on macOS arm64 on v1.16.1, 2026-09-15, with an archive built by `crane`
+  0.22.1; it has not been re-run since, and the `docker save` form on that page was not run.
 - **Windows, the cancel scripts.** `scripts/*.sh` do not run there; `references/windows.md` has the
   measurements a port would need.
 - **S3 and `:staged` mounts**, and driving the packet from a CI runner.
@@ -316,14 +351,15 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 #
 # usage: preflight.sh [--mounts N] [--ports N]
 #   --mounts N  how many -v mounts your run will pass (default 2: repo plus out)
-#   --ports N   how many -p publishes it will pass (default 0)
+#   --ports N   how many -p publishes it will pass (default 0); any number is one device,
+#               and so is any --allow-host or --allow-cidr: pass --ports 1 for those
 #
 # Read-only: starts no VM, bakes nothing, writes no smolvm state.
 # Output is one key=value per line. The last line is result=ready or result=blocked.
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.22.2"
+VERIFIED_VERSION="1.23.0"
 
 # v1.20.2 fixed both issues this packet was built around (#1467): a cached run
 # with a mount boots on macOS (#1192), and a cached run's VM ends with its CLI
@@ -331,10 +367,12 @@ VERIFIED_VERSION="1.22.2"
 FIXED_IN="1.20.2"
 at_least() { [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$2" ]; }
 
-# The guest gets eleven IRQs. Four -v mounts boot and five fail with "no more
-# IRQs are available", and any published port costs one of those slots, so the
-# budget is mounts plus ports. Measured on Windows Hypervisor Platform and the
-# same budget on Linux.
+# x86_64 guests through v1.22.2 have eleven IRQs (libkrun IRQ_BASE 5 to
+# IRQ_MAX 15): four -v mounts boot and five fail with "no more IRQs are
+# available". Any -p, --allow-host or --allow-cidr adds one virtio-net device,
+# however many ports. Measured on Windows Hypervisor Platform. v1.23.0 ships
+# libkrun with IRQ_MAX 23 (#1521) and its ceiling was not measured, so the check
+# applies to x86_64 through v1.22.2 only. arm64 guests have 128 IRQs.
 DEVICE_BUDGET=4
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
@@ -434,17 +472,24 @@ case "$kernel" in
         ;;
 esac
 
-# The devices your planned run needs, against the budget.
+# The devices your planned run needs, against the budget. Any number of ports
+# shares one network device.
+net_devices=0
+[ "$ports" -gt 0 ] && net_devices=1
 emit planned_mounts "$mounts"
 emit planned_ports "$ports"
-emit device_budget "$DEVICE_BUDGET"
-emit devices_requested "$((mounts + ports))"
-if [ "$((mounts + ports))" -le "$DEVICE_BUDGET" ]; then
-    emit device_budget_ok yes
+emit devices_requested "$((mounts + net_devices))"
+if [ "$arch" = "x86_64" ] && [ -n "${version:-}" ] && [ "$version" != "unknown" ] && ! at_least "$version" "1.22.3"; then
+    emit device_budget "$DEVICE_BUDGET"
+    if [ "$((mounts + net_devices))" -le "$DEVICE_BUDGET" ]; then
+        emit device_budget_ok yes
+    else
+        emit device_budget_ok no
+        blocked=1
+        note "on x86_64 through v1.22.2 more than four devices beyond the base set fail with 'no more IRQs are available'; a published port or an --allow-host grant is one. Combine directories under one mount."
+    fi
 else
-    emit device_budget_ok no
-    blocked=1
-    note "mounts plus published ports exceeds the guest's device budget; the boot fails with 'no more IRQs are available'. Combine directories under one mount, or drop a port."
+    emit device_budget_ok not_limiting
 fi
 
 # Ctrl-C does not stop a run started by run.sh on any release: it backgrounds
@@ -466,14 +511,15 @@ if [ "$blocked" -eq 0 ]; then emit result ready; else emit result blocked; fi
 
 ```bash
 #!/usr/bin/env bash
-# Bake an image into the host cache. This is the only step that talks to a
-# registry, and it runs with the network on and nothing untrusted mounted.
+# Bake an image into the host cache. This is the only step in which a machine
+# has a network, and it runs with nothing untrusted mounted.
 #
 # usage: bake.sh [<image>]      (default python:3.12-alpine)
 #
 # Do this before the untrusted code is anywhere near the machine. Afterwards the
-# runs need no network at all, which is materially stronger isolation
-# than granting egress and hoping the workload behaves.
+# runs' machines need no network at all, which is materially stronger isolation
+# than granting egress and hoping the workload behaves. The host CLI still asks
+# the registry for the image's manifest on every run.
 
 set -uo pipefail
 
@@ -532,18 +578,20 @@ if printf '%s' "$out" | grep -q 'did not become ready'; then
     if "$SMOLVM" machine run --mem 2048 --net --image alpine -- echo CONTROL_OK 2>&1 | grep -q CONTROL_OK; then
         printf '  control_boot_2048=ok\n'
         printf '  So small VMs boot here and the helper does not: this host cannot give the bake\n'
-        printf '  the memory it takes. Use the network-on route instead (scripts/run.sh\n'
-        printf '  --route network-on), and read references/macos.md, which explains what that\n'
-        printf '  route costs you. It is the same trade on any host that cannot bake.\n'
+        printf '  the memory it takes. From v1.23.0 a persistent machine created with no network\n'
+        printf '  boots the image with no bake (README.md, "The network is off unless you ask\n'
+        printf '  for it"). Otherwise use the network-on route (scripts/run.sh --route\n'
+        printf '  network-on), and read references/macos.md, which explains what that route\n'
+        printf '  costs you. It is the same trade on any host that cannot bake.\n'
     else
         printf '  control_boot_2048=failed\n'
         printf '  Nothing boots here at all. This is not a bake problem: run the install\n'
         printf '  packet preflight, which checks KVM access and the macOS socket path length.\n'
     fi
 else
-    printf 'The bake is the only networked step. If it failed on the registry, fix that here\n'
-    printf 'rather than adding --net to the workload run, which is what the CLI hint suggests\n'
-    printf 'and is the opposite of what an isolated run wants.\n'
+    printf 'The bake is the only step with a networked machine. If it failed on the registry,\n'
+    printf 'fix that here rather than adding --net to the workload run, which is what the CLI\n'
+    printf 'hint suggests and is the opposite of what an isolated run wants.\n'
 fi
 exit 1
 ```
@@ -577,7 +625,8 @@ exit 1
 # background command in a script ignores SIGINT, so the CLI and its VM keep
 # running. Before v1.20.2 an interrupted CLI also leaves a cached run's VM
 # behind, invisible to `machine list` (smol-machines/smolvm#1193). Cancel with
-# `scripts/cleanup.sh --cancel`, never with Ctrl-C.
+# `scripts/cleanup.sh --cancel`, never with Ctrl-C. Image seeding is off for the
+# run, so the first VM process is the workload's.
 
 set -uo pipefail
 
@@ -630,22 +679,32 @@ STATE_DIR="${SMOLVM_SKILL_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/smolv
 mkdir -p "$STATE_DIR"
 PIDFILE="$STATE_DIR/throwaway-machine.vmpids"
 
+# With SMOLVM_DATA_DIR set, smolvm runs with HOME there on Linux, so its cache
+# is under .cache in it.
 case "$(uname -s)" in
     Darwin) VMS_DIR="$HOME/Library/Caches/smolvm/vms" ;;
-    *)      VMS_DIR="${SMOLVM_DATA_DIR:-$HOME/.cache/smolvm}/vms" ;;
+    *)      cache_root="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.cache}"
+            VMS_DIR="${cache_root:-${XDG_CACHE_HOME:-$HOME/.cache}}/smolvm/vms" ;;
 esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
+if [ -n "${SMOLVM:-}" ]; then
+    case "$(readlink "$SMOLVM" 2>/dev/null || printf '%s' "$SMOLVM")" in
+        "$SMOLVM_PREFIX"/*) ;;
+        *) printf 'note=%s is not under %s, so the process scan cannot see its forked VMs (all of its VMs on macOS); set SMOLVM_PREFIX to its directory\n' "$SMOLVM" "$SMOLVM_PREFIX" ;;
+    esac
+fi
 
 # List this HOME's VM processes as "pid marker". The plain run path execs a
 # `_boot-vm` child that carries its boot config; the pack-run path forks one that
-# carries none. Linux names both `libkrun VM`; on macOS the executable path and
-# the parent chain scope the search. The teardown packet's traps have the why.
+# carries none. Linux names both `libkrun VM`, or `VM:<hostname>` when HOSTNAME
+# is exported; on macOS the executable path and the parent chain scope the
+# search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
             for p in /proc/[0-9]*; do
-                [ "$(cat "$p/comm" 2>/dev/null)" = "libkrun VM" ] || continue
+                case "$(cat "$p/comm" 2>/dev/null)" in "libkrun VM"|VM:*) ;; *) continue ;; esac
                 pid="${p#/proc/}"
                 cfg="$(tr '\0' '\n' < "$p/cmdline" 2>/dev/null | sed -n '3p')"
                 case "$cfg" in
@@ -658,16 +717,21 @@ list_vm_processes() {
             ;;
         Darwin)
             # shellcheck disable=SC2009  # pgrep -f would match this script.
-            own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
-            ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
+            procs="$(ps -axo pid=,ppid=,command= 2>/dev/null)"
+            printf '%s\n' "$procs" | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
+                # An orphan counts only if it is a run; a fork has its parent's command line.
                 if [ "$ppid" = 1 ]; then
-                    printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
+                    case "$rest" in
+                        *" machine run "*|*" vm run "*|*" pack run "*)
+                            printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
+                    esac
                 else
-                    case "$own" in *" $ppid "*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;; esac
+                    parent="$(printf '%s\n' "$procs" | while read -r q qp qrest; do [ "$q" = "$ppid" ] && { printf '%s' "$qrest"; break; }; done)"
+                    [ "$parent" = "$rest" ] && printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 fi
             done
             ;;
@@ -690,7 +754,7 @@ if [ "$ROUTE" = "network-on" ]; then
         printf 'egress=granted %s\n' "${allow[*]}"
         printf 'note=the run also needs to reach the registry to pull its image, so the policy must include the registry hosts or the run will not start.\n'
     fi
-    printf 'note=this is the weaker isolation. The offline route reaches no network at all; this one is open for as long as the workload runs.\n'
+    printf 'note=this is the weaker isolation. The offline route gives the workload no network at all; this one is open for as long as the workload runs.\n'
 elif [ "${#allow[@]}" -gt 0 ]; then
     printf 'egress=granted %s\n' "${allow[*]}"
     printf 'note=--allow-host implies --net. The workload can now reach the named hosts, and a denial looks like a DNS failure rather than a policy denial.\n'
@@ -699,7 +763,7 @@ else
 fi
 
 logfile="$STATE_DIR/throwaway-machine.lastrun.log"
-"$SMOLVM" machine run --mem 2048 ${cache[@]+"${cache[@]}"} --image "$IMAGE" \
+SMOLVM_IMAGE_SEEDS=0 "$SMOLVM" machine run --mem 2048 ${cache[@]+"${cache[@]}"} --image "$IMAGE" \
     --volume "$REPO:$REPO_PATH:ro" \
     --volume "$OUT:/out" \
     ${allow[@]+"${allow[@]}"} \
@@ -712,6 +776,13 @@ cli_pid=$!
 # and bounded so a workload that finishes instantly does not stall the script.
 recorded=""
 waited=0
+# Keep only recorded pids that are still VM processes, so --cancel never reaches a recycled one.
+if [ -s "$PIDFILE" ]; then
+    while read -r pid cfg; do
+        [ -n "$pid" ] && grep -qx -- "$pid" <<<"$before" && printf '%s %s\n' "$pid" "$cfg"
+    done < "$PIDFILE" > "$PIDFILE.tmp"
+    mv "$PIDFILE.tmp" "$PIDFILE"
+fi
 while [ "$waited" -lt 90 ]; do
     while read -r pid cfg; do
         [ -n "$pid" ] || continue
@@ -740,8 +811,8 @@ rc=$?
 sed 's/^/  /' "$logfile"
 
 # On the offline route the cache-hit line is the assertion that the bake worked
-# and that this run reached no registry. Without it the run pulled, which means
-# it had network, which means it was not the isolation you asked for.
+# and that this run's machine pulled nothing. Without it the guest pulled, which
+# means it had network, which means it was not the isolation you asked for.
 if [ "$ROUTE" = "offline" ]; then
     if grep -q 'host cache hit' "$logfile"; then
         printf 'used_host_cache=yes\n'
@@ -754,7 +825,7 @@ else
 fi
 
 printf 'cli_exit=%s\n' "$rc"
-printf 'next: scripts/verify.sh, then scripts/cleanup.sh\n'
+printf 'next: scripts/verify.sh, then scripts/cleanup.sh --purge\n'
 exit "$rc"
 ```
 
@@ -830,7 +901,9 @@ inside="$("$SMOLVM" machine run --mem 2048 ${cache[@]+"${cache[@]}"} ${net[@]+"$
     -- sh -c '
         touch /workspace/ISOLATION_PROBE 2>/dev/null && echo "workspace=WRITABLE" || echo "workspace=readonly"
         touch /out/ISOLATION_PROBE      2>/dev/null && echo "out=writable"       || echo "out=READONLY"
-        wget -q -T3 -O- http://example.com >/dev/null 2>&1 && echo "net=REACHED" || echo "net=blocked"
+        if ! command -v wget >/dev/null 2>&1; then echo "net=no_probe_tool"
+        elif wget -q -T3 -O- http://example.com >/dev/null 2>&1; then echo "net=REACHED"
+        else echo "net=blocked"; fi
     ' 2>&1 | tr -d '\r')"
 printf '%s\n' "$inside" | sed 's/^/  /'
 
@@ -907,22 +980,32 @@ if [ -z "$SMOLVM" ]; then
     exit 2
 fi
 
+# With SMOLVM_DATA_DIR set, smolvm runs with HOME there on Linux, so its cache
+# is under .cache in it.
 case "$(uname -s)" in
     Darwin) VMS_DIR="$HOME/Library/Caches/smolvm/vms" ;;
-    *)      VMS_DIR="${SMOLVM_DATA_DIR:-$HOME/.cache/smolvm}/vms" ;;
+    *)      cache_root="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.cache}"
+            VMS_DIR="${cache_root:-${XDG_CACHE_HOME:-$HOME/.cache}}/smolvm/vms" ;;
 esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
+if [ -n "${SMOLVM:-}" ]; then
+    case "$(readlink "$SMOLVM" 2>/dev/null || printf '%s' "$SMOLVM")" in
+        "$SMOLVM_PREFIX"/*) ;;
+        *) printf 'note=%s is not under %s, so the process scan cannot see its forked VMs (all of its VMs on macOS); set SMOLVM_PREFIX to its directory\n' "$SMOLVM" "$SMOLVM_PREFIX" ;;
+    esac
+fi
 
 # List this HOME's VM processes as "pid marker". The plain run path execs a
 # `_boot-vm` child that carries its boot config; the pack-run path forks one that
-# carries none. Linux names both `libkrun VM`; on macOS the executable path and
-# the parent chain scope the search. The teardown packet's traps have the why.
+# carries none. Linux names both `libkrun VM`, or `VM:<hostname>` when HOSTNAME
+# is exported; on macOS the executable path and the parent chain scope the
+# search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
             for p in /proc/[0-9]*; do
-                [ "$(cat "$p/comm" 2>/dev/null)" = "libkrun VM" ] || continue
+                case "$(cat "$p/comm" 2>/dev/null)" in "libkrun VM"|VM:*) ;; *) continue ;; esac
                 pid="${p#/proc/}"
                 cfg="$(tr '\0' '\n' < "$p/cmdline" 2>/dev/null | sed -n '3p')"
                 case "$cfg" in
@@ -935,16 +1018,21 @@ list_vm_processes() {
             ;;
         Darwin)
             # shellcheck disable=SC2009  # pgrep -f would match this script.
-            own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
-            ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
+            procs="$(ps -axo pid=,ppid=,command= 2>/dev/null)"
+            printf '%s\n' "$procs" | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
+                # An orphan counts only if it is a run; a fork has its parent's command line.
                 if [ "$ppid" = 1 ]; then
-                    printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
+                    case "$rest" in
+                        *" machine run "*|*" vm run "*|*" pack run "*)
+                            printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
+                    esac
                 else
-                    case "$own" in *" $ppid "*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;; esac
+                    parent="$(printf '%s\n' "$procs" | while read -r q qp qrest; do [ "$q" = "$ppid" ] && { printf '%s' "$qrest"; break; }; done)"
+                    [ "$parent" = "$rest" ] && printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 fi
             done
             ;;
@@ -954,13 +1042,14 @@ list_vm_processes() {
 # 1. Cancel: kill exactly the VMs run.sh recorded, and only those.
 if [ "$cancel" -eq 1 ]; then
     if [ -s "$PIDFILE" ]; then
+        # A recorded pid is killed only while it is still a VM process.
+        live=" $(list_vm_processes | awk '{print $1}' | tr '\n' ' ') "
         while read -r pid cfg; do
             [ -n "$pid" ] || continue
-            if kill -0 "$pid" 2>/dev/null; then
-                kill -9 "$pid" 2>/dev/null && printf 'cancelled=%s config=%s\n' "$pid" "$cfg"
-            else
-                printf 'already_gone=%s\n' "$pid"
-            fi
+            case "$live" in
+                *" $pid "*) kill -9 "$pid" 2>/dev/null && printf 'cancelled=%s config=%s\n' "$pid" "$cfg" ;;
+                *) printf 'already_gone=%s\n' "$pid" ;;
+            esac
         done < "$PIDFILE"
     else
         printf 'cancelled=none_recorded\n'
@@ -970,12 +1059,17 @@ fi
 # 2. An ephemeral machine's entry retires after the run returns, not with it, so
 # an immediate assertion fails on a healthy host. This is the single most likely
 # false failure in a scripted run.
-printf 'waiting=20s for ephemeral entries to retire before asserting\n'
-sleep 20
+printf 'waiting=up to 20s for ephemeral entries to retire before asserting\n'
+waited=0
+listing="$("$SMOLVM" machine list 2>&1)"
+while ! grep -q 'No machines found' <<<"$listing" && [ "$waited" -lt 20 ]; do
+    sleep 1; waited=$((waited + 1))
+    listing="$("$SMOLVM" machine list 2>&1)"
+done
+printf 'waited=%ss\n' "$waited"
 
 # 3. Assert values.
-listing="$("$SMOLVM" machine list 2>&1)"
-if printf '%s' "$listing" | grep -q 'No machines found'; then
+if grep -q 'No machines found' <<<"$listing"; then
     printf 'machines=clean\n'
 else
     printf 'machines=remaining\n'
@@ -985,9 +1079,9 @@ else
     printf '  add --cascade for a machine that was branched from another\n'
 fi
 
-# `_shared` is the image store bake.sh writes into. It is the cache, not
-# residue, so counting it as a leak gives a false positive on every host that
-# has ever baked.
+# `_shared` is the Linux shared pack store, written by machine create --from and
+# checkpoint restores. It is cache, not residue, so counting it as a leak gives
+# a false positive.
 if [ -d "$VMS_DIR" ]; then
     left="$(find "$VMS_DIR" -mindepth 1 -maxdepth 1 -type d ! -name _shared 2>/dev/null | wc -l | tr -d ' ')"
 else
@@ -999,16 +1093,18 @@ if [ "$left" -gt 0 ]; then
 fi
 
 # What a bake leaves behind is cache, not residue, and deleting it costs you the
-# offline route. Report both places it can live: `_shared` under the VM state,
-# and the pack cache, which is where a v1.14.2 bake actually landed on macOS.
+# offline route. Report both places it can live: `init-layers` beside the VM
+# state, and the pack cache, which is where a v1.14.2 bake landed on macOS.
 case "$(uname -s)" in
     Darwin) PACK_CACHE="$HOME/Library/Caches/smolvm-pack" ;;
-    *)      PACK_CACHE="$HOME/.cache/smolvm-pack" ;;
+    *)      cache_root="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.cache}"
+            PACK_CACHE="${cache_root:-${XDG_CACHE_HOME:-$HOME/.cache}}/smolvm-pack" ;;
 esac
-if [ -d "$VMS_DIR/_shared" ]; then
-    printf 'image_cache_shared=%s\n' "$(du -sk "$VMS_DIR/_shared" 2>/dev/null | awk '{printf "%dMB", $1/1024}')"
+INIT_LAYERS="$(dirname "$VMS_DIR")/init-layers"
+if [ -d "$INIT_LAYERS" ]; then
+    printf 'image_cache_init_layers=%s\n' "$(du -sk "$INIT_LAYERS" 2>/dev/null | awk '{printf "%dMB", $1/1024}')"
 else
-    printf 'image_cache_shared=absent\n'
+    printf 'image_cache_init_layers=absent\n'
 fi
 if [ -d "$PACK_CACHE" ]; then
     printf 'image_cache_pack=%s\n' "$(du -sk "$PACK_CACHE" 2>/dev/null | awk '{printf "%dMB", $1/1024}')"
@@ -1195,9 +1291,10 @@ Measured on v1.14.6 on Ubuntu 24.04 aarch64: with two orphaned pack-run VMs aliv
 `vm_pid=not_observed`. **The reaper was blind to exactly the path that survives an interrupt**,
 which is the pack-run path, and sighted only on the path that does not.
 
-**What works.** On Linux both shapes rename themselves to `libkrun VM`, which no shell can hold,
-so `scripts/cleanup.sh` matches `/proc/<pid>/comm` and then scopes by argv[2] when it is there and
-by the executable's path when it is not. macOS exposes no rename, so there the search is scoped by
+**What works.** On Linux both shapes rename themselves to `libkrun VM`, or to `VM:<hostname>` when
+`HOSTNAME` is exported, which no shell can hold, so `scripts/cleanup.sh` matches either in
+`/proc/<pid>/comm` and then scopes by argv[2] when it is there and by the executable's path when it
+is not. macOS exposes no rename, so there the search is scoped by
 the executable path under this `HOME` and the parent chain separates a VM from the CLI that
 started it. Verified against a live orphan on both hosts: the same sequence now reports
 `vm_process=... forked-under ...` and `result=vms_still_running`, and `--cancel` clears it.
@@ -1209,16 +1306,18 @@ observed 2026-09-29 on both hosts. On macOS it also lists that CLI, reparented t
 
 ### What is cache and what is residue
 
-`ls ~/.cache/smolvm/vms/ | wc -l` is not a leak check. Two separate caches exist and neither is
-residue:
+`ls ~/.cache/smolvm/vms/ | wc -l` is not a leak check. A bake fills two separate caches and
+neither is residue:
 
-- `vms/_shared`, an image store under the VM cache.
-- **the pack cache**, `~/Library/Caches/smolvm-pack` on macOS and `~/.cache/smolvm-pack` on Linux.
-  On v1.14.2 on macOS a bake of one alpine image landed **here** and produced no `_shared` at all:
+- `init-layers/`, beside `vms/` in the smolvm cache, where a bake writes its layers.
+- **the pack cache**, `~/Library/Caches/smolvm-pack` on macOS and `~/.cache/smolvm-pack` on Linux,
+  where a cached run extracts them. On v1.14.2 on macOS a bake of one alpine image landed **here**:
   114 MB in the pack cache, `vms/_shared` absent. Observed 2026-09-08.
 
 `scripts/cleanup.sh` reports both and keeps both. Deleting them costs you the offline route, and
-the next bake pays for it again.
+the next bake pays for it again. `vms/_shared` is a third store, the shared pack store (Linux,
+after `machine create --from` or a checkpoint restore); it is cache too, and the leak count
+excludes it.
 
 Leftover VM directories are also not necessarily a leak: `smolvm serve start` prints
 `Reclaimed N dangling VM data dir(es)` on startup and clears them.

@@ -14,15 +14,15 @@ Find the task, then read the one page it names. Each packet was run end to end a
 
 | Your task | Packet | Not for | Verified on |
 |---|---|---|---|
-| Install smolvm and prove the host can boot a VM | [install](/docs/guides/skills/install) | Removing an install; anything after the first boot | smolvm v1.22.2 on macOS arm64, v1.18.2 on Linux aarch64 |
-| Stop everything and prove the host is clean | [teardown](/docs/guides/skills/teardown) | Deleting machines another session created | smolvm v1.22.2 on macOS arm64, v1.18.2 on Linux aarch64 |
-| Run untrusted code with no network, against a read-only repo | [throwaway-machine](/docs/guides/skills/throwaway-machine) | A machine you re-enter; Docker in a machine; installing smolvm | smolvm v1.22.2 on macOS arm64; on Linux aarch64 the offline route on v1.20.2 and the network-on route on v1.18.2 |
+| Install smolvm and prove the host can boot a VM | [install](/docs/guides/skills/install) | Removing an install; anything after the first boot | smolvm v1.23.0 on macOS arm64, v1.18.2 on Linux aarch64 |
+| Stop everything and prove the host is clean | [teardown](/docs/guides/skills/teardown) | Deleting machines another session created | smolvm v1.23.0 on macOS arm64, v1.18.2 on Linux aarch64 |
+| Run untrusted code with no network, against a read-only repo | [throwaway-machine](/docs/guides/skills/throwaway-machine) | A machine you re-enter; Docker in a machine; installing smolvm | smolvm v1.23.0 on macOS arm64; on Linux aarch64 the offline route on v1.20.2 and the network-on route on v1.18.2 |
 | Keep a development machine you re-enter across sessions | [dev-env](/docs/guides/skills/dev-env) | Untrusted code; Docker in a machine | smolvm v1.22.2 on macOS arm64, v1.18.2 on Linux aarch64 |
-| Drive the local runtime over HTTP | [local-api](/docs/guides/skills/local-api) | Replacing the CLI in a shell script; binding beyond loopback | smolvm v1.22.2 on macOS arm64, v1.18.2 on Linux aarch64 |
+| Drive the local runtime over HTTP | [local-api](/docs/guides/skills/local-api) | Replacing the CLI in a shell script; binding beyond loopback | smolvm v1.23.0 on macOS arm64, v1.18.2 on Linux aarch64 |
 | Run a Docker daemon inside a machine | [docker-in-machine](/docs/guides/skills/docker-in-machine) | Running OCI images, which need no Docker; Windows | smolvm v1.22.2 on macOS arm64, v1.18.2 on Linux aarch64 |
 | Run CUDA workloads against a host NVIDIA GPU | [gpu-cuda](/docs/guides/skills/gpu-cuda) | Vulkan graphics (`--gpu`); a Mac, which has no NVIDIA GPU | smolvm v1.22.2 on Windows x86_64 (RTX 4050) and v1.14.6 on Linux x86_64 (A10); the no-GPU answer on v1.22.2 on macOS arm64 and v1.18.2 on Linux aarch64 |
 | Ship a prepared machine to another host as one file | [pack](/docs/guides/skills/pack) | A machine you re-enter; untrusted code | smolvm v1.22.2 on macOS arm64, v1.14.6 on Linux aarch64 |
-| Checkpoint a machine on a schedule, restore any generation, pause and resume, and keep a branch point | [branch-and-checkpoint](/docs/guides/skills/branch-and-checkpoint) | Moving a machine to another host as a file; state that only has to survive a restart | smolvm v1.22.2 on macOS arm64, v1.18.2 on Linux aarch64 |
+| Checkpoint a machine on a schedule, restore any generation, pause and resume, and keep a branch point | [branch-and-checkpoint](/docs/guides/skills/branch-and-checkpoint) | Moving a machine to another host as a file; state that only has to survive a restart | smolvm v1.23.0 on macOS arm64, v1.18.2 on Linux aarch64 |
 | Let a workload use an API key it can never read | [credentials](/docs/guides/skills/credentials) | A value the program must parse, which is `--secret-env`; git and ssh keys, which is SSH agent forwarding | smolvm v1.22.2 on macOS arm64, v1.18.2 on Linux aarch64, host side only |
 
 ### Running things on smol cloud
