@@ -110,3 +110,5 @@ The local server does not provide authentication. Bind it to loopback or a prote
 If another host or user must reach the API, place it behind an authenticated, encrypted proxy and enforce host-level account isolation. Anyone who can call the API can ask the runtime to create machines and execute workloads with the capabilities granted to the server process.
 
 `smolvm serve` is a per-host runtime API. It is not the standalone smol cloud fleet control plane.
+
+A machine `serve` starts cannot reach a private, carrier-NAT or loopback address even when its `allowedCidrs` names one: `serve` raises the egress floor for every machine it starts, and no allow-list entry lowers it. To lift it, set `SMOLVM_EGRESS_FLOOR` before starting `serve`: `metadata` keeps only the link-local range that holds cloud metadata blocked, and `off` blocks nothing. Neither is the CLI's default, which also blocks the host's loopback.
