@@ -28,7 +28,8 @@ when it does not happen the pull falls back into your own machine, which then
 needs `--net`. The pull running in the builder machine has one consequence worth
 knowing: an egress allow list on your machine governs the workload and not the
 image, so a machine restricted to one hostname still starts from an image on a
-registry that list does not name. On the default backend the guest has no visible network interface and `ping` does
+registry that list does not name. Add `--seed-digest-ttl SECONDS` to reuse a
+digest resolved that recently instead of checking the registry on every run. On the default backend the guest has no visible network interface and `ping` does
 not work, even though TCP and UDP do — see [how networking behaves inside a
 machine](#how-networking-behaves-inside-a-machine). An ephemeral run pulls every time unless you add `--oci-cache`,
 which keeps the image on the host for later runs to start from without a pull.
@@ -44,12 +45,20 @@ smolvm machine run \
 
 `--allow-host` limits egress to the named host. Add multiple flags when the workload needs multiple hosts.
 
+What a policy filters depends on which kind you give it. A hostname list filters name resolution
+too: a name that is not on it fails to resolve, and `machine egress-events` records the refusal as
+a `resolve` row. An address list does not. Under `--allow-cidr` alone, or under
+`--outbound-localhost-only`, the guest still resolves any name through the host's resolver and gets
+real addresses back; only the connection that follows is refused. So an address list does not keep
+a workload from learning where something lives.
+
 ## Persistent machines
 
-`machine create` is stricter than `machine run` about images. An ephemeral run starts from the
-image seed described above and needs no networking of its own, while `create` refuses an uncached
-registry image on a machine with none, even when a previous run already seeded that image locally. Pass `--net`, or
-supply the image locally with `--image -`.
+`machine create` no longer needs networking for an uncached registry image: the host fetches it on
+the machine's behalf, so neither a non-default `--storage` nor `SMOLVM_IMAGE_SEEDS=0` stops it,
+where both of those send an ephemeral run back to pulling in the guest. An image whose registry serves an older manifest format is the
+case that still fails, at `start` rather than at `create`, with `parse manifest: missing field
+mediaType`. Supply such an image locally with `--image -`, or pass `--net`.
 
 
 A persistent machine separates creation from execution:
@@ -185,17 +194,16 @@ smolvm machine cp dev:/workspace/result.json ./result.json
 
 `machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.smolcheckpoint` file. The machine keeps running.
 
-The machine has to have been started branchable, because a checkpoint reads the same copy-on-write guest memory a branch does. Start it with `--branchable`, which the engine also accepts as `--forkable`:
-
-```bash
-smolvm machine start --name dev --branchable
-```
-
-Then capture it:
+Capture it while it runs:
 
 ```bash
 smolvm machine checkpoint --name dev -o ./dev.smolcheckpoint
 ```
+
+The source is paused only for the copy-on-write snapshot, a fraction of a second, and the command
+reports that pause separately from the packaging that continues behind it. A machine does not have
+to have been started `--branchable` to be checkpointed, though starting it that way makes the pause
+shorter.
 
 Restore it through `machine create`, which accepts a checkpoint wherever it accepts a pack:
 
@@ -204,9 +212,45 @@ smolvm machine create --name dev-restored --from ./dev.smolcheckpoint
 smolvm machine start --name dev-restored
 ```
 
-The restored machine resumes from the captured instant instead of booting. Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
+The restored machine resumes from the captured instant instead of booting, and it gets an identity
+of its own: its hostname is the new machine's name. Add `--keep-identity` to keep the hostname and
+machine ID the checkpoint was saved with, which is what rewinding one machine to an earlier save
+point wants. Do not run two machines from one checkpoint with it.
+
+Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
+
+Adding `--store DIR` writes an incremental checkpoint instead of one file. `--output` is still
+what names the result, and with `--store` it becomes a self-contained directory on the same
+filesystem as `DIR`, sharing unchanged chunks with the generations it keeps so history costs only
+the differences:
+
+```bash
+smolvm machine start --name dev --branchable
+smolvm machine checkpoint --name dev --store ./store -o ./store/dev.checkpoint
+```
+
+The machine has to have been started `--branchable` for this, unlike a single-file checkpoint:
+without it the capture is refused with `deferred durable save requires file-backed guest RAM`.
+`machine checkpoint-log PATH` shows the generations a store holds and the command to restore any
+of them, and `machine checkpoint-prune` removes what nothing references. `machine checkpoint-warm
+--from PATH` prepares a store so a later restore clones a kept copy rather than rebuilding its
+RAM; `--restore-cache-entries` sets how many checkpoints stay ready, three by default, and
+`--restore-cache-gib` caps what they may hold together, 16 GiB by default. Both flags are also
+accepted on `machine create`.
 
 See [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots) for what a checkpoint preserves and where it can be restored.
+
+### Resize a running machine
+
+```bash
+smolvm machine resize --name dev --cpus 4 --mem 2048
+```
+
+`machine resize` grows a running machine without rebooting it, and the guest sees the change at
+once: `nproc` and `/proc/meminfo` report the new figures on the next command. It takes `--cpus`,
+`--mem`, `--storage` and `--overlay`, at least one of them. Memory, storage and overlay grow only,
+and platform alignment applies to a memory target; CPU shrinking works only on compatible Linux
+x86_64 runtimes. To make a smaller machine on any host, stop it and use `machine update`.
 
 ### Update a stopped machine
 
@@ -216,7 +260,20 @@ smolvm machine update --name dev --cpus 6 --mem 12288
 smolvm machine start --name dev
 ```
 
-`machine update` changes configuration for the next start. The machine must be stopped first.
+`machine update` changes configuration for the next start. The machine must be stopped first, and
+it says so rather than guessing: on a running machine the command fails with `invalid vm state:
+expected stopped, got Running`.
+
+It also edits the egress policy, which is otherwise fixed at create time. `--allow-host`,
+`--allow-host-pattern`, `--allow-cidr` and `--outbound-localhost-only` add to the policy, and
+`--remove-allow-host` and `--remove-allow-cidr` take entries back out; `--net` and `--no-net` turn
+networking on and off. The new policy applies from the next start, and only the named destinations
+answer afterwards:
+
+```bash
+smolvm machine update --name dev --allow-host example.com
+smolvm machine start --name dev
+```
 
 ### Mount a host directory
 
@@ -323,7 +380,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only) requ
 
 | Flag | Meaning |
 |---|---|
-| `--image`, `-I` | OCI image, local image archive, stdin archive (`-`), or unpacked rootfs |
+| `--image`, `-I` | OCI image, local image archive, stdin archive (`-`), or unpacked rootfs. A reference may carry a tag and a digest together, `alpine:3.20@sha256:...`, which pins the bytes while keeping the tag readable |
 | `--name`, `-n` | Machine name |
 | `--net` | Enable networking |
 | `--allow-host` | Allow egress to a hostname |
@@ -338,6 +395,8 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only) requ
 | `--tty`, `-t` | Allocate a TTY |
 | `--smolfile`, `-s` | Read configuration from a Smolfile |
 | `--block-io` | Host block I/O engine, `sync` or `async` |
+| `--stop-on-exit` | Stop the machine once its workload exits, whatever the status, flushing storage first |
+| `--seed-digest-ttl` | Reuse an image digest resolved at most this many seconds ago when seeding |
 | `--guest-subnet` | IPv4 subnet for the guest link, such as `10.200.0.0/30` |
 | `--net-backend` | Networking implementation, `tsi` (default) or `virtio-net` |
 

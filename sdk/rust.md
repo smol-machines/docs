@@ -5,8 +5,8 @@ title: Rust SDK
 # Rust SDK
 
 The Rust SDK runs microVMs from a Rust program, locally or on smol cloud, through the same
-`Machine` API the Node and Python SDKs expose. On the local target the crate drives the installed
-`smolvm` CLI as a child process, which is why that target needs the CLI on the host.
+`Machine` API the Node and Python SDKs expose. On the local target the crate drives a `smolvm`
+engine as a child process, fetching one on its own if the host has none.
 
 ## Install
 
@@ -16,10 +16,13 @@ The crate is named `smolmachines`.
 cargo add smolmachines
 ```
 
-**The local target needs the `smolvm` CLI on the host.** Install it first, or point the `SMOLVM`
-environment variable at the binary. Without either, the first local call fails with
-`no smolvm on PATH, install the CLI, or set SMOLVM to a binary, to run machines on this host`.
-The cloud target needs neither.
+**The local target does not need the CLI installed.** crates.io serves source rather than
+binaries, so on the first call that asks for a local machine the crate downloads the engine
+release matching its own version and caches it; nothing is downloaded for a cloud machine. Point
+`SMOLVM` at a binary to use an installed engine instead, `SMOLMACHINES_CACHE_DIR` to move the
+cache, `SMOLMACHINES_ENGINE_VERSION` to pin a different engine, and `SMOLMACHINES_NO_DOWNLOAD=1`
+to refuse the fetch, which makes a host with no engine fail rather than reach the network. The
+cloud target needs none of this.
 
 For the local target, the supported hosts are macOS on Apple Silicon and Linux x64 or arm64 with
 glibc 2.34 or newer, each with a hypervisor: the Hypervisor framework on macOS, KVM on Linux. The
@@ -49,13 +52,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 The builder takes the machine's name, and `create()` returns before the machine is started, so
 `start()` is a separate call. `exec` returns a result whose `stdout_utf8()` is the captured output.
 
-Networking is off unless you ask for it, and on the local target a registry image still needs
-`.network(true)`. This crate drives `smolvm machine create`, and that command refuses an uncached registry image on a machine with no networking:
-
-```text
-create machine: image 'busybox:1.30' must be pulled from a registry, but this machine has no
-network, so the pull can never succeed
-```
+Networking is off unless you ask for it, and whether a registry image needs `.network(true)` on
+the local target depends on the engine the crate pins, which is the engine of its own version. The
+engine this crate currently pins refuses an uncached registry image on a machine with no
+networking, and says so at `create` with a message that names the remedies: add networking, publish
+a port, set an egress policy, or supply the image locally. Newer engines fetch the image on the
+machine's behalf and need none of that. Pass `.network(true)`, or pin a newer engine with
+`SMOLMACHINES_ENGINE_VERSION`.
 
 ## Choose local or cloud
 
@@ -89,8 +92,8 @@ path it does not need a separate `start()`.
 | Python | `smolmachines` on PyPI | [SDK Quick Start](/docs/sdk) |
 
 All three drive the same engine and the same cloud API. The Node and Python packages embed it
-through NAPI and pyo3; the Rust crate shells out to the `smolvm` CLI, so it is the one whose local
-target has a separate install to do.
+through NAPI and pyo3; the Rust crate drives the engine as a child process and fetches it when the
+host has none.
 
 See [Machine API](/docs/sdk/machine-api) for the method surface the three share, and
 [Use SDK on Cloud](/docs/sdk/with-cloud) for the cloud target's configuration fields.

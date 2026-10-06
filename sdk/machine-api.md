@@ -235,7 +235,7 @@ with Machine.create(conn=ConnectOptions(target="local")) as machine:
 
 ## Branching
 
-The SDK exposes `branch()` for cloud machines. Create the source machine as branchable, `branchable: true` in TypeScript and
+The SDK exposes `branch()` on both targets. Create the source machine as branchable, `branchable: true` in TypeScript and
 `branchable=True` in Python, then clone its live state:
 
 ```ts
@@ -263,7 +263,26 @@ clone = source.branch(
 
 When ports are omitted, the control plane allocates fresh host ports so concurrent clones do not collide.
 
-Cloud branches are node-local and require a branchable source machine. They do not provide portable checkpoints or live migration between local and cloud. For local branching, use the `smolvm` CLI.
+Cloud branches are node-local and require a branchable source machine. They do not provide portable checkpoints or live migration between local and cloud.
+
+Local branching runs through the embedded engine, so it needs no CLI: a local source created
+`branchable` branches with the same call, and the child reads what the source wrote. `resize()`
+grows a local machine in place, and `branchBatch()` / `branch_batch()` makes several children at
+once. `checkpoint()` is exposed on both targets, but for a checkpoint of a local machine use the
+`smolvm` CLI: through the embedded engine it currently fails with
+`read CPU features: No such file or directory`.
+
+`Machine.list()` returns the machines on a target, each with its name, state and labels. Labels are
+set at create time and come back on the summary, which is how a caller finds its own machines
+again:
+
+```ts
+const all = await Machine.list({ target: "local" });
+```
+
+A machine created with `detach` keeps running after the process that made it exits, and
+`restoreCheckpoint()` takes a `keepIdentity` flag with the same meaning as the CLI's
+`--keep-identity`.
 
 ## Configuration types
 
@@ -289,7 +308,7 @@ Cloud authentication also reads `SMOL_CLOUD_TOKEN`. The base URL override is `SM
 | `persistent` | `persistent` | Local | Keep the local machine record |
 | `autoStopSeconds` | `auto_stop_seconds` | Cloud | Stop after an idle period |
 | `ttlSeconds` | `ttl_seconds` | Cloud | Delete after a fixed period |
-| `branchable` | `branchable` | Cloud | Prepare as a live branch source |
+| `branchable` | `branchable` | Both | Prepare as a live branch source |
 | `env` | `env` | Cloud | Workload environment at creation |
 | `workdir` | `workdir` | Cloud | Workload working directory at creation |
 
