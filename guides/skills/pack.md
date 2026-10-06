@@ -4,12 +4,14 @@ title: "Pack: ship a prepared machine as one file"
 
 # Pack: ship a prepared machine as one file
 
-Turns an image, or a machine already provisioned, into a single self-contained artifact that runs on another compatible host. Use when shipping a prepared environment as one file, when a packed artifact runs but the state installed into it is missing, when pack create --from-vm fails with a ready timeout that names nothing, when an older release refuses to export a branched machine, or when deciding whether to pack from an image or from a machine. Do not use it to keep a machine you re-enter, which is the dev-env packet, or to run untrusted code, which is the throwaway-machine packet.
+Turns an image, or a machine already provisioned, into a single self-contained artifact that runs on another compatible host. Use when shipping a prepared environment as one file, when a packed artifact runs but the state installed into it is missing, when pack create fails because the VM it boots to pull or export could not start, when an older release refuses to export a branched machine, or when deciding whether to pack from an image or from a machine. Do not use it to keep a machine you re-enter, which is the dev-env packet, or to run untrusted code, which is the throwaway-machine packet.
 
 Verified on **smolvm v1.22.2** on macOS arm64, 2026-10-03, and on **v1.14.6** on Linux aarch64,
 2026-09-11; the Linux host could not run the packing steps on v1.18.2 or v1.22.2, for the reason in
 "Platform arms". Done means the artifact runs a command in a real VM and, for a machine pack, **the state you installed is still
 inside it**.
+The Linux runs used the scripts of their date; this version's preflight and cleanup scripts ran
+on Linux aarch64 on v1.22.2 on 2026-10-03.
 
 **The assertion that matters is a value, not a boot.** A pack that lost its rootfs still boots,
 still prints a guest kernel and still exits zero. The only thing that separates a good artifact
@@ -24,15 +26,20 @@ the artifact afterwards, which is what `pack-machine.sh` and `verify-pack.sh` do
 scripts/preflight.sh
 ```
 
-The line to read is `exporter_memory_ok`. `pack create --from-vm` starts an exporter VM whose
-memory is **hardcoded to 8192 MiB** with no flag and no environment variable, and on a host that
-cannot give it that the export fails as `agent did not become ready within 30 seconds`, which
-mentions neither memory nor the exporter. **This preflight is the only place that failure has a
-name.** It is a warning and not a gate, because the figure is a cap rather than a reservation: see
-"What the memory line does and does not promise". **On v1.16.1 it misfires more often than it
-fires**: `pack create --from-vm` now prints `Reusing the machine's cached image layers...` and on
-macOS arm64 completed in 1.2 s with `exporter_memory_ok=no` reported by the same preflight
-moments earlier, 2026-09-15.
+The lines to read are `exporter_memory_ok` and `image_vm_memory_ok`. Both pack paths boot a
+helper VM before they write anything. `pack create --image` pulls the image in a VM fixed at 4
+vCPUs and 8192 MiB on every release here. `pack create --from-vm` boots an export helper: fixed at
+8192 MiB through v1.16.1, when a host that could not seat it failed with `agent did not become
+ready within 30 seconds`, which mentions neither memory nor the helper; from v1.16.2 it asks for
+4096 MiB (on Linux half of the available memory when that is less, never under 1024),
+`SMOLVM_EXPORT_HELPER_MEMORY_MIB=<MiB>` sets it, and a failed start says `The export helper asked
+for N MiB of memory` and names the variable. `exporter_memory_mib` is the figure this binary will
+ask for, except under a cgroup memory limit on Linux, where smolvm asks for less. Both lines are
+warnings and not gates, because the figures are caps rather than reservations: see "What the
+memory lines do and do not promise". From v1.16.1 the export helper reuses the machine's cached
+image layers instead of pulling the image again and prints `Reusing
+the machine's cached image layers...`; on macOS arm64 on v1.16.1 that export completed in 1.2 s
+with `exporter_memory_ok=no` reported by the same preflight moments earlier, 2026-09-15.
 
 **2. Pack from an image**, when you want a runnable artifact of a stock image.
 
@@ -41,9 +48,10 @@ scripts/pack-image.sh                       # alpine, ./from-image
 scripts/pack-image.sh python:3.12-alpine ./mypack
 ```
 
-This path starts no exporter, so the memory line does not apply to it. **If you pass a custom
-output, pass it to the verify step too** (`verify-pack.sh --image ./mypack`), or that step finds
-nothing at its defaults and tells you so rather than passing.
+This path boots the 8192 MiB pull VM, so `image_vm_memory_ok` is its line; `--mem` sets the
+artifact's memory and does not reach that VM. **If you pass a custom output, pass it to the
+verify step too** (`verify-pack.sh --image ./mypack`), or that step finds nothing at its defaults
+and tells you so rather than passing.
 
 **3. Pack from a machine you provisioned**, when the point is the state in it.
 
@@ -107,12 +115,14 @@ false clean the marker exists to prevent.
 scripts/cleanup.sh --purge --artifacts ./from-image ./from-vm
 ```
 
-`cleanup.sh` waits 20 seconds before it checks the machine list and prints `waiting=20s` first:
-an ephemeral machine's entry retires after its run returns.
+`cleanup.sh` waits up to 20 seconds, polling the machine list, and prints `waiting=up to 20s`
+first: an ephemeral machine's entry retires after its run returns.
 
 It prunes each recorded machine while it still exists, deletes it, removes both stubs and their
-sidecars, and runs `pack prune`. **`smolvm machine prune` with no argument does not run on this
-release**; the form is `--name <NAME>`.
+sidecars, and runs `pack prune`, which keeps the five most recently used extractions, so the two
+this procedure made stay; `smolvm pack prune --all` removes every unused one, theirs included.
+**`smolvm machine prune` with no argument does not run on this release**; the form is
+`--name <NAME>`.
 
 ## Forwarding the SSH agent to an artifact
 
@@ -123,7 +133,7 @@ enters the artifact or the VM.
 ```bash
 ./from-image run --net --ssh-agent -- sh -c 'apk add -q openssh-client; ssh-add -l'
 ./from-image start --net --ssh-agent
-./from-image exec -- ssh-add -l
+./from-image exec -- sh -c 'apk add -q openssh-client; ssh-add -l'
 ```
 
 Measured on macOS arm64 on v1.18.2 with a throwaway key in a throwaway agent, and the artifact's
@@ -148,16 +158,25 @@ Checksum:   94baf297
 ```
 
 That `Memory` is the **packed artifact's** runtime memory, which `pack create --mem` can set. It
-is not the exporter's, which nothing can set.
+is not the export helper's, which `SMOLVM_EXPORT_HELPER_MEMORY_MIB` sets from v1.16.2, nor the
+image pull VM's, which is fixed at 8192 MiB.
 
-## What the memory line does and does not promise
+A machine pack carries the root filesystem and the workload settings. It does not carry
+`/workspace`, which lives on the storage disk, unless `pack create --from-vm --include-workspace`
+is passed, nor host mounts, remote volumes, credential bindings (`pack create` warns about the
+last two), or the source machine's CPU and memory sizes.
 
-The exporter's 8192 MiB is a **cap, not a reservation**, so a host reporting less available memory
-can still export. Measured on this release: the export succeeded on a Mac whose preflight reported
-`free_memory_mib=4990`, well under the figure, and it is the binding constraint on a small Linux
-box where it fails with the unnamed ready timeout. So the preflight **warns and does not block**,
-and `result=ready` with `exporter_memory_ok=no` means "this may work, and if it does not, here is
-why".
+## What the memory lines do and do not promise
+
+A helper VM's memory is a **cap, not a reservation**, so a host reporting less available memory
+can still pack. Measured on v1.14.6, when the export helper was fixed at 8192 MiB: the export
+succeeded on a Mac whose preflight reported `free_memory_mib=4990`, and on v1.16.1 an export
+completed in 1.2 s with `exporter_memory_ok=no`. On a small Linux host the fixed figure was the
+binding constraint and the export failed with the unnamed ready timeout. So the preflight **warns
+and does not block**, and `result=ready` with `exporter_memory_ok=no` or `image_vm_memory_ok=no`
+means "this may work, and if it does not, here is why". From v1.16.2 the export helper's failure
+names its figure, and a lower `SMOLVM_EXPORT_HELPER_MEMORY_MIB` is the fix; the image pull VM has
+no such setting.
 
 ## Traps
 
@@ -174,7 +193,9 @@ Full detail with the evidence in `references/traps.md`. The ones that cost the m
 - **`pack run` takes `--sidecar <PATH>`, not a positional path**, and getting it wrong reports
   that your sidecar is not an executable in `$PATH`.
 - **Reported sizes understate the stub on disk**, by about 8.4 MB on Linux aarch64 and about
-  10 MB on macOS arm64, where an extra signing step runs. The sidecar figure is accurate.
+  10 MB on macOS arm64 on v1.14.6, 10.4 MB on macOS on v1.22.2: `pack create` prints its sizes,
+  then signs the stub on macOS, then appends the compressed runtime libraries to it. The
+  `Assets:` figure is accurate to a few KB.
 - **A branched machine packs from v1.16.1, and carries both states**; v1.14.6 refused it at export.
   Start the source `--branchable`, `machine branch --from <src> --name <child>`, write a marker in the child, stop
   it, `pack create --from-vm <child>`, and the artifact prints the source's `BASE_STATE` and the
@@ -200,12 +221,15 @@ Full detail with the evidence in `references/traps.md`. The ones that cost the m
   machine's rootfs is in the sidecar, including anything a provisioning step left in a shell
   history, a cache, or a file under `/root`. The marker this packet writes is deliberately inert;
   treat anything else you put in the source as published.
-- **Packing does not narrow what the artifact may do.** The recorded entrypoint, network setting
-  and memory come from the source, so a machine created with `--net` produces an artifact that
-  expects a network. Decide that on the source, not afterwards.
+- **Packing does not narrow what the artifact may do.** The recorded entrypoint, command,
+  environment and network setting come from the source, so a machine created with `--net`
+  produces an artifact that expects a network. Decide that on the source, not afterwards. CPUs and
+  memory do not come from the source: they are `pack create --cpus` and `--mem`, else the
+  Smolfile, else 4 and 8192 MiB.
 - **The scripts pack only a machine they created**, named under the `smolskill-` prefix and
-  recorded in a state file, and cleanup deletes only those. A machine you or another session made
-  by hand is never exported and never deleted.
+  recorded in a state file, and cleanup deletes only those and, through `--cascade`, any machine
+  branched from one of them, whatever its name. Any other machine you or another session made by
+  hand is never exported and never deleted.
 - **`pack run` takes the forked boot path.** From v1.20.2 Ctrl-C or a kill of the CLI takes its VM
   with it: on macOS arm64 on v1.22.2 both processes of a packed `run` were gone 2 s after `SIGINT`
   and after `SIGKILL`. Before v1.20.2 a cancelled run left a VM the CLI could not see, and
@@ -220,9 +244,9 @@ Full detail with the evidence in `references/traps.md`. The ones that cost the m
 - **Linux aarch64**: verified on v1.14.6. Not run on v1.18.2 or v1.22.2: `pack create --image`
   failed with `agent did not become ready within 30 seconds`, with or without `--mem 1024`,
   because the pull helper does not take `--mem`, and the golden machine's start failed the same
-  way. That box could not boot guests above 2048 MiB in time, which the `install` packet's traps
-  record. The preflight said `exporter_memory_ok=yes` there with 10386 MiB free, so read that line
-  as a hint about the exporter only.
+  way. That host could not boot guests above 2048 MiB in time, which the `install` packet's traps
+  record. The preflight on v1.18.2 said `exporter_memory_ok=yes` there with 10386 MiB free: free
+  memory was not what failed, so read the memory lines as hints about the helper VMs only.
 - **Linux x86_64**: verified in the material behind this packet on v1.14.6, including the branched
   and restored cases. Not re-run here.
 - **Windows x86_64**: `references/windows.md`. **On v1.22.2 an artifact is created and cannot
@@ -266,12 +290,13 @@ at all if the marker is not on the source first:
 result=FAILED the source does not carry the marker, so packing it would produce an empty artifact
 ```
 
-The image pack is the control: it runs and does not carry the machine's state.
+The image pack is the control: it runs and does not carry the machine's state. State written
+under `/workspace` needs `--include-workspace`.
 
 **3. "`pack create --from-vm` fails with `agent did not become ready within 30 seconds` and says
 nothing else."**
 
-Run the preflight, which is the only place that failure is named:
+On v1.14.6 the preflight of that date was the only place that failure was named:
 
 ```
 exporter_memory_mib=8192
@@ -285,11 +310,16 @@ memory. Packing from an image starts no exporter and is unaffected.
 On the hosts here the export then **succeeded anyway**, on the Mac reporting 4990 MiB, which is
 why that line warns rather than blocks.
 
+That is the v1.14.6 output, when the export helper was fixed at 8192 MiB. From v1.16.2 the
+failure names the figure it asked for and `SMOLVM_EXPORT_HELPER_MEMORY_MIB`, and
+`exporter_memory_mib` is what the binary will ask for, 4096 or less. The recorded note's last
+sentence was never right: `pack create --image` boots its own 8192 MiB VM on every release here.
+
 ## Re-verified on v1.22.2
 
 Run 2026-10-03 PT against v1.22.2 from the published release, checksum checked, under an isolated
-`HOME` on macOS 27.0.1 arm64, once to write and once from a fresh `HOME` to verify. On Lima
-`linux-kvm` (Ubuntu 24.04 aarch64) guests above 2048 MiB timed out that day.
+`HOME` on macOS 27.0.1 arm64, twice, the second time from a fresh `HOME`. On Lima `linux-kvm`
+(Ubuntu 24.04 aarch64) on 2026-10-03 guests above 2048 MiB timed out.
 
 macOS: `result=artifacts_good (2 of 2 artifacts)` with `machine_pack_carried_rootfs=ok
 (PACKED_STATE_PRESENT)`, the stub understated by 10657 KB, a branched machine's artifact printing
@@ -301,18 +331,19 @@ hand: `pack create --from-vm --single-file` wrote one 62890688-byte file, and `v
 --machine ... --marker-path` gave `image_pack=skipped` and `result=artifacts_good (1 of 2
 artifacts)`.
 
-Linux aarch64: not run. Both the exporter and a default-size source machine need 8192 MiB and
-timed out.
+Linux aarch64: not run. A default-size source machine and the image pack's pull VM both need
+8192 MiB, and both timed out; the export helper was never reached.
 
 ## What was not run
 
-- **Cross-platform rehydration**, except for one pair. An arm64 stub built on macOS was carried to
-  x86_64 Windows on 2026-09-11 and **the OS loader refuses it before any smolvm code runs**, so an
-  artifact has to be built on the platform it will run on. Nothing tests the reverse direction, or
-  two hosts of the same architecture on different operating systems.
+- **Cross-platform rehydration**, except for one pair. An arm64 stub built on macOS was carried
+  to x86_64 Windows on 2026-09-11 and **the OS loader refuses it before any smolvm code runs**:
+  the stub runs only on the platform it was built on. `smolvm pack run --sidecar` refuses a
+  sidecar built on another platform, with `this artifact was built for ... but the current
+  platform is ...`. Nothing here ran a sidecar on another host of the same architecture.
 - **`pack push`, `pack pull` and `pack inspect` against a registry.** Nothing here touched a
   registry.
-- **Windows through these scripts.** `scripts/*.sh` are POSIX shell and do not run there; the
+- **Windows through these scripts.** `scripts/*.sh` are bash and do not run there; the
   Windows runs issued the CLI by hand. `references/windows.md` has them.
 - **The branched and restored sources on Linux aarch64.** The restored source was run on macOS on
   v1.18.2 and the branched one on v1.22.2; both are answered on Linux
@@ -337,13 +368,18 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 # Report whether this host can pack a machine into a portable artifact.
 # Read-only: starts no VM, packs nothing, writes no smolvm state.
 #
-# The memory line is the reason this script exists. `pack create --from-vm`
-# starts an exporter VM whose memory is hardcoded to 8192 MiB
-# (`src/pack_export.rs:345` at 3412bd26, and a second exporter at `:914` fixed
-# at 2048), with no flag and no environment variable. On a host with less free
-# memory the export fails as "agent did not become ready within 30 seconds",
-# which names neither memory nor the exporter. This is the only place that
-# failure gets a name before you hit it.
+# The memory lines are the reason this script exists. Both pack paths boot a
+# helper VM before they write anything:
+#   --image    pulls the image in a VM fixed at 4 vCPUs and 8192 MiB on every
+#              release read (src/cli/pack.rs:730-742 at v1.22.2); --mem does
+#              not reach it.
+#   --from-vm  boots an export helper. Through v1.16.1 it was fixed at 8192 MiB
+#              and a host that could not seat it failed as "agent did not become
+#              ready within 30 seconds", naming nothing. From v1.16.2 it asks for
+#              4096 MiB (on Linux half of the available memory when that is
+#              less, never under 1024), SMOLVM_EXPORT_HELPER_MEMORY_MIB sets it,
+#              and a failed start names the figure and the variable
+#              (src/pack_export.rs:289-335 and :514-522 at v1.22.2).
 #
 # Output is one key=value per line so a caller can parse it. The last line is
 # always result=ready or result=blocked.
@@ -446,13 +482,11 @@ case "$kernel" in
         ;;
 esac
 
-# --- the exporter's fixed memory, the precondition that names nothing ---------
+# --- the helper VMs' memory --------------------------------------------------
 #
 # Read free memory the way the kernel reports it. MemAvailable is the honest
-# number for "could a new process get this", and it is what a large host makes
-# irrelevant and a small host makes decisive.
-EXPORTER_MIB=8192
-emit exporter_memory_mib "$EXPORTER_MIB"
+# number for "could a new process get this". On Linux smolvm also caps it by the
+# cgroup's headroom, which this does not read.
 case "$kernel" in
     Darwin)
         # Free alone is meaningless on macOS, which keeps almost nothing free.
@@ -471,21 +505,52 @@ case "$kernel" in
     *) avail_mib="" ;;
 esac
 
+# What this binary's export helper will ask for (src/pack_export.rs:318-335).
+IMAGE_VM_MIB=8192
+override="${SMOLVM_EXPORT_HELPER_MEMORY_MIB:-}"
+if [ -n "${version:-}" ] && [ "$version" != "unknown" ] &&
+   [ "$(printf '%s\n%s\n' "$version" 1.16.2 | sort -V | head -1)" != "1.16.2" ]; then
+    EXPORTER_MIB=8192; exporter_basis=fixed_before_1.16.2
+elif [ -n "$override" ] && [ "$override" -gt 0 ] 2>/dev/null; then
+    EXPORTER_MIB="$override"; exporter_basis=SMOLVM_EXPORT_HELPER_MEMORY_MIB
+elif [ "$kernel" = Linux ] && [ "${avail_mib:-0}" -gt 0 ]; then
+    EXPORTER_MIB=$(( avail_mib / 2 ))
+    [ "$EXPORTER_MIB" -gt 4096 ] && EXPORTER_MIB=4096
+    [ "$EXPORTER_MIB" -lt 1024 ] && EXPORTER_MIB=1024
+    exporter_basis=half_of_available
+else
+    EXPORTER_MIB=4096; exporter_basis=default
+fi
+emit exporter_memory_mib "$EXPORTER_MIB"
+emit exporter_memory_basis "$exporter_basis"
+emit image_vm_memory_mib "$IMAGE_VM_MIB"
+
 if [ -n "${avail_mib:-}" ] && [ "${avail_mib:-0}" -gt 0 ]; then
     emit free_memory_mib "$avail_mib"
+    # Warnings, not blocks. smolvm memory is a cap and not a reservation, so a
+    # helper can still come up under the figure; what these lines buy you is
+    # the name of the failure if it does not.
     if [ "$avail_mib" -ge "$EXPORTER_MIB" ]; then
         emit exporter_memory_ok yes
     else
-        # A warning, not a block. smolvm memory is a cap and not a reservation,
-        # so an exporter can still come up under the figure; what this line buys
-        # you is the name of the failure if it does not.
         emit exporter_memory_ok no
-        note "free memory is below the exporter's fixed $EXPORTER_MIB MiB. If pack create --from-vm fails with 'agent did not become ready within 30 seconds', that is this, and the message will not mention memory. Packing from an image starts no exporter and is unaffected."
+        if [ "$exporter_basis" = fixed_before_1.16.2 ]; then
+            note "free memory is below the export helper's fixed 8192 MiB on this release. If pack create --from-vm fails with 'agent did not become ready within 30 seconds', that is this; the message does not mention memory, and nothing changes the figure before v1.16.2."
+        else
+            note "free memory is below the $EXPORTER_MIB MiB the export helper will ask for. If pack create --from-vm fails, its message names the figure; set SMOLVM_EXPORT_HELPER_MEMORY_MIB=<MiB> lower and retry."
+        fi
+    fi
+    if [ "$avail_mib" -ge "$IMAGE_VM_MIB" ]; then
+        emit image_vm_memory_ok yes
+    else
+        emit image_vm_memory_ok no
+        note "free memory is below the 8192 MiB pack create --image gives the VM that pulls the image. If it fails with 'agent did not become ready within 30 seconds', that is this; no flag or variable changes that VM, and --mem sets the artifact's memory, not its."
     fi
 else
     emit free_memory_mib unknown
     emit exporter_memory_ok unknown
-    note "could not read free memory; the exporter needs $EXPORTER_MIB MiB and fails with a ready timeout that names nothing"
+    emit image_vm_memory_ok unknown
+    note "could not read free memory; the export helper asks for $EXPORTER_MIB MiB and the image pull VM for $IMAGE_VM_MIB MiB"
 fi
 
 # An isolated data root on Linux does not carry the agent rootfs: the variable
@@ -513,8 +578,9 @@ if [ "$blocked" -eq 0 ]; then emit result ready; else emit result blocked; fi
 #   image   default alpine
 #   output  default ./from-image, and it names the STUB, not the sidecar
 #
-# This path starts no exporter VM, so the free-memory precondition in
-# preflight.sh does not apply to it. Only `--from-vm` does.
+# This path pulls the image in its own temporary VM, fixed at 4 vCPUs and
+# 8192 MiB on every release read; --mem sets the artifact's memory, not that
+# VM's. preflight.sh reports it as image_vm_memory_ok.
 
 set -uo pipefail
 
@@ -546,9 +612,10 @@ printf '%s\n' "$out" | sed 's/^/  /'
 printf 'image=%s\n' "$IMAGE"
 printf 'elapsed_s=%s\n' "$elapsed"
 
-# Assert the artifact, not the exit code.
-if [ ! -f "$OUT" ] || [ ! -f "$OUT.smolmachine" ]; then
-    printf 'result=FAILED rc=%s (stub or sidecar missing)\n' "$rc"
+# Assert the exit code and the artifact: files an earlier run left at OUT pass
+# the file tests on their own.
+if [ "$rc" -ne 0 ] || [ ! -f "$OUT" ] || [ ! -f "$OUT.smolmachine" ]; then
+    printf 'result=FAILED rc=%s (pack create failed, or the stub or sidecar is missing)\n' "$rc"
     exit 1
 fi
 
@@ -558,7 +625,7 @@ printf 'stub_reported_kb=%s\n' "${reported_kb:-unknown}"
 printf 'stub_actual_kb=%s\n' "$actual_kb"
 if [ -n "${reported_kb:-}" ] && [ "$actual_kb" -gt "$reported_kb" ]; then
     printf 'stub_understated_kb=%s\n' "$(( actual_kb - reported_kb ))"
-    printf 'note=pack create reports a stub smaller than the file on disk, so its total: understates by the same amount. Size a disk budget or an upload from the file, not from the report. The sidecar figure is accurate.\n'
+    printf 'note=pack create prints its sizes before it signs the stub (macOS) and appends the compressed runtime libraries to it, so stub: and total: understate the file by that block. Size a disk budget or an upload from the file, not from the report.\n'
 fi
 printf 'sidecar_kb=%s\n' "$(( $(wc -c < "$OUT.smolmachine") / 1024 ))"
 printf 'result=packed\n'
@@ -581,9 +648,10 @@ printf 'result=packed\n'
 # into the source and read back out of the artifact. This script writes it and
 # asserts it ON THE SOURCE before packing; verify-pack.sh reads it back.
 #
-# This path starts an exporter VM whose memory is hardcoded to 8192 MiB. If it
-# fails with a ready timeout, run preflight.sh: that is the only place the
-# failure gets a name.
+# This path boots an export helper VM: fixed at 8192 MiB through v1.16.1, and
+# from v1.16.2 4096 MiB or less, which SMOLVM_EXPORT_HELPER_MEMORY_MIB sets. If
+# the export fails, run preflight.sh and read free_memory_mib against
+# exporter_memory_mib.
 
 set -uo pipefail
 
@@ -649,11 +717,13 @@ elapsed=$(( $(date +%s) - start ))
 printf '%s\n' "$out" | sed 's/^/  /'
 printf 'elapsed_s=%s\n' "$elapsed"
 
-if [ ! -f "$OUT" ] || [ ! -f "$OUT.smolmachine" ]; then
+if [ "$rc" -ne 0 ] || [ ! -f "$OUT" ] || [ ! -f "$OUT.smolmachine" ]; then
     printf 'result=FAILED rc=%s\n' "$rc"
     case "$out" in
+        *"export helper asked for"*)
+            printf 'diagnosis: the export helper VM did not start; the message above names the memory it asked for. Retry with SMOLVM_EXPORT_HELPER_MEMORY_MIB set lower, for example 2048.\n' ;;
         *"did not become ready"*)
-            printf 'diagnosis: the exporter VM did not come up. Its memory is hardcoded to 8192 MiB and the message never says so. Run scripts/preflight.sh and read free_memory_mib against exporter_memory_mib.\n' ;;
+            printf 'diagnosis: the export helper VM did not come up. Before v1.16.2 its memory is fixed at 8192 MiB and the message never says so. Run scripts/preflight.sh and read free_memory_mib against exporter_memory_mib.\n' ;;
         *"fork clone"*)
             printf 'diagnosis: this machine is a branch child and its copy-on-write disks cannot be exported. Pack the golden it came from, or recreate the state in a machine that was never branched.\n' ;;
     esac
@@ -716,7 +786,8 @@ check() {
 # Where `pack run` keeps its extractions, one directory per artifact checksum.
 case "$(uname -s)" in
     Darwin) PACK_CACHE="$HOME/Library/Caches/smolvm-pack" ;;
-    *)      PACK_CACHE="${SMOLVM_DATA_DIR:-$HOME/.cache}/smolvm-pack" ;;
+    *)      cache_root="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.cache}"
+            PACK_CACHE="${cache_root:-${XDG_CACHE_HOME:-$HOME/.cache}}/smolvm-pack" ;;
 esac
 cache_entries() { find "$PACK_CACHE" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l | tr -d ' '; }
 
@@ -783,15 +854,16 @@ exit "$fail"
 #!/usr/bin/env bash
 # Delete the machines this packet's scripts created, then prove the host is clean.
 #
-# Only machines recorded in the state file are deleted, so a machine you or
-# another session created by hand is never touched. Scripts record a name by
-# calling: cleanup.sh --record <name>
+# Only machines recorded in the state file are deleted, with --cascade, so any
+# machine branched from one of them goes too, whatever its name. Any other
+# machine, yours or another session's, is never deleted. Scripts record a name
+# by calling: cleanup.sh --record <name>
 #
 # usage: cleanup.sh [--record <name>] [--reap] [--purge] [--artifacts <stub>...]
 #   --record <name>     add a machine name to the state file and exit
 #   --reap              kill every VM process under this HOME; run without it first
 #   --purge             also remove the state file once the list is empty
-#   --artifacts <stub>  also remove that stub and its .smolmachine sidecar
+#   --artifacts <stub>  also remove that stub and its .smolmachine sidecar; last
 #
 # `pack run` takes the forked boot path, and before v1.20.2 a cancelled run left
 # a VM the CLI cannot see. The process scan below catches both shapes, which is
@@ -808,7 +880,6 @@ STATE_FILE="$STATE_DIR/$PACKET.machines"
 
 reap=0
 purge=0
-ARTIFACTS=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --record)
@@ -818,7 +889,7 @@ while [ $# -gt 0 ]; do
             ;;
         --reap)  reap=1 ;;
         --purge) purge=1 ;;
-        --artifacts) shift; ARTIFACTS="$*"; break ;;
+        --artifacts) shift; break ;;
         *) printf 'unknown argument: %s\n' "$1" >&2; exit 2 ;;
     esac
     shift
@@ -829,22 +900,32 @@ if [ -z "$SMOLVM" ]; then
     exit 2
 fi
 
+# With SMOLVM_DATA_DIR set, smolvm runs with HOME there on Linux, so its cache
+# is under .cache in it.
 case "$(uname -s)" in
     Darwin) VMS_DIR="$HOME/Library/Caches/smolvm/vms" ;;
-    *)      VMS_DIR="${SMOLVM_DATA_DIR:-$HOME/.cache/smolvm}/vms" ;;
+    *)      cache_root="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.cache}"
+            VMS_DIR="${cache_root:-${XDG_CACHE_HOME:-$HOME/.cache}}/smolvm/vms" ;;
 esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
+if [ -n "${SMOLVM:-}" ]; then
+    case "$(readlink "$SMOLVM" 2>/dev/null || printf '%s' "$SMOLVM")" in
+        "$SMOLVM_PREFIX"/*) ;;
+        *) printf 'note=%s is not under %s, so the process scan cannot see its forked VMs (all of its VMs on macOS); set SMOLVM_PREFIX to its directory\n' "$SMOLVM" "$SMOLVM_PREFIX" ;;
+    esac
+fi
 
 # List this HOME's VM processes as "pid marker". The plain run path execs a
 # `_boot-vm` child that carries its boot config; the pack-run path forks one that
-# carries none. Linux names both `libkrun VM`; on macOS the executable path and
-# the parent chain scope the search. The teardown packet's traps have the why.
+# carries none. Linux names both `libkrun VM`, or `VM:<hostname>` when HOSTNAME
+# is exported; on macOS the executable path and the parent chain scope the
+# search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
             for p in /proc/[0-9]*; do
-                [ "$(cat "$p/comm" 2>/dev/null)" = "libkrun VM" ] || continue
+                case "$(cat "$p/comm" 2>/dev/null)" in "libkrun VM"|VM:*) ;; *) continue ;; esac
                 pid="${p#/proc/}"
                 cfg="$(tr '\0' '\n' < "$p/cmdline" 2>/dev/null | sed -n '3p')"
                 case "$cfg" in
@@ -857,16 +938,21 @@ list_vm_processes() {
             ;;
         Darwin)
             # shellcheck disable=SC2009  # pgrep -f would match this script.
-            own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
-            ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
+            procs="$(ps -axo pid=,ppid=,command= 2>/dev/null)"
+            printf '%s\n' "$procs" | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
+                # An orphan counts only if it is a run; a fork has its parent's command line.
                 if [ "$ppid" = 1 ]; then
-                    printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
+                    case "$rest" in
+                        *" machine run "*|*" vm run "*|*" pack run "*)
+                            printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
+                    esac
                 else
-                    case "$own" in *" $ppid "*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;; esac
+                    parent="$(printf '%s\n' "$procs" | while read -r q qp qrest; do [ "$q" = "$ppid" ] && { printf '%s' "$qrest"; break; }; done)"
+                    [ "$parent" = "$rest" ] && printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 fi
             done
             ;;
@@ -896,29 +982,35 @@ if [ -s "$STATE_FILE" ]; then
     done < "$STATE_FILE"
 fi
 
-# 1b. Remove the artifacts named on the command line. A stub and its sidecar are
-# two files and the sidecar is the large one.
-for a in ${ARTIFACTS:-}; do
+# 1b. Remove the artifacts named on the command line, left in "$@" by the
+# argument loop. A stub and its sidecar are two files and the sidecar is the
+# large one.
+for a in "$@"; do
     for f in "$a" "$a.smolmachine"; do
         [ -f "$f" ] && rm -f "$f" && printf 'removed=%s\n' "$f"
     done
 done
 
-# 1c. Reclaim the pack caches. `pack prune` takes no required argument; the
-# machine form does, and a bare `smolvm machine prune` is rejected outright on
-# this release:
+# 1c. Reclaim pack caches beyond the five most recently used (pack prune's
+# default). `pack prune` takes no required argument; the machine form does, and
+# a bare `smolvm machine prune` is rejected outright on this release:
 #     Usage: smolvm machine prune --name <NAME>
 if [ -n "$SMOLVM" ]; then
     "$SMOLVM" pack prune 2>&1 | sed 's/^/  /'
 fi
 
-# 2. An ephemeral machine's entry retires after its run returns.
-printf 'waiting=20s for ephemeral entries to retire before asserting\n'
-sleep 20
+# 2. An ephemeral machine's entry retires after its run returns: poll, 20 s at most.
+printf 'waiting=up to 20s for ephemeral entries to retire before asserting\n'
+waited=0
+listing="$("$SMOLVM" machine list 2>&1)"
+while ! grep -q 'No machines found' <<<"$listing" && [ "$waited" -lt 20 ]; do
+    sleep 1; waited=$((waited + 1))
+    listing="$("$SMOLVM" machine list 2>&1)"
+done
+printf 'waited=%ss\n' "$waited"
 
 # 3. Assert the value, not the exit code.
-listing="$("$SMOLVM" machine list 2>&1)"
-if printf '%s' "$listing" | grep -q 'No machines found'; then
+if grep -q 'No machines found' <<<"$listing"; then
     printf 'machines=clean\n'
     [ "$purge" -eq 1 ] && rm -f "$STATE_FILE"
 else
@@ -929,8 +1021,8 @@ else
     printf '  add --cascade for a machine that was branched from another\n'
 fi
 
-# 4. Report VM processes left under this HOME's state, such as a killed
-# wrapper's; another session's are left alone.
+# 4. Report VM processes under this HOME's state, such as a killed wrapper's.
+# With --reap every one is killed, including a machine another packet kept.
 found=0
 while read -r pid cfg; do
     [ -n "$pid" ] || continue
@@ -991,37 +1083,46 @@ executable file `./x.smolmachine` not found in $PATH
 
 The path was consumed as the command to run. Nothing in the message points at `--sidecar`.
 
-### The exporter's 8192 MiB, and what the failure looks like
+### The helper VMs' memory, by release, and what the failure looks like
 
-`pack create --from-vm` starts an exporter VM whose memory is **hardcoded to 8192 MiB**:
-`src/pack_export.rs:345` at `3412bd26`, `memory_mib: 8192`. A second exporter VM at `:914` is
-hardcoded to `cpus: 2, memory_mib: 2048`. A grep of that file for `env::var`, any `SMOLVM_*MEM`
-and `--mem` returns nothing, so **neither is overridable**.
-
-`pack create --mem` sets the **packed artifact's** runtime memory, not the exporter's. The two are
-easy to confuse because `--info` reports the artifact's figure and it is also 8192 by default.
-
-On a host that cannot give the exporter that much, the export fails as:
+`pack create --from-vm` boots an export helper VM. **Through v1.16.1** its memory was fixed,
+`memory_mib: 8192` in `src/pack_export.rs` (`:345` at v1.14.6, `:384` at v1.16.1), with no flag
+and no variable, and on a host that could not give it that much the export failed as
 
 ```
 agent did not become ready within 30 seconds
 ```
 
-which names neither memory nor the exporter. `scripts/preflight.sh` is the only place it gets a
-name.
+which named neither memory nor the helper.
+
+**From v1.16.2** (#1312) it asks for 4096 MiB. On Linux it asks for half of the available memory
+instead when that is less, and never under 1024 MiB; macOS and Windows ask for 4096.
+`SMOLVM_EXPORT_HELPER_MEMORY_MIB=<MiB>` sets it, `SMOLVM_EXPORT_HELPER_STORAGE_GIB=<GiB>` sets its
+disk, and a helper that cannot start ends with `The export helper asked for N MiB of memory and a
+G GiB disk. If this host cannot seat that, set SMOLVM_EXPORT_HELPER_MEMORY_MIB=<MiB> and/or
+SMOLVM_EXPORT_HELPER_STORAGE_GIB=<GiB> and retry.` (`src/pack_export.rs:289-335` and `:514-522`
+at v1.22.2). A bare machine, one with no image, is flattened by a separate helper fixed at 2 vCPUs
+and 2048 MiB.
+
+**`pack create --image` is the path with a fixed 8192 MiB VM** on every release here: it pulls
+the image in a temporary VM of 4 vCPUs and 8192 MiB (`src/cli/pack.rs:730-742` at v1.22.2), which
+no flag or variable changes, and a host that cannot seat it fails with the same bare ready
+timeout.
+
+`pack create --mem` sets the **packed artifact's** runtime memory, not either helper's. The two
+are easy to confuse because `--info` reports the artifact's figure and it is also 8192 by default.
 
 **It is a cap and not a reservation, so the figure does not decide the outcome.** Measured on
 v1.14.6: the export **succeeded** on a Mac whose preflight reported `free_memory_mib=4990`, and
-the same trap was the binding constraint on a 10.9 GiB Linux box in the material behind this
-packet. That is why the preflight warns rather than blocks. The citation has drifted twice, from
-`:299` to `:311` at v1.14.2 to `:345` now, so check the line before quoting it.
+the fixed figure was the binding constraint on a 10.9 GiB Linux host in the material behind this
+packet. That is why the preflight warns rather than blocks.
 
 ### Verify the state, not the boot
 
 **A pack that lost its rootfs still boots, still prints a guest kernel and still exits zero.**
 Packing a machine whose provisioning silently failed produces an artifact that runs perfectly and
-contains nothing. That happened once while this packet was written: a provisioning `exec`
-had failed unnoticed and the resulting pack reported `MISSING` for both markers.
+contains nothing. In the runs behind this packet a provisioning `exec` once failed unnoticed,
+and the resulting pack reported `MISSING` for both markers.
 
 The shape that makes it impossible is the one these scripts use: write a marker into the source,
 **assert it on the source before packing**, and read it back out of the artifact afterwards.
@@ -1029,17 +1130,24 @@ The shape that makes it impossible is the one these scripts use: write a marker 
 
 ### Reported sizes understate the stub on disk
 
-`pack create` reports a stub smaller than the file it wrote, so its `total:` understates by the
-same amount. Measured on v1.14.6:
+`pack create` prints its sizes before it has finished the stub. In the default two-file mode the
+`stub:` figure is the smolvm binary it copied, and `total:` is that plus the sidecar. After
+printing, it signs the stub on macOS (`Signing binary with hypervisor entitlements...`) and then
+appends the runtime libraries to it, compressed, with a 32-byte footer: `libkrun` and `libkrunfw`,
+plus the GPU rendering libraries when the install has them (`libvirglrenderer`, `libMoltenVK` and
+`libepoxy` on macOS; `libvirglrenderer`, `libepoxy` and `virgl_render_server` on Linux). That
+appended block is what the report leaves out. Measured on v1.14.6:
 
 | host | reported | on disk | understated by |
 |---|---|---|---|
 | Linux aarch64 | 30737 KB | 39195 KB | 8458 KB |
 | macOS arm64 | 29643 KB | 39883 KB | 10240 KB |
 
-The macOS gap is larger because an extra `Signing binary with hypervisor entitlements` step runs
-there. The sidecar figures are accurate on both. **Do not size a disk budget or an upload from the
-reported total.**
+On macOS arm64 on v1.22.2 the gap was 10657 KB. `Assets:` is the compressed payload, and the
+sidecar file adds only its manifest and a 64-byte footer, so that figure is accurate to a few KB.
+With `--single-file` the libraries go inside the one file before the sizes are printed, and only
+the macOS signature is added afterwards. **Do not size a disk budget or an upload from the reported
+total.**
 
 ### A branched machine packs on v1.16.1, and was refused on v1.14.6
 
@@ -1138,9 +1246,9 @@ Usage: smolvm machine prune --name <NAME>
 ```
 
 Its own help describes "Remove unused images and layers to free disk space", which reads host
-wide, while `--name` is documented as "Machine to prune". `smolvm pack prune`, which clears cached
-pack extractions, does take no required argument. Any cleanup line that says `smolvm machine
-prune` bare is wrong on this release.
+wide, while `--name` is documented as "Machine to prune". `smolvm pack prune`, which removes cached
+pack extractions beyond the five most recently used, does take no required argument. Any cleanup
+line that says `smolvm machine prune` bare is wrong on this release.
 
 **And the machine form starts the machine to do its work**, observed on Linux aarch64:
 

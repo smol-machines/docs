@@ -6,8 +6,10 @@ title: "Local API: drive smolvm over HTTP"
 
 Drives smolvm programmatically over its local HTTP API (smolvm serve) instead of the CLI: create machines, exec and stream commands, move files in and out, and tear them down. Use when building a client, harness, agent tool or MCP backend over smolvm; when a create call is accepted but the machine behaves as if a field was ignored; when a file uploaded over the API has disappeared; when an exec that failed still returned HTTP 200; or when choosing between the Unix socket and loopback TCP. Do not use it as a substitute for the CLI in a shell script, and do not bind a plain listener beyond loopback: a server started without mutual TLS has no authentication of any kind.
 
-Verified on **smolvm v1.22.2** on macOS arm64, 2026-10-03, and on **v1.18.2** on Linux aarch64, 2026-09-24. Done means a machine went through
-its whole lifecycle over HTTP and `GET /api/v1/machines` is empty again at the end.
+Verified on **smolvm v1.23.0** on macOS arm64, 2026-10-04, and on **v1.18.2** on Linux aarch64, 2026-09-24. Done means a machine went through
+its whole lifecycle over HTTP and `GET /api/v1/machines/<name>` answers `NOT_FOUND` at the end.
+The Linux runs used the scripts of their date; this version's preflight and cleanup scripts ran
+on Linux aarch64 on v1.22.2 on 2026-10-03.
 
 Two rules run through everything here, and both are the same shape: **a 200 is not a result.**
 
@@ -37,7 +39,9 @@ scripts/serve-start.sh --listen 127.0.0.1:8899
 
 It waits for `"status":"ok"` from `/health` rather than for the process to exist, records the
 listen address and pid for cleanup, and reports any `Reclaimed N dangling VM data dir(es)` line so
-you do not later read those directories as a leak.
+you do not later read those directories as a leak. Run again while the recorded server is up, it
+prints `result=already_serving` with the recorded address and starts nothing, whatever `--listen`
+says.
 
 **3. Export the spec before writing a request body.** This is the step that saves the most time.
 
@@ -58,7 +62,7 @@ scripts/lifecycle-check.sh
 
 Create, start, wait for the workload container to answer with a value, exec, exec a deliberately
 failing command and assert its non-zero `exitCode` came back on a 200, stream, round-trip a file,
-stop, delete, and assert the machine list is empty:
+stop, delete, and assert the machine is gone:
 
 ```
 created_state=ok (created)
@@ -71,7 +75,7 @@ failing_exec_exit_code=ok (3)
 stream_lines=ok (3)
 stream_exit_event=ok
 file_roundtrip=ok (PAYLOAD123)
-machines_empty=ok ({"machines":[]})
+machine_gone=ok (NOT_FOUND)
 result=lifecycle_ok
 ```
 
@@ -81,11 +85,11 @@ result=lifecycle_ok
 scripts/cleanup.sh --purge
 ```
 
-`cleanup.sh` waits 20 seconds before it checks the machine list and prints `waiting=20s` first:
-an ephemeral machine's entry retires after its run returns.
+`cleanup.sh` waits up to 20 seconds, polling the machine list, and prints `waiting=up to 20s`
+first: an ephemeral machine's entry retires after its run returns.
 
-Order matters: **stopping the server does not stop machines**, it orphans them. The script deletes
-recorded machines, then stops the server, then removes the socket.
+Order matters: **stopping the server does not stop machines**, which keep running after it exits.
+The script deletes recorded machines, then stops the server, then removes the socket.
 
 ## The calls, in short
 
@@ -125,7 +129,7 @@ Full detail in `references/traps.md` and `references/api-fields.md`.
   127.0.0.1:10081: Address already in use`, whatever `--listen` says: every server binds that port
   for the branch-pool rollout routes. Set `SMOLVM_GUEST_ROLLOUT_HOST_PORT` to another port for the
   second one.
-- **Killing the server orphans machines.**
+- **Stopping the server leaves machines running.**
 - **The spec's `info.version` is not the binary's.** It says `0.5.2` on v1.14.2 while `/health`
   says `1.14.2`, and still `0.5.2` on v1.22.2. Take the version from `/health`.
 - **The default listen path differs per platform, and `--help` shows only one of them.** The help
@@ -165,15 +169,17 @@ messages, and `branch-and-checkpoint` covers pause alongside checkpoints.
   bind anything but `127.0.0.1`.
 - **`scripts/serve-start.sh` puts its socket under the packet's own state directory**, not in a
   world-traversable temporary directory, and removes it at cleanup.
-- **Machines are deleted before the server is stopped**, because a server shutdown leaves running
-  VMs with nothing managing them and no route back to them from the CLI.
+- **Machines are deleted before the server is stopped**, because stopping the server does not stop
+  them: `serve start --help` says machines persist independently of the server, and on shutdown it
+  prints `Shutting down server (VMs continue running)...`.
 
 ## Platform arms
 
-- **macOS arm64**: v1.22.2, over the Unix socket and loopback TCP.
+- **macOS arm64**: v1.23.0, over loopback TCP, and v1.22.2 over the Unix socket as well.
 - **Linux aarch64**: v1.18.2 over the Unix socket, 2026-09-24, `result=lifecycle_ok` with all
-  eleven checks. The single v1.22.2 run failed only at `machines_empty`, on `image-seed-*` helpers
-  an interrupted run had left listed.
+  eleven checks. The single v1.22.2 run failed only at `machines_empty`, the check that then
+  required an empty machine list, on `image-seed-*` helpers an interrupted run had left listed. On
+  v1.23.0 the current script passed over the Unix socket, run once.
 - **Linux x86_64**: verified on v1.14.2 on an NVIDIA A10 cloud host, over both transports, not
   re-run since.
 - **Windows x86_64**: `references/windows.md`, **re-run on 2026-10-03 against v1.22.2** on
@@ -187,8 +193,10 @@ messages, and `branch-and-checkpoint` covers pause alongside checkpoints.
 **1. "Write me something that drives a smolvm machine over HTTP end to end and proves it worked."**
 
 `scripts/lifecycle-check.sh`. All eleven checks passed on macOS arm64 on v1.22.2, over loopback TCP
-and the Unix socket, with the output shown in step 4, including `failing_exec_exit_code=ok (3)`,
-the assertion that catches a guest failure hiding behind a 200.
+and the Unix socket, and on v1.23.0 over loopback TCP on macOS and the Unix socket on Linux, with
+the output shown in step 4, including `failing_exec_exit_code=ok (3)`, the assertion that catches a
+guest failure hiding behind a 200. The final `machine_gone` check ran over loopback TCP on
+2026-10-03 and over the Unix socket on 2026-10-04; the earlier runs ended with `machines_empty`.
 
 **2. "I uploaded a file right after starting the machine and now the API says it does not
 exist."**
@@ -209,20 +217,38 @@ POST /api/v1/machines {"name":"...","image":"alpine","network":true,"memory":102
 
 A 404 returns `{"error":"machine 'nope-does-not-exist' not found","code":"NOT_FOUND"}`.
 
+## Re-verified on v1.23.0
+
+Run 2026-10-04 PT against v1.23.0 from the published release, checksum checked, under a fresh
+isolated `HOME` on macOS 27.0.1 arm64, once. On Lima `linux-kvm` (Ubuntu 24.04 aarch64) the
+checks named below ran once, so the Linux stamp stays on its earlier release.
+
+macOS: `result=lifecycle_ok` with all eleven checks over loopback TCP, and `serve-start.sh`
+`result=serving` on the Unix socket. A `memory` and a `net` field were each refused with `422`, the
+expected list now including `nestedVirt` and `autoGraph`; the upload race did not reproduce, 0 of
+3; pause and resume over the API brought the counter from 1 before a 10 s pause to 5 three seconds
+after the resume. The spec still says `info.version 0.5.2`. A create with `"network":false` and a
+registry image returned 200, which `references/api-fields.md` records.
+
+Linux aarch64: `serve-start.sh` on the Unix socket with the server's defaults, which from v1.23.0
+include `--seccomp enforce` on arm64 ([#1533](https://github.com/smol-machines/smolvm/pull/1533)),
+then `lifecycle-check.sh` `result=lifecycle_ok` through `machine_gone=ok (NOT_FOUND)`.
+
 ## Re-verified on v1.22.2
 
 Run 2026-10-03 PT against v1.22.2 from the published release, checksum checked, under an isolated
-`HOME` on macOS 27.0.1 arm64, once to write and once from a fresh `HOME` to verify. On Lima
-`linux-kvm` (Ubuntu 24.04 aarch64) guests above 2048 MiB timed out that day, so the Linux lines
-below are a single run and the Linux stamp stays on its earlier release.
+`HOME` on macOS 27.0.1 arm64, twice, the second time from a fresh `HOME`. On Lima `linux-kvm`
+(Ubuntu 24.04 aarch64) guests above 2048 MiB timed out on 2026-10-03, so the Linux lines below are
+a single run and the Linux stamp stays on its earlier release.
 
 macOS: `result=lifecycle_ok` over loopback TCP and the Unix socket, a `memory` and a `net` field
 each refused with `422`, the upload race 0 of 3, and pause and resume over the API with the counter
 at 11 before a 10 s pause and 15 three seconds after the resume. The spec says
 `info.version 0.5.2`. Mutual TLS and the second-server port are in `references/traps.md`.
 
-Linux aarch64: both `422` refusals word for word and the upload race 0 of 3. The lifecycle failed
-only at `machines_empty`, on two `image-seed-*` helpers an interrupted run had left in the list.
+Linux aarch64: both `422` refusals word for word and the upload race 0 of 3. The lifecycle, run
+with the script of that date, failed only at `machines_empty`, the check that then required an
+empty machine list, on two `image-seed-*` helpers an interrupted run had left in the list.
 
 ## What was not run
 
@@ -255,7 +281,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.22.2"
+VERIFIED_VERSION="1.23.0"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -381,6 +407,18 @@ set -uo pipefail
 
 STATE_DIR="${SMOLVM_SKILL_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/smolvm-skills}"
 mkdir -p "$STATE_DIR"
+
+# A second server exits on the rollout port; keep the recorded one rather than unlink its socket.
+# The recorded pid counts only while it is still a `serve start`, not a reused pid.
+oldpid="$(cat "$STATE_DIR/local-api.pid" 2>/dev/null)"
+if [ -n "$oldpid" ]; then
+    case "$(ps -p "$oldpid" -o command= 2>/dev/null)" in
+        *"serve start"*)
+            printf 'listen=%s\n' "$(cat "$STATE_DIR/local-api.listen" 2>/dev/null)"
+            printf 'result=already_serving pid=%s\n' "$oldpid"
+            exit 0 ;;
+    esac
+fi
 
 LISTEN="unix://$STATE_DIR/local-api.sock"
 if [ "${1:-}" = "--listen" ]; then LISTEN="$2"; fi
@@ -554,10 +592,10 @@ api -X PUT "$BASE/api/v1/machines/$NAME/files/%2Ftmp%2Fabs.txt" --data-binary 'P
 check file_roundtrip "$(api "$BASE/api/v1/machines/$NAME/files/%2Ftmp%2Fabs.txt")" PAYLOAD123
 
 # 7. Stop and delete. Delete machines BEFORE the server goes away: shutting the
-# server down does not stop them, it orphans them.
+# server down does not stop them.
 api -X POST "$BASE/api/v1/machines/$NAME/stop" -H 'content-type: application/json' -d '{}' >/dev/null
 api -X DELETE "$BASE/api/v1/machines/$NAME" >/dev/null
-check machines_empty "$(api "$BASE/api/v1/machines")" '{"machines":[]}'
+check machine_gone "$(api "$BASE/api/v1/machines/$NAME" | jget code)" NOT_FOUND
 
 if [ "$fail" -eq 0 ]; then printf 'result=lifecycle_ok\n'; else printf 'result=FAILED\n'; fi
 exit "$fail"
@@ -569,9 +607,10 @@ exit "$fail"
 #!/usr/bin/env bash
 # Delete the machines this packet's scripts created, then prove the host is clean.
 #
-# Only machines recorded in the state file are deleted, so a machine you or
-# another session created by hand is never touched. Scripts record a name by
-# calling: cleanup.sh --record <name>
+# Only machines recorded in the state file are deleted, with --cascade, so any
+# machine branched from one of them goes too, whatever its name. Any other
+# machine you or another session created by hand is never deleted. Scripts
+# record a name by calling: cleanup.sh --record <name>
 #
 # usage: cleanup.sh [--record <name>] [--reap] [--purge]
 #   --record <name>  add a machine name to the state file and exit
@@ -608,22 +647,32 @@ if [ -z "$SMOLVM" ]; then
     exit 2
 fi
 
+# With SMOLVM_DATA_DIR set, smolvm runs with HOME there on Linux, so its cache
+# is under .cache in it.
 case "$(uname -s)" in
     Darwin) VMS_DIR="$HOME/Library/Caches/smolvm/vms" ;;
-    *)      VMS_DIR="${SMOLVM_DATA_DIR:-$HOME/.cache/smolvm}/vms" ;;
+    *)      cache_root="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.cache}"
+            VMS_DIR="${cache_root:-${XDG_CACHE_HOME:-$HOME/.cache}}/smolvm/vms" ;;
 esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
+if [ -n "${SMOLVM:-}" ]; then
+    case "$(readlink "$SMOLVM" 2>/dev/null || printf '%s' "$SMOLVM")" in
+        "$SMOLVM_PREFIX"/*) ;;
+        *) printf 'note=%s is not under %s, so the process scan cannot see its forked VMs (all of its VMs on macOS); set SMOLVM_PREFIX to its directory\n' "$SMOLVM" "$SMOLVM_PREFIX" ;;
+    esac
+fi
 
 # List this HOME's VM processes as "pid marker". The plain run path execs a
 # `_boot-vm` child that carries its boot config; the pack-run path forks one that
-# carries none. Linux names both `libkrun VM`; on macOS the executable path and
-# the parent chain scope the search. The teardown packet's traps have the why.
+# carries none. Linux names both `libkrun VM`, or `VM:<hostname>` when HOSTNAME
+# is exported; on macOS the executable path and the parent chain scope the
+# search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
             for p in /proc/[0-9]*; do
-                [ "$(cat "$p/comm" 2>/dev/null)" = "libkrun VM" ] || continue
+                case "$(cat "$p/comm" 2>/dev/null)" in "libkrun VM"|VM:*) ;; *) continue ;; esac
                 pid="${p#/proc/}"
                 cfg="$(tr '\0' '\n' < "$p/cmdline" 2>/dev/null | sed -n '3p')"
                 case "$cfg" in
@@ -636,16 +685,21 @@ list_vm_processes() {
             ;;
         Darwin)
             # shellcheck disable=SC2009  # pgrep -f would match this script.
-            own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
-            ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
+            procs="$(ps -axo pid=,ppid=,command= 2>/dev/null)"
+            printf '%s\n' "$procs" | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
+                # An orphan counts only if it is a run; a fork has its parent's command line.
                 if [ "$ppid" = 1 ]; then
-                    printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
+                    case "$rest" in
+                        *" machine run "*|*" vm run "*|*" pack run "*)
+                            printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
+                    esac
                 else
-                    case "$own" in *" $ppid "*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;; esac
+                    parent="$(printf '%s\n' "$procs" | while read -r q qp qrest; do [ "$q" = "$ppid" ] && { printf '%s' "$qrest"; break; }; done)"
+                    [ "$parent" = "$rest" ] && printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 fi
             done
             ;;
@@ -675,27 +729,31 @@ fi
 
 # 1b. Stop the API server, AFTER the machines are gone. Shutting it down does
 # not stop machines: it prints "Shutting down server (VMs continue running)..."
-# and leaves them with nothing managing them.
+# and they keep running after it exits.
 if [ -s "$STATE_DIR/local-api.pid" ]; then
     apipid="$(cat "$STATE_DIR/local-api.pid")"
-    if kill "$apipid" 2>/dev/null; then
-        printf 'api_server=stopped pid=%s\n' "$apipid"
-    else
-        printf 'api_server=not_running pid=%s\n' "$apipid"
-    fi
+    case "$(ps -p "$apipid" -o command= 2>/dev/null)" in
+        *"serve start"*) kill "$apipid" 2>/dev/null; printf 'api_server=stopped pid=%s\n' "$apipid" ;;
+        *)               printf 'api_server=not_running pid=%s\n' "$apipid" ;;
+    esac
     rm -f "$STATE_DIR/local-api.pid"
     listen="$(cat "$STATE_DIR/local-api.listen" 2>/dev/null)"
     case "$listen" in unix://*) rm -f "${listen#unix://}" ;; esac
     rm -f "$STATE_DIR/local-api.listen"
 fi
 
-# 2. An ephemeral machine's entry retires after its run returns.
-printf 'waiting=20s for ephemeral entries to retire before asserting\n'
-sleep 20
+# 2. An ephemeral machine's entry retires after its run returns: poll, 20 s at most.
+printf 'waiting=up to 20s for ephemeral entries to retire before asserting\n'
+waited=0
+listing="$("$SMOLVM" machine list 2>&1)"
+while ! grep -q 'No machines found' <<<"$listing" && [ "$waited" -lt 20 ]; do
+    sleep 1; waited=$((waited + 1))
+    listing="$("$SMOLVM" machine list 2>&1)"
+done
+printf 'waited=%ss\n' "$waited"
 
 # 3. Assert the value, not the exit code.
-listing="$("$SMOLVM" machine list 2>&1)"
-if printf '%s' "$listing" | grep -q 'No machines found'; then
+if grep -q 'No machines found' <<<"$listing"; then
     printf 'machines=clean\n'
     [ "$purge" -eq 1 ] && rm -f "$STATE_FILE"
 else
@@ -706,8 +764,8 @@ else
     printf '  add --cascade for a machine that was branched from another\n'
 fi
 
-# 4. Report VM processes left under this HOME's state, such as a killed
-# wrapper's; another session's are left alone.
+# 4. Report VM processes under this HOME's state, such as a killed wrapper's.
+# With --reap every one is killed, including a machine another packet kept.
 found=0
 while read -r pid cfg; do
     [ -n "$pid" ] || continue
@@ -777,12 +835,11 @@ one the container mounts over.
 Check `exitCode` in the body. `scripts/lifecycle-check.sh` deliberately runs `sh -c 'exit 3'` and
 asserts `exitCode == 3`, so the assertion that catches this is itself tested.
 
-### Killing the server orphans running machines
+### Stopping the server leaves its machines running
 
 On shutdown it prints `Shutting down server (VMs continue running)...`, and that is the only
-notice you get, in a line you will miss if stderr is redirected. **Delete machines before killing
-the server**, or they survive it with nothing managing them. `scripts/cleanup.sh` does them in
-that order.
+notice you get, in a line you will miss if stderr is redirected. **Delete machines before stopping
+the server**, or they keep running after it. `scripts/cleanup.sh` does them in that order.
 
 ### `serve start` also reclaims stale VM directories
 
@@ -792,8 +849,9 @@ reporting those as a leak.
 
 ### The default listen address is derived, not hard-coded
 
-It is a Unix socket under `XDG_RUNTIME_DIR` (`unix:///run/user/<uid>/smolvm.sock`), not a fixed
-uid, although the help text can read that way when your uid happens to be 501.
+On Linux it is `smolvm.sock` under `XDG_RUNTIME_DIR` when that is set
+(`unix:///run/user/<uid>/smolvm.sock`) and `/tmp/smolvm.sock` otherwise; macOS always gets
+`/tmp/smolvm.sock`, and Windows `127.0.0.1:8080`. The help prints the value for the user who ran it.
 
 ### `serve openapi` writes to stdout by default
 
@@ -813,8 +871,10 @@ client with no certificate was refused during the handshake, one signed by the c
 `{"status":"ok","version":"1.22.2",...}` from `/health`, and with `--mtls-client-cn` set to another
 name the same certificate was refused. The server warns that without `--mtls-client-cn` any
 certificate the CA signed has full access. **It also opens a plain listener beside the TLS one**,
-`smolvm local API (loopback, plain) on http://127.0.0.1:<port + 1>`, which has no authentication,
-so the loopback boundary above still applies to that port.
+`smolvm local API (loopback, plain) on http://127.0.0.1:<port + 1>` (`SMOLVM_SERVE_LOCAL_ADDR`
+moves it, to a loopback address only). It has no authentication and answers only `/health`,
+`/readyz`, `/capacity` and `/metrics`; the machine, exec and file routes are on the TLS port. Only
+`/health` was requested here.
 
 ### Only one server per host, unless you move its rollout port
 
@@ -825,7 +885,7 @@ says, so a second server on the same host exits at once:
 Error: config operation failed: bind guest rollout ingress: 127.0.0.1:10081: Address already in use (os error 48)
 ```
 
-Measured on macOS arm64 on v1.22.2 while another session's server held the port. With
+Measured on macOS arm64 on v1.22.2 with another server already holding the port. With
 `SMOLVM_GUEST_ROLLOUT_HOST_PORT=10091` the second server started and answered on `/health`.
 
 ### Field names, versions and error bodies

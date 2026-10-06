@@ -7,11 +7,13 @@ title: "Credentials: an API key the machine uses and never holds"
 Gives a workload in a smolvm machine an API key or token it can use but never read, by binding the credential to named HTTPS hosts so the guest holds only a placeholder and the host substitutes the value on the way out, then proves on the host that the value never entered the machine. Use when an agent or untrusted code inside a machine has to call an API with your key; when deciding between a credential binding and --secret-env; when a request from a credentialed machine comes back 403 or 502 from smolvm itself; or when you need evidence that a key stayed out of a machine. Do not use it for a value the program must read and parse, such as a database URL, which is --secret-env, or for git and ssh keys, which is SSH agent forwarding.
 
 Verified on **smolvm v1.22.2** on macOS arm64, 2026-10-03, and on **v1.18.2** on Linux aarch64, 2026-09-24, for everything that
-is decided on the host; **the substitution arriving at a real API was not observed in this run**,
+is decided on the host; **the substitution arriving at a real API was not observed**,
 for the reason under "What was not run". Done means the guest's variable is a placeholder, the value
 is nowhere in the guest, the machine's record or smolvm's database, TLS to the bound host goes
 through the machine's own CA, and a placeholder anywhere but a request header is refused before it
 leaves the host.
+The Linux runs used the scripts of their date; this version's preflight and cleanup scripts ran
+on Linux aarch64 on v1.22.2 on 2026-10-03.
 
 `docs/credential-substitution.md` in the smolvm repository is how the feature works: bindings,
 where the value comes from, what the guest sees, what happens to each request, and the limits.
@@ -71,7 +73,10 @@ and then `machine start`. `--credential` implies `--net`. In a Smolfile the same
 `[[network.credentials]]` table, in `docs/credential-substitution.md`.
 
 **3. Prove the value stayed out.** Nothing this sends carries the placeholder where it would be
-substituted, so the value goes nowhere during the check.
+substituted, so the value goes nowhere during the check. On an Alpine guest it adds openssl and
+curl with apk, which step 4 then uses. Run it on the machine `create-credentialed.sh` made, before
+any workload of yours runs in it: the guest search hands the value to a `grep` in the guest for the
+length of the search, so a workload that can replace `grep` could read it.
 
 ```bash
 scripts/verify-containment.sh --var API_TOKEN --host api.example.com --other-host example.org
@@ -88,7 +93,8 @@ refusal_text=smolvm credentials: placeholders are substituted in request headers
 result=contained
 ```
 
-`value_in_guest` searches every process environment and the writable trees inside the guest;
+`value_in_guest` hands the value to a `grep` inside the guest on standard input for the length of
+the search, and looks in every process environment and the writable trees inside the guest;
 `value_in_record` searches the machine's directory and smolvm's database on the host;
 `interception` reads the issuer of the bound host's certificate as the guest sees it, which is
 `smolvm <machine> credential CA`, while `--other-host` keeps its real issuer.
@@ -110,8 +116,8 @@ by the API's answer, the way you would without smolvm.
 scripts/cleanup.sh --purge
 ```
 
-`cleanup.sh` waits 20 seconds before it checks the machine list and prints `waiting=20s` first:
-an ephemeral machine's entry retires after its run returns.
+`cleanup.sh` waits up to 20 seconds, polling the machine list, and prints `waiting=up to 20s`
+first: an ephemeral machine's entry retires after its run returns.
 
 ## Traps
 
@@ -125,11 +131,13 @@ Full detail in `references/traps.md`.
   which the same page says is read per request.
 - **Never put the real value on an `exec` command line.** smolvm writes exec commands into the
   machine's console log on the host, so a check that interpolated the value into its own `grep`
-  planted it in `agent-console.log` and failed itself. `verify-containment.sh` splits the value
-  and rejoins it inside the guest for that reason.
+  planted it in `agent-console.log` and failed itself. `verify-containment.sh` hands the value to
+  `grep` on standard input, in the guest and on the host, for that reason.
 - **A 403 from smolvm is a refusal, not the API.** The body says which rule: a placeholder in the
   path, query or body; in a routing or framing header such as `Cookie`; more than one in a request;
-  or one the machine did not mint. A `405` means the binding does not allow this host or method.
+  or one the machine did not mint. A `403` with `this credential is not allowed for this host`
+  means the placeholder belongs to a binding for another host; a `405` means the binding does not
+  allow the method.
 - **On v1.18.2 a machine created from a pack ignores `--credential`**, silently; on v1.22.2 it
   binds. `references/traps.md` has both.
 - **Port 80 is not intercepted.** Plaintext HTTP is relayed untouched, so a placeholder there
@@ -148,8 +156,8 @@ Full detail in `references/traps.md`.
   that breaks either rule is refused.
 - **Substitution is not data-loss prevention.** An API that echoes your key back in a response
   body hands it to the guest. Bind keys only to APIs you trust with them.
-- **The scripts never print the value**, its length or its halves, and the preflight reports only
-  whether the variable is set.
+- **The scripts never print the value** or its length, and the preflight reports only whether the
+  variable is set.
 - **Cleanup deletes only machines the scripts recorded** under the `smolskill-` prefix.
 
 ## Platform arms
@@ -204,11 +212,11 @@ reachable under the machine's network allow_hosts`.
 ## Re-verified on v1.22.2
 
 Run 2026-10-03 PT against v1.22.2 from the published release, checksum checked, under an isolated
-`HOME` on macOS 27.0.1 arm64, once to write and once from a fresh `HOME` to verify. On Lima
-`linux-kvm` (Ubuntu 24.04 aarch64) guests above 2048 MiB timed out that day, and this packet was
-not run there.
+`HOME` on macOS 27.0.1 arm64, twice, the second time from a fresh `HOME`. Apart from `preflight.sh`
+and `cleanup.sh`, this packet was not run on v1.22.2 on Lima `linux-kvm` (Ubuntu 24.04 aarch64),
+where guests above 2048 MiB timed out on 2026-10-03.
 
-macOS, bound to a local HTTPS server with a throwaway value: `result=contained` on all seven
+macOS, bound to a local HTTPS server with a throwaway value: `result=contained` on all six
 checks, the `Cookie` and forged placeholders refused with `403`, and the request carrying the
 placeholder answered `502 smolvm credentials: upstream request failed`, because the server's
 certificate was self-signed; the server received nothing. With the disk images left out of the
@@ -216,11 +224,13 @@ record search, `verify-containment.sh` and the rest of the procedure took 25 s.
 
 ## What was not run
 
-- **The value arriving at a real API.** Observing it needs an HTTPS service that reports the header
-  it received, and sending even a throwaway token to a third-party echo service was stopped by this
-  run's own safety controls. Everything on the host side of that request was observed; the far
-  side is the one step not seen. One request did reach `example.com` with a dummy value substituted,
-  by mistake, in the check that led to the first trap above; `example.com` ignores the header.
+- **The value arriving at an API.** Seeing it needs an HTTPS endpoint with a publicly trusted
+  certificate that reports the header it received, and none was used. On v1.18.2 on macOS arm64 a
+  substituted request to `example.com` was forwarded and answered `200`, which `example.com` gives
+  whatever the header holds; on v1.22.2 on macOS arm64 the substituted request to a local server
+  with a self-signed certificate was answered `502 smolvm credentials: upstream request failed` and
+  reached nothing. Every check on the host side ran on macOS arm64 on both releases and on Linux
+  aarch64 on v1.18.2.
 - **File references and rotation in place**, which `docs/credential-substitution.md` describes;
   nothing here changed a value under a running machine except by the variable.
 - **Credentials over the HTTP API**, branches and checkpoints carrying bindings, and portable
@@ -229,7 +239,8 @@ record search, `verify-containment.sh` and the rest of the procedure took 25 s.
 
 ## Related packets
 
-- `throwaway-machine` for the machine this usually protects, and `--allow-host`, which a binding must fit.
+- `throwaway-machine` for `--allow-host`, which a binding must fit. Give a machine a binding with
+  the commands in this packet, which are the ones verified with it.
 - `local-api` for the `credentials` field on a create body.
 - `teardown` for the wider cleanup.
 
@@ -465,10 +476,8 @@ SMOLVM="${SMOLVM:-$(command -v smolvm 2>/dev/null)}"
 [ -n "$SMOLVM" ] || { printf 'smolvm not found; set SMOLVM to its path\n' >&2; exit 2; }
 
 # A long-lived workload, so exec has a container to run in.
-"$SMOLVM" machine create --name "$NAME" --mem 1024 --image "$IMAGE" \
-    --credential "$BINDING=$VAR@$HOST" -- sh -c 'while true; do sleep 3600; done' 2>&1 | sed 's/^/  /'
-listing="$("$SMOLVM" machine list 2>/dev/null)"
-if ! printf '%s\n' "$listing" | grep -q "^$NAME "; then
+if ! "$SMOLVM" machine create --name "$NAME" --mem 1024 --image "$IMAGE" \
+    --credential "$BINDING=$VAR@$HOST" -- sh -c 'while true; do sleep 3600; done' 2>&1 | sed 's/^/  /'; then
     printf 'result=FAILED the machine was not created; the lines above say why\n'
     exit 1
 fi
@@ -500,20 +509,20 @@ exit 1
 
 ```bash
 #!/usr/bin/env bash
-# Prove, on this host, that a credentialed machine never holds the value. Every
-# check here is decided before anything leaves the host: no request this script
-# makes carries the placeholder where it would be substituted, so the value is
-# never sent anywhere. Seeing the value arrive at the API is your own first real
-# call, which this script does not make.
+# Prove, on this host, that a credentialed machine never holds the value. Run it
+# before any untrusted workload runs in the machine: check 2 hands the value to a
+# grep inside the guest. Every check here is decided before anything leaves the
+# host: no request this script makes carries the placeholder where it would be
+# substituted, so the value is never sent anywhere. Seeing the value arrive at
+# the API is your own first real call, which this script does not make.
 #
 # usage: verify-containment.sh --var <HOST_ENV_VAR> --host <api.example.com>
 #                              [--name <n>] [--other-host <host>]
 #   --other-host  a host no binding names, to show its TLS is passed through
 #
 # The value is never put on a command line: a command passed to machine exec is
-# written to the machine's console log on the host, so interpolating the value
-# into one would plant it there and fail this very check. It is split in two and
-# rejoined inside the guest.
+# written to the machine's console log on the host. Both searches read it on
+# standard input instead.
 
 set -uo pipefail
 
@@ -539,9 +548,6 @@ SMOLVM="${SMOLVM:-$(command -v smolvm 2>/dev/null)}"
 [ -n "$SMOLVM" ] || { printf 'smolvm not found; set SMOLVM to its path\n' >&2; exit 2; }
 value="$(printenv "$VAR" 2>/dev/null)"
 [ -n "$value" ] || { printf 'result=FAILED %s is not set here, so there is nothing to look for\n' "$VAR"; exit 2; }
-half=$(( ${#value} / 2 ))
-a="${value:0:$half}"
-b="${value:$half}"
 
 fail=0
 check() {
@@ -549,23 +555,36 @@ check() {
 }
 X() { "$SMOLVM" machine exec --name "$NAME" -- "$@" 2>/dev/null; }
 
-X sh -c 'command -v openssl >/dev/null && command -v curl >/dev/null || apk add -q openssl curl >/dev/null 2>&1' >/dev/null
-
 # 1. The guest's variable is a placeholder.
 seen="$(X sh -c "printenv $VAR")"
 case "$seen" in SMOL_PLACEHOLDER_*) check guest_variable placeholder placeholder ;; *) check guest_variable other placeholder ;; esac
+[ "$fail" -eq 0 ] || { printf 'result=FAILED the guest variable is not a placeholder, so nothing more was checked or sent\n'; exit 1; }
+
+X sh -c 'command -v openssl >/dev/null && command -v curl >/dev/null || apk add -q openssl curl >/dev/null 2>&1; command -v openssl >/dev/null && command -v curl >/dev/null' >/dev/null \
+    || { printf 'result=FAILED the guest has no openssl or curl and apk could not add them\n'; exit 2; }
 
 # 2. The value is nowhere in the guest: every environment, and the writable trees.
-hits="$(X sh -c 'P="$1$2"; grep -rlF "$P" /proc/[0-9]*/environ /run /etc /root /tmp /var /home 2>/dev/null | grep -v "^/proc/$$/" | wc -l | tr -d " "' _ "$a" "$b")"
+# A dropped standard input would read as zero hits, so prove it arrives first.
+echo_back="$(printf 'smolskill-stdin-probe\n' | "$SMOLVM" machine exec -i --name "$NAME" -- cat 2>/dev/null)"
+[ "$echo_back" = smolskill-stdin-probe ] || { printf 'result=FAILED machine exec -i did not pass standard input through, so the guest search could not read the value\n'; exit 2; }
+hits="$(printf '%s\n' "$value" | "$SMOLVM" machine exec -i --name "$NAME" -- sh -c 'grep -rlF -f /dev/stdin /proc/[0-9]*/environ /run /etc /root /tmp /var /home 2>/dev/null | grep -v "^/proc/$$/" | wc -l | tr -d " "' 2>/dev/null)"
 check value_in_guest "${hits:-unknown}" 0
 
 # 3. Nor in the machine's directory or smolvm's database on the host.
 dir="$("$SMOLVM" machine data-dir --name "$NAME" 2>/dev/null)"
-case "$(uname -s)" in Darwin) db="$HOME/Library/Application Support/smolvm" ;; *) db="${SMOLVM_DATA_DIR:-$HOME/.local/share/smolvm}" ;; esac
+case "$(uname -s)" in
+    Darwin) db="$HOME/Library/Application Support/smolvm" ;;
+    *) db="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.local/share/smolvm}"
+       db="${db:-${XDG_DATA_HOME:-$HOME/.local/share}/smolvm}" ;;
+esac
 # The *.raw disk images are the guest filesystem step 2 searched from inside, and
 # grep took about 19 minutes over their 30 GiB of sparse space on macOS.
-rec="$( { grep -rlF --exclude='*.raw' "$value" "$dir" "$db" 2>/dev/null || true; } | wc -l | tr -d ' ')"
-check value_in_record "$rec" 0
+if [ -d "$dir" ] && [ -d "$db" ]; then
+    rec="$( { printf '%s\n' "$value" | grep -rlF --exclude='*.raw' -f /dev/stdin "$dir" "$db" 2>/dev/null || true; } | wc -l | tr -d ' ')"
+    check value_in_record "$rec" 0
+else
+    check value_in_record "not_searched (${dir:-no machine directory}, $db)" 0
+fi
 
 # 4. TLS to the bound host is terminated by the machine's own CA: the interceptor
 #    is on the path. No request is sent.
@@ -593,9 +612,10 @@ if [ "$fail" -eq 0 ]; then printf 'result=contained\n'; else printf 'result=FAIL
 #!/usr/bin/env bash
 # Delete the machines this packet's scripts created, then prove the host is clean.
 #
-# Only machines recorded in the state file are deleted, so a machine you or
-# another session created by hand is never touched. Scripts record a name by
-# calling: cleanup.sh --record <name>
+# Only machines recorded in the state file are deleted, with --cascade, so any
+# machine branched from one of them goes too, whatever its name. Any other
+# machine you or another session created by hand is never deleted. Scripts
+# record a name by calling: cleanup.sh --record <name>
 #
 # usage: cleanup.sh [--record <name>] [--reap] [--purge]
 #   --record <name>  add a machine name to the state file and exit
@@ -632,22 +652,32 @@ if [ -z "$SMOLVM" ]; then
     exit 2
 fi
 
+# With SMOLVM_DATA_DIR set, smolvm runs with HOME there on Linux, so its cache
+# is under .cache in it.
 case "$(uname -s)" in
     Darwin) VMS_DIR="$HOME/Library/Caches/smolvm/vms" ;;
-    *)      VMS_DIR="${SMOLVM_DATA_DIR:-$HOME/.cache/smolvm}/vms" ;;
+    *)      cache_root="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.cache}"
+            VMS_DIR="${cache_root:-${XDG_CACHE_HOME:-$HOME/.cache}}/smolvm/vms" ;;
 esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
+if [ -n "${SMOLVM:-}" ]; then
+    case "$(readlink "$SMOLVM" 2>/dev/null || printf '%s' "$SMOLVM")" in
+        "$SMOLVM_PREFIX"/*) ;;
+        *) printf 'note=%s is not under %s, so the process scan cannot see its forked VMs (all of its VMs on macOS); set SMOLVM_PREFIX to its directory\n' "$SMOLVM" "$SMOLVM_PREFIX" ;;
+    esac
+fi
 
 # List this HOME's VM processes as "pid marker". The plain run path execs a
 # `_boot-vm` child that carries its boot config; the pack-run path forks one that
-# carries none. Linux names both `libkrun VM`; on macOS the executable path and
-# the parent chain scope the search. The teardown packet's traps have the why.
+# carries none. Linux names both `libkrun VM`, or `VM:<hostname>` when HOSTNAME
+# is exported; on macOS the executable path and the parent chain scope the
+# search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
             for p in /proc/[0-9]*; do
-                [ "$(cat "$p/comm" 2>/dev/null)" = "libkrun VM" ] || continue
+                case "$(cat "$p/comm" 2>/dev/null)" in "libkrun VM"|VM:*) ;; *) continue ;; esac
                 pid="${p#/proc/}"
                 cfg="$(tr '\0' '\n' < "$p/cmdline" 2>/dev/null | sed -n '3p')"
                 case "$cfg" in
@@ -660,16 +690,21 @@ list_vm_processes() {
             ;;
         Darwin)
             # shellcheck disable=SC2009  # pgrep -f would match this script.
-            own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
-            ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
+            procs="$(ps -axo pid=,ppid=,command= 2>/dev/null)"
+            printf '%s\n' "$procs" | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
+                # An orphan counts only if it is a run; a fork has its parent's command line.
                 if [ "$ppid" = 1 ]; then
-                    printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
+                    case "$rest" in
+                        *" machine run "*|*" vm run "*|*" pack run "*)
+                            printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
+                    esac
                 else
-                    case "$own" in *" $ppid "*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;; esac
+                    parent="$(printf '%s\n' "$procs" | while read -r q qp qrest; do [ "$q" = "$ppid" ] && { printf '%s' "$qrest"; break; }; done)"
+                    [ "$parent" = "$rest" ] && printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 fi
             done
             ;;
@@ -695,13 +730,18 @@ if [ -s "$STATE_FILE" ]; then
     done < "$STATE_FILE"
 fi
 
-# 2. An ephemeral machine's entry retires after its run returns.
-printf 'waiting=20s for ephemeral entries to retire before asserting\n'
-sleep 20
+# 2. An ephemeral machine's entry retires after its run returns: poll, 20 s at most.
+printf 'waiting=up to 20s for ephemeral entries to retire before asserting\n'
+waited=0
+listing="$("$SMOLVM" machine list 2>&1)"
+while ! grep -q 'No machines found' <<<"$listing" && [ "$waited" -lt 20 ]; do
+    sleep 1; waited=$((waited + 1))
+    listing="$("$SMOLVM" machine list 2>&1)"
+done
+printf 'waited=%ss\n' "$waited"
 
 # 3. Assert the value, not the exit code.
-listing="$("$SMOLVM" machine list 2>&1)"
-if printf '%s' "$listing" | grep -q 'No machines found'; then
+if grep -q 'No machines found' <<<"$listing"; then
     printf 'machines=clean\n'
     [ "$purge" -eq 1 ] && rm -f "$STATE_FILE"
 else
@@ -712,8 +752,8 @@ else
     printf '  add --cascade for a machine that was branched from another\n'
 fi
 
-# 4. Report VM processes left under this HOME's state, such as a killed
-# wrapper's; another session's are left alone.
+# 4. Report VM processes under this HOME's state, such as a killed wrapper's.
+# With --reap every one is killed, including a machine another packet kept.
 found=0
 while read -r pid cfg; do
     [ -n "$pid" ] || continue
@@ -758,9 +798,10 @@ file reference for a value that has to rotate under a running machine.
 `machine exec` commands are written to the machine's console log on the host, `agent-console.log`
 in its data directory. A containment check that ran
 `smolvm machine exec -- sh -c "grep -r \"$VALUE\" /proc/*/environ ..."` put the value into that log
-and then found it in the machine's record. Split the value on the host and rejoin it inside the
-guest, as `scripts/verify-containment.sh` does, or pass a hash, and never paste a real key into an
-`exec` command for any reason.
+and then found it in the machine's record. Pass it on standard input, as
+`scripts/verify-containment.sh` does
+(`printf '%s\n' "$VALUE" | smolvm machine exec -i ... grep -F -f /dev/stdin ...`), and never paste
+a real key into an `exec` command for any reason.
 
 ### A 403 or 502 with a `smolvm credentials:` body is smolvm, not the API
 
@@ -775,8 +816,11 @@ Measured refusals, each decided on the host before anything was forwarded:
 | placeholder in `Cookie` | `403 smolvm credentials: placeholders are not substituted in routing or framing headers` |
 | any substituted request, machine started without the value | `502 smolvm credentials: credential unavailable` |
 
-`docs/credential-substitution.md` also lists a `405` for a binding that does not allow the host or method; not measured
-here. A request to the bound host with no placeholder was forwarded and answered normally.
+`docs/credential-substitution.md` puts a binding that does not allow the host or the method under
+a `405`. The host case is a `403`, `smolvm credentials: this credential is not allowed for this
+host`, measured on v1.22.2 on macOS arm64 with two bindings. A method the binding does not allow
+is a `405`, not measured here. A request to the bound host with no placeholder was forwarded and
+answered normally.
 
 ### The create-time rules
 

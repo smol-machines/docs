@@ -9,6 +9,8 @@ Keeps a persistent smolvm machine with its dependencies already installed and re
 Verified on **smolvm v1.22.2** on macOS arm64, 2026-10-03, and on **v1.18.2** on Linux aarch64, 2026-09-24; the Linux runs used
 the Smolfile with `memory = 1024`, for the host reason in "Platform arms". Done means a second `start` is fast, skips provisioning, and the packages installed in
 the first session are still there.
+The Linux runs used the scripts of their date; this version's preflight and cleanup scripts ran
+on Linux aarch64 on v1.22.2 on 2026-10-03.
 
 The whole use case turns on one fact: **`init` runs once, not on every start**, as
 [`smolfile.md`](https://github.com/smol-machines/smolvm/blob/main/docs/smolfile.md) says, and as the docs site (smolmachines.com/docs) says under "When
@@ -23,8 +25,9 @@ provisioning that relies on that line is missing on the second boot.
 scripts/preflight.sh
 ```
 
-Read-only. `restart_after_stop=verified` on macOS and Linux, and on Windows too on v1.14.6 and v1.22.2.
-The script covers macOS and Linux only, so its Windows note points at `references/windows.md`.
+Read-only. `restart_after_stop=verified` on macOS and Linux. The script covers macOS and Linux
+only; elsewhere it prints `unknown` and a note pointing at `references/windows.md`, where a stopped
+machine starts again on v1.14.6 and v1.22.2.
 
 **2. Declare the machine.** `assets/dev.smolfile` is a working starting point, and the one
 `verify-persistence.sh` is written against: it asserts the `app` user and the `/app` workdir that
@@ -37,7 +40,11 @@ net = true
 cpus = 2
 memory = 2048
 volumes = ["./src:/app"]
-init = ["sh -c \"id -un > /init-ran-as.txt\"", "adduser -D app"]
+init = [
+  "sh -c \"id -un > /init-ran-as.txt\"",
+  "sh -c \"date +%s >> /init-count.txt\"",
+  "adduser -D app",
+]
 user = "app"
 workdir = "/app"
 ```
@@ -97,8 +104,8 @@ deliverable, so leave it stopped and tell the user its name.
 scripts/cleanup.sh --purge
 ```
 
-`cleanup.sh` waits 20 seconds before it checks the machine list and prints `waiting=20s` first:
-an ephemeral machine's entry retires after its run returns.
+`cleanup.sh` waits up to 20 seconds, polling the machine list, and prints `waiting=up to 20s`
+first: an ephemeral machine's entry retires after its run returns.
 
 ## What `init` and `user` actually do, observed on v1.14.2 and again on v1.22.2
 
@@ -140,8 +147,8 @@ Full detail in `references/traps.md`. The ones that cost the most:
 - **A machine that runs Tailscale or another carrier NAT VPN needs `--guest-subnet` at create**,
   which a Smolfile cannot carry:
   `smolvm machine create --name smolskill-dev -s dev.smolfile --guest-subnet 10.200.0.0/30`.
-- `create` is instant and proves nothing, and a host `volumes` mount is not writable by a non-root
-  `user`.
+- `create` is instant and proves nothing, and a host `volumes` mount was not writable by the `app`
+  user.
 
 ## Security defaults, and why they are the defaults
 
@@ -170,27 +177,16 @@ Full detail in `references/traps.md`. The ones that cost the most:
 - **Windows x86_64**: `references/windows.md`, **re-run on 2026-10-03 against v1.22.2** on
   Windows 11 Home build 10.0.26200 UBR 9457. Create, three stops and three starts, with a marker read back after each start: **a
   stopped machine starts again and its state survives**, as on v1.14.6, where on v1.14.2 it did
-  not. That page also carries the WHP device ceiling a Windows preflight needs:
+  not. That page also carries the WHP device ceiling a Windows preflight needs through v1.22.2:
   four `-v` mounts, three when a port is published.
 - **`init` after a checkpoint restore**: not verified anywhere.
 
 ## Eval prompts, and what they produced
 
 **1. "Set me up a Python dev machine I can come back to, and prove the packages survive a
-restart."** On macOS arm64 on v1.22.2:
+restart."** On macOS arm64: the step 3 output above, on v1.22.2.
 
-```
-init_ran=yes
-machine_running=yes
-workload_ready_after_s=0
-workload_ready=yes
-init_ran_as=root
-exec_user=app
-workdir=/app
-result=up
-```
-
-then, after the stop and start, `verify-persistence.sh`:
+Then, after the stop and start, `verify-persistence.sh`:
 
 ```
 workload_ready_after_s=0
@@ -243,9 +239,9 @@ The changing hash is the tell: the workload container is being relaunched betwee
 ## Re-verified on v1.22.2
 
 Run 2026-10-03 PT against v1.22.2 from the published release, checksum checked, under an isolated
-`HOME` on macOS 27.0.1 arm64, once to write and once from a fresh `HOME` to verify. On Lima
-`linux-kvm` (Ubuntu 24.04 aarch64) guests above 2048 MiB timed out that day, so the Linux lines
-below are a single run and the Linux stamp stays on its earlier release.
+`HOME` on macOS 27.0.1 arm64, twice, the second time from a fresh `HOME`. On Lima `linux-kvm`
+(Ubuntu 24.04 aarch64) guests above 2048 MiB timed out on 2026-10-03, so the Linux lines below are
+a single run and the Linux stamp stays on its earlier release.
 
 macOS: `result=up` with `init_ran_as=root` and `exec_user=app`, then `result=persistent`,
 `package_version=ok (2.34.2)`, `tmp_file=ok (WIPED)`. `machine create --help` describes `--init` as
@@ -258,8 +254,8 @@ verified on v1.18.2, at `memory = 1024`.
 ## What was not run
 
 - **Windows beyond the restart.** The v1.22.2 run covered create, three stops and starts, the
-  marker and `init` running once; the WHP device ceiling was measured again by the `install`
-  packet's Windows run the same day.
+  marker and `init` running once; the WHP device ceiling was confirmed by the `install`
+  packet's Windows run on 2026-10-03.
 - **Linux x86_64.**
 - **`init` after a checkpoint restore.** Nowhere, on any platform.
 - **The `USER` interaction still settling.** `init` runs as root on v1.22.2, and whether the
@@ -383,8 +379,8 @@ case "$kernel" in
         emit accel unknown
         emit accel_access unknown
         blocked=1
-        emit restart_after_stop broken
-        note "this script covers macOS and Linux. On Windows a stopped machine starts again, on v1.14.6 and v1.22.2, and the WHP device budget caps you at four -v mounts, three when a port is published. See references/windows.md."
+        emit restart_after_stop unknown
+        note "this script covers macOS and Linux. On Windows a stopped machine starts again, on v1.14.6 and v1.22.2, and through v1.22.2 the WHP device budget caps you at four -v mounts, three when a port is published. See references/windows.md."
         ;;
 esac
 
@@ -403,8 +399,9 @@ if [ "$blocked" -eq 0 ]; then emit result ready; else emit result blocked; fi
 #         belong here.
 #   user  governs `exec` and `shell`, not `init`.
 #
-# There is no workload-command key here. Pass one after `--` on `machine create`,
-# as scripts/create-dev-machine.sh does: without it the image's own CMD becomes
+# The workload command is not set here. A Smolfile can carry one as `cmd`;
+# this packet passes it after `--` on `machine create`, as
+# scripts/create-dev-machine.sh does: without one the image's own CMD becomes
 # the persistent workload, and for an interpreter image that command exits at
 # once and `exec` starts racing the relaunch.
 image = "python:3.12-alpine"
@@ -412,8 +409,8 @@ net = true
 cpus = 2
 memory = 2048
 
-# A host mount carries host ownership, so `user` below cannot write to it.
-# Read source in, write build output somewhere else.
+# A host mount carries host ownership, so `user` below (made by adduser) could
+# not write to it. Read source in, write build output somewhere else.
 volumes = ["./src:/app"]
 
 init = [
@@ -436,9 +433,10 @@ workdir = "/app"
 #   name      default smolskill-dev (the prefix cleanup.sh will delete)
 #   smolfile  default ../assets/dev.smolfile
 #
-# `create` is configuration only: it returns in milliseconds, pulls nothing and
-# reports no failure. The pull, the init commands and any of their failures all
-# land on the first `start`, so a fast create is not evidence that anything works.
+# `create` is configuration only: it returns in milliseconds and pulls nothing. It
+# does refuse a host mount source that does not exist; the pull, the init commands
+# and any of their failures land on the first `start`, so a fast create is not
+# evidence that anything works.
 
 set -uo pipefail
 
@@ -467,16 +465,22 @@ mkdir -p ./src
 # `smolvm-<hash>` is not running" instead of running your command. Measured on a
 # nested-virt aarch64 host: 1 exec in 20 failed that way with no command, 0 in 20
 # with this one, both on a fresh machine and immediately after a restart.
-"$SMOLVM" machine create --name "$NAME" -s "$SMOLFILE" \
-    -- sh -c 'while true; do sleep 3600; done' 2>&1 | sed 's/^/  /'
+create_out="$("$SMOLVM" machine create --name "$NAME" -s "$SMOLFILE" \
+    -- sh -c 'while true; do sleep 3600; done' 2>&1)"
+create_rc=$?
+printf '%s\n' "$create_out" | sed 's/^/  /'
+if [ "$create_rc" -ne 0 ]; then printf 'result=failed (create)\n'; exit 1; fi
 "$here/cleanup.sh" --record "$NAME"
 
 start_out="$("$SMOLVM" machine start --name "$NAME" 2>&1)"
 printf '%s\n' "$start_out" | sed 's/^/  /'
 
 fail=0
+# `start` prints the init line only when the Smolfile declares init commands.
 if printf '%s' "$start_out" | grep -q 'Running .* init command'; then
     printf 'init_ran=yes\n'
+elif ! grep -q '^[[:space:]]*init[[:space:]]*=' "$SMOLFILE"; then
+    printf 'init_ran=none_declared\n'
 else
     printf 'init_ran=no\n'
     fail=1
@@ -594,6 +598,7 @@ fi
 "$SMOLVM" machine exec --name "$NAME" -- pip install --quiet --user requests >/dev/null 2>&1
 before="$(exec_in python3 -c 'import requests; print(requests.__version__)')"
 printf 'installed_version=%s\n' "$before"
+case "$before" in [0-9]*) ;; *) printf 'installed_version=FAIL (not a version)\n'; fail=1 ;; esac
 
 # 2. Seed one file per filesystem so the stop tells them apart.
 # shellcheck disable=SC2016  # $HOME must expand inside the guest, not here
@@ -640,9 +645,10 @@ exit "$fail"
 #!/usr/bin/env bash
 # Delete the machines this packet's scripts created, then prove the host is clean.
 #
-# Only machines recorded in the state file are deleted, so a machine you or
-# another session created by hand is never touched. Scripts record a name by
-# calling: cleanup.sh --record <name>
+# Only machines recorded in the state file are deleted, with --cascade, so any
+# machine branched from one of them goes too, whatever its name. Any other
+# machine you or another session created by hand is never deleted. Scripts
+# record a name by calling: cleanup.sh --record <name>
 #
 # usage: cleanup.sh [--record <name>] [--reap] [--purge]
 #   --record <name>  add a machine name to the state file and exit
@@ -679,22 +685,32 @@ if [ -z "$SMOLVM" ]; then
     exit 2
 fi
 
+# With SMOLVM_DATA_DIR set, smolvm runs with HOME there on Linux, so its cache
+# is under .cache in it.
 case "$(uname -s)" in
     Darwin) VMS_DIR="$HOME/Library/Caches/smolvm/vms" ;;
-    *)      VMS_DIR="${SMOLVM_DATA_DIR:-$HOME/.cache/smolvm}/vms" ;;
+    *)      cache_root="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.cache}"
+            VMS_DIR="${cache_root:-${XDG_CACHE_HOME:-$HOME/.cache}}/smolvm/vms" ;;
 esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
+if [ -n "${SMOLVM:-}" ]; then
+    case "$(readlink "$SMOLVM" 2>/dev/null || printf '%s' "$SMOLVM")" in
+        "$SMOLVM_PREFIX"/*) ;;
+        *) printf 'note=%s is not under %s, so the process scan cannot see its forked VMs (all of its VMs on macOS); set SMOLVM_PREFIX to its directory\n' "$SMOLVM" "$SMOLVM_PREFIX" ;;
+    esac
+fi
 
 # List this HOME's VM processes as "pid marker". The plain run path execs a
 # `_boot-vm` child that carries its boot config; the pack-run path forks one that
-# carries none. Linux names both `libkrun VM`; on macOS the executable path and
-# the parent chain scope the search. The teardown packet's traps have the why.
+# carries none. Linux names both `libkrun VM`, or `VM:<hostname>` when HOSTNAME
+# is exported; on macOS the executable path and the parent chain scope the
+# search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
             for p in /proc/[0-9]*; do
-                [ "$(cat "$p/comm" 2>/dev/null)" = "libkrun VM" ] || continue
+                case "$(cat "$p/comm" 2>/dev/null)" in "libkrun VM"|VM:*) ;; *) continue ;; esac
                 pid="${p#/proc/}"
                 cfg="$(tr '\0' '\n' < "$p/cmdline" 2>/dev/null | sed -n '3p')"
                 case "$cfg" in
@@ -707,16 +723,21 @@ list_vm_processes() {
             ;;
         Darwin)
             # shellcheck disable=SC2009  # pgrep -f would match this script.
-            own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
-            ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
+            procs="$(ps -axo pid=,ppid=,command= 2>/dev/null)"
+            printf '%s\n' "$procs" | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
+                # An orphan counts only if it is a run; a fork has its parent's command line.
                 if [ "$ppid" = 1 ]; then
-                    printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
+                    case "$rest" in
+                        *" machine run "*|*" vm run "*|*" pack run "*)
+                            printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
+                    esac
                 else
-                    case "$own" in *" $ppid "*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;; esac
+                    parent="$(printf '%s\n' "$procs" | while read -r q qp qrest; do [ "$q" = "$ppid" ] && { printf '%s' "$qrest"; break; }; done)"
+                    [ "$parent" = "$rest" ] && printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 fi
             done
             ;;
@@ -742,13 +763,18 @@ if [ -s "$STATE_FILE" ]; then
     done < "$STATE_FILE"
 fi
 
-# 2. An ephemeral machine's entry retires after its run returns.
-printf 'waiting=20s for ephemeral entries to retire before asserting\n'
-sleep 20
+# 2. An ephemeral machine's entry retires after its run returns: poll, 20 s at most.
+printf 'waiting=up to 20s for ephemeral entries to retire before asserting\n'
+waited=0
+listing="$("$SMOLVM" machine list 2>&1)"
+while ! grep -q 'No machines found' <<<"$listing" && [ "$waited" -lt 20 ]; do
+    sleep 1; waited=$((waited + 1))
+    listing="$("$SMOLVM" machine list 2>&1)"
+done
+printf 'waited=%ss\n' "$waited"
 
 # 3. Assert the value, not the exit code.
-listing="$("$SMOLVM" machine list 2>&1)"
-if printf '%s' "$listing" | grep -q 'No machines found'; then
+if grep -q 'No machines found' <<<"$listing"; then
     printf 'machines=clean\n'
     [ "$purge" -eq 1 ] && rm -f "$STATE_FILE"
 else
@@ -759,8 +785,8 @@ else
     printf '  add --cascade for a machine that was branched from another\n'
 fi
 
-# 4. Report VM processes left under this HOME's state, such as a killed
-# wrapper's; another session's are left alone.
+# 4. Report VM processes under this HOME's state, such as a killed wrapper's.
+# With --reap every one is killed, including a machine another packet kept.
 found=0
 while read -r pid cfg; do
     [ -n "$pid" ] || continue
@@ -802,11 +828,12 @@ once, on the first start.
 `init` also runs **as root**, even with `user` set: `/init-ran-as.txt` contained `root` while
 `exec` and `shell` ran as `app`. There is no `machine start --init` to force a re-run.
 
-### `create` is not where the time goes, and not where failures appear
+### `create` is not where the time goes, and not where most failures appear
 
 It is pure configuration and returns in milliseconds without touching the registry. The pull, the
 init commands and any of their failures all land on the first `start`. Do not read a fast
-`create` as evidence that anything works.
+`create` as evidence that anything works. It does refuse a host mount source that does not exist;
+see below.
 
 `create` pulls nothing either; the image is pulled on the first `start`.
 
@@ -833,19 +860,21 @@ immediately after a restart:
 aarch64, where it had been 0 in 20 on both on v1.16.1.
 
 **The fix is to give the machine a workload that stays up**, which is what
-`scripts/create-dev-machine.sh` does. There is no Smolfile key for it: pass it after `--` on
-`machine create`.
+`scripts/create-dev-machine.sh` does by passing one after `--` on `machine create`. A Smolfile can
+carry it as well, as `cmd` (with `entrypoint`), and a command after `--` replaces the Smolfile's
+`cmd`.
 
 **And this is why the readiness probe has to assert a value.** The message goes to stdout, so a
 probe that waits for empty output or a zero exit code reports ready while the container is still
 flapping, and the next three checks silently read that message as their answer. Both scripts here
 wait for the exact string `WORKLOAD_READY`.
 
-### A missing host mount source lets a machine start once and never restart
+### A host mount source that goes missing stops every later start
 
-**If a machine created from a Smolfile starts fine and then never starts again**, check that every
-host path in `volumes` exists. A Smolfile with `volumes = ["./src:/app"]` in a directory that has
-no `./src` creates and starts once, and every later `start` fails with:
+**If a machine created from a Smolfile has started before and now never starts again**, check that
+every host path in `volumes` still exists. `create` refuses a path that is missing when it runs,
+with `mount source not found: ./src`; a later `start` does not check the path again, and in the run
+below every later `start` failed with:
 
 ```
 Error: agent operation failed: start machine: agent operation failed: wait for ready:
@@ -862,14 +891,18 @@ with the workload confirmed ready before the stop:
 | `./src` exists | **3 of 3** |
 | `./src` absent | **0 of 3** |
 
+How `./src` came to be missing in that run was not recorded. On v1.22.2 on macOS arm64,
+2026-10-03, removing `./src` after a machine's first start reproduced it: the next `start` failed
+with the same message, and `create` with `./src` already missing refused with `Error: mount source
+not found: ./src`.
+
 `scripts/create-dev-machine.sh` runs `mkdir -p ./src` before creating, which is why the packet's
 own flow does not hit this. **Anything that writes its own Smolfile has to do the same.** A
 relative path in `volumes` resolves against the working directory, so the same Smolfile run from
 two directories can behave differently.
 
-This one cost real time while writing this packet: an ad-hoc restart loop that omitted the
-`mkdir -p` produced 0 of 5 and looked like a release regression until the two were compared
-side by side.
+An ad-hoc restart loop that omitted the `mkdir -p` produced 0 of 5 and looked like a release
+regression until the two were compared side by side.
 
 ### `machine shell` does not start a stopped machine
 
@@ -886,11 +919,14 @@ Error: agent operation failed: connect: machine 'dev' is not running.
 Verified both through a pipe and under a real pty, so it is not a TTY-detection effect, and again
 on v1.18.2. Start it explicitly first.
 
-### A host `volumes` mount is not writable by a non-root `user`
+### A host `volumes` mount was not writable by the `app` user
 
-With `volumes = ["./src:/app"]` and `user = "app"`, writing to `/app` fails with
-`Operation not permitted`. The mount carries host ownership and the guest user does not match.
-Read source in through the mount, write build output somewhere else, or run that step as root.
+With `volumes = ["./src:/app"]` and `user = "app"` (a user `adduser` made in the guest), writing to
+`/app` failed with `Operation not permitted`: the mount carries host ownership and `app` is not its
+owner. Read source in through the mount, write build output somewhere else, or run that step as
+root. `user` also takes a numeric `uid[:gid]`, which `machine create --help` gives as the way to
+match the owner of a mounted host directory: on v1.22.2 on macOS arm64, `machine run -v
+"$PWD/src:/app" --user "$(id -u):$(id -g)"` wrote `/app/w` and the file appeared on the host.
 
 ### `/tmp` is tmpfs and is wiped by a stop
 
@@ -943,9 +979,9 @@ For a dev machine the flag has three constraints, each observed on v1.18.2:
 ### Do not run two lifecycle commands against the same machine at once
 
 Two overlapping `stop` and `shell` invocations left a `machine stop` unfinished for over two
-minutes, against 0.14 s for a single `stop` on the same machine. That was self-inflicted rather
-than a reproduced fault, but anything that fans out lifecycle calls should serialize them per
-machine.
+minutes, against 0.14 s for a single `stop` on the same machine. It was seen once, with the two
+calls overlapping, and was not reproduced as a fault; anything that fans out lifecycle calls should
+still serialize them per machine.
 
 ### Assert the package version, not that the import worked
 

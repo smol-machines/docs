@@ -6,11 +6,13 @@ title: "Teardown: stop everything and remove smolvm's state"
 
 Stops every smolvm machine a session started, removes smolvm's state, and proves the host is clean. Use after any smolvm session; when a machine seems to have survived a Ctrl-C or a crash; when disk space has disappeared; when uninstalling smolvm; when tearing down the Kubernetes runtime from a node; or when a borrowed or shared host has to be handed back with nothing left behind. Also use it as the cleanup step for other smolvm work, because the obvious assertions here give false results. Do not use it to delete machines another session created: it removes only what a script recorded under its own name prefix.
 
-Verified on **smolvm v1.22.2** on macOS arm64, 2026-10-03, and on **v1.18.2** on Linux aarch64,
+Verified on **smolvm v1.23.0** on macOS arm64, 2026-10-04, and on **v1.18.2** on Linux aarch64,
 2026-09-24. This packet exists on its own because **the obvious cleanup steps fail here**: the
 obvious assertion gives a false failure, the obvious reaper matches the wrong process or nothing
 at all, and killing a wrapper around a run does not stop its machine. Anything that starts machines
 needs this more than it needs any single feature.
+The Linux runs used the scripts of their date; this version's preflight and cleanup scripts ran
+on Linux aarch64 on v1.22.2 on 2026-10-03.
 
 The cleanup scripts of credentials, dev-env, docker-in-machine, gpu-cuda and install are this
 packet's `scripts/cleanup.sh` with the `PACKET=` line changed; branch-and-checkpoint, local-api, pack
@@ -18,7 +20,8 @@ and throwaway-machine build on it and add flags of their own.
 
 ## Procedure
 
-Run the scripts from this packet's directory; the commands below are relative to it.
+The commands below are relative to this packet's directory; its scripts write nothing to the
+working directory, so running them from there is safe.
 
 **1. See what is there.** Read-only: deletes nothing, starts no VM.
 
@@ -26,7 +29,7 @@ Run the scripts from this packet's directory; the commands below are relative to
 scripts/preflight.sh
 ```
 
-It reports each state directory with its size, whether a `--oci-cache` image store exists,
+It reports each state directory with its size, whether an `--oci-cache` bake cache exists,
 whether the launcher symlink and the `PATH` block are present, and whether state can be relocated
 on this platform.
 
@@ -40,11 +43,11 @@ scripts/cleanup.sh --reap     # and kill them
 `--reap` kills every VM process under this `HOME`, a running machine you meant to keep included, so
 run plain `cleanup.sh` first to read the list, and reap only when nothing there should keep running.
 
-`cleanup.sh` waits 20 seconds before it checks the machine list and prints `waiting=20s` first:
-an ephemeral machine's entry retires after its run returns.
+`cleanup.sh` waits up to 20 seconds, polling the machine list, and prints `waiting=up to 20s`
+first: an ephemeral machine's entry retires after its run returns.
 
 Only machines recorded in the state file are deleted, so a machine you or another session created
-by hand is never touched. A script records what it creates with
+by hand is never deleted. A script records what it creates with
 `scripts/cleanup.sh --record <name>`, and names must carry the `smolskill-` prefix or the delete
 is skipped. `--purge` removes the state file once the list is empty.
 
@@ -72,8 +75,19 @@ The state file lives under `${XDG_STATE_HOME:-$HOME/.local/state}/smolvm-skills/
 
 ```bash
 scripts/verify-clean.sh
-scripts/verify-clean.sh --protected "$HOME/.smolvm"   # after a run under an isolated HOME
+HOME=/tmp/sk SMOLVM=/tmp/sk/.local/bin/smolvm scripts/verify-clean.sh --protected "$HOME/.smolvm" \
+    --protected "$HOME/.local/share/smolvm" --protected "$HOME/.cache/smolvm"   # typed in your real shell
 ```
+
+Typed in your real shell, `$HOME` expands to the real profile before `HOME=/tmp/sk` applies, so the
+checks audit the scratch profile and the three `--protected` directories are the real
+installation's binary, data and cache. On macOS the last two are
+`~/Library/Application Support/smolvm` and `~/Library/Caches/smolvm`; a `--protected` directory
+that does not exist fails rather than passing. `SMOLVM=` points the scan at the scratch install's
+binary; on Linux, run it with `XDG_DATA_HOME` and `XDG_CACHE_HOME` unset, as the install was.
+Anything the real installation wrote today counts, and a running real machine writes to its cache
+directory. Stop the real machines first, and pass `--since` with the time the test began, such as
+`--since "2026-10-03 14:00"`.
 
 **Every check here is scoped to the `HOME` it runs under**, and the `audited_home=` line says
 which profile the result describes. Run it under a different `HOME` and it reports a clean host no
@@ -84,22 +98,26 @@ still running.
 Each check prints `ok` or `FAIL expected=... actual=...`, and the script exits non-zero if any
 failed. When the `HOME` you are auditing is the only installation there is nothing to protect:
 leave the flag off, and the `protected=not_checked` line it then prints is expected.
-`--protected <dir>` asserts nothing under a real installation was written today, which is how you
-show a test run under a scratch `HOME` did not reach it. It takes the install directory, such as
-the real `~/.smolvm`, not a home directory: pointed at a whole home it counts every file written
-there today and reports `result=dirty`.
+`--protected <dir>` asserts nothing under that directory was written today, which is how you show
+a test run under a scratch `HOME` did not reach a real installation. It is repeatable, and a leak
+lands in the data and cache directories rather than the prefix, so name all three. It takes an
+installation's directories, not a home directory: pointed at a whole home it counts every file
+written there today and reports `result=dirty`.
 
 **4. Reclaim space, or remove smolvm entirely.**
 
 ```bash
-smolvm machine prune --name <NAME>   # one machine's unreferenced layers; --all drops its cached images
+# machine prune: unreferenced layers; starts the machine if it is stopped. --all also
+# drops cached images, except for a machine created from an image
+smolvm machine prune --name <NAME>
 smolvm pack prune
 curl -sSL https://smolmachines.com/install.sh | bash -s -- --uninstall
 ```
 
 `references/locations.md` has the full layout, what the uninstaller removes, and the two things it
-deliberately leaves. On v1.18.2 on macOS it also leaves `~/Library/Caches/smolvm-registry` without
-saying so; remove that by hand after `--uninstall`.
+deliberately leaves. On v1.18.2 on macOS it also leaves `~/Library/Caches/smolvm-registry`, and on
+v1.23.0 `smolvm-image-archives` beside the cache directory on both hosts, without saying so; remove
+those by hand after `--uninstall`.
 
 ## The traps that make this a packet
 
@@ -112,8 +130,10 @@ Full detail with the observations behind each is in `references/traps.md`.
   v1.14.x, which is the case the reaper still covers.
 - **The two obvious reapers fail in opposite directions.** `pgrep -f _boot-vm` matches the cleanup
   script itself; `readlink /proc/<pid>/exe` is denied for a VM process. Matching `argv[1]` misses
-  the forked VMs a pack run starts, so `cleanup.sh` matches `libkrun VM` in `/proc/<pid>/comm` on
-  Linux and the executable path and parent chain on macOS, scoped to this `HOME`.
+  the forked VMs a pack run starts. On Linux VM processes rename themselves to `libkrun VM`, or to
+  `VM:<hostname>` when `HOSTNAME` is exported, which no shell can hold, so `cleanup.sh` matches
+  that in `/proc/<pid>/comm`; on macOS it matches the executable path and parent chain. Both are
+  scoped to this `HOME`.
 - **Asserting "no machines" straight after `machine run` can fail on a healthy host**: the entry
   retires after the command returns.
 - **`machine delete` needs `--force` in a script**, and `--cascade` for a branched machine. On
@@ -122,13 +142,15 @@ Full detail with the observations behind each is in `references/traps.md`.
 - **A paused machine refuses `stop`** with `machine has saved execution; use resume or delete`;
   `delete --force` removes it and its saved execution.
 
-And one false alarm: **`ls ~/.cache/smolvm/vms/ | wc -l` is not a leak check.** Once `--oci-cache`
-has run, `_shared` lives there holding the baked images. Both scripts exclude it. The opposite case
-is real residue: **a boot that timed out leaves its VM directory**, `verify-clean.sh` reports
-`vm_dirs=FAIL`, and running `smolvm serve start` once reclaims it. And one cache that is sensitive:
-**on macOS smolvm keeps a clone of the last restored checkpoint**, memory included, in
-`vms/_restore-base`, after every machine and checkpoint is gone. `verify-clean.sh` reports it as
-`restore_base=present` rather than as a leak; remove it with `rm -rf` once no restore is running.
+And one false alarm: **`ls ~/.cache/smolvm/vms/ | wc -l` is not a leak check.** On Linux, after
+`machine create --from` or a checkpoint restore, `_shared` lives there: the shared pack store. Both
+scripts exclude it. An `--oci-cache` bake goes to `init-layers/` beside `vms/` and to the pack
+cache. The opposite case is real residue: **a boot that timed out leaves its VM directory**,
+`verify-clean.sh` reports `vm_dirs=FAIL`, and running `smolvm serve start` once reclaims it. And
+one cache that is sensitive: **on macOS smolvm keeps a clone of the last restored checkpoint**,
+memory included, in `vms/_restore-base`, after every machine and checkpoint is gone.
+`verify-clean.sh` reports it as `restore_base=present` rather than as a leak; remove it with
+`rm -rf` once no restore is running.
 From v1.22.0 it is `vms/_restore-checkpoints`, reported as `restore_cache=present`;
 `references/traps.md` has its size and how to turn it off.
 
@@ -157,51 +179,74 @@ session's; delete it by name with `--force`.
 
 ## Platform arms
 
-- **macOS arm64**: the scripts were run here on v1.22.2. **Linux aarch64**: on v1.18.2, and once
+- **macOS arm64**: the scripts were run here on v1.23.0. **Linux aarch64**: on v1.18.2, and once
   on v1.22.2.
-- **Linux x86_64**: the procedure was verified on v1.14.2 on an NVIDIA A10 cloud host that no
-  longer exists. The scripts themselves were not re-run there.
+- **Linux x86_64**: the procedure was verified on v1.14.2 on an NVIDIA A10 cloud host. The
+  scripts themselves were not re-run there.
 - **Windows x86_64**: `references/windows.md`, **run on 2026-10-03 against v1.22.2** on
-  Windows 11 Home build 10.0.26200 UBR 9457 as the cleanup of a session, after which the profile
-  matched its listing from before the session. The scripts are POSIX shell and do not run there.
-  State cannot be relocated there, and one session left 30 GB in `%LOCALAPPDATA%\smolvm`.
-- **Kubernetes nodes**: `references/kubernetes.md`. Verified on Ubuntu 22.04 x86_64 with k3s in
-  the material behind this packet, not re-run here.
+  Windows 11 Home build 10.0.26200 UBR 9457 as the cleanup after runs that had created
+  machines, packs and bakes, after which the profile matched its listing from before them. The
+  scripts are bash and do not run there. State cannot be relocated there, and one set of runs left
+  30 GB in `%LOCALAPPDATA%\smolvm`.
+- **Kubernetes nodes**: `references/kubernetes.md`. The sweep was verified on Ubuntu 22.04 x86_64
+  with k3s on v1.14.2, not re-run since; the lines for the `RuntimeClass`, the node label and the
+  drop-in are read from the repository's k3s scripts at v1.22.2 and were not run.
 
 ## Eval prompts, and what they produced
 
-On macOS arm64 on v1.22.2, under an isolated `HOME`:
+On macOS arm64 on v1.23.0, under an isolated `HOME`:
 
 **1. "I ran some smolvm machines. Clean up after me and show me the host is clean."** A machine
 created, started, recorded and cleaned up: `Deleted machine: smolskill-td`, `machines=clean`,
 `vm_processes=none`, then `machines=ok`, `vm_dirs=ok`, `vm_processes=ok`, `result=clean`.
 
-**2. "Is anything still running that `smolvm machine list` cannot see?"** On v1.22.2 an
+**2. "Is anything still running that `smolvm machine list` cannot see?"** On v1.22.2 and v1.23.0 an
 interrupted run stays listed, so the answer is "nothing the list cannot see"; the reaper still
 names the process and its boot config. With a wrapper killed:
 
 ```
-vm_process=95902 config=/tmp/t22/Library/Caches/smolvm/vms/80627c0633a6b491/boot-config.json
-  killed 95902
+vm_process=89092 config=/tmp/u23/Library/Caches/smolvm/vms/ea8c396d10b0f0b9/boot-config.json
+  killed 89092
 ```
 
 **3. "Prove my test run did not touch my real smolvm install."** `verify-clean.sh --protected
 $HOME/.smolvm` against the real installation beside the isolated one:
-`protected_untouched_since_2026-10-03=ok`, `result=clean`.
+`protected_untouched_since_2026-10-04:<dir>=ok` for each `--protected` directory, and
+`result=clean`.
+
+## Re-verified on v1.23.0
+
+Run 2026-10-04 PT against v1.23.0 from the published release, checksum checked, under a fresh
+isolated `HOME` on macOS 27.0.1 arm64, once. On Lima `linux-kvm` (Ubuntu 24.04 aarch64) the
+checks named below ran once, so the Linux stamp stays on its earlier release.
+
+macOS: eval 1 gave `result=clean`. `SIGINT` and `SIGKILL` to the CLI each left no VM process at
+t+1 s; a killed wrapper left `vm-0072df9e running (eph)` and its `_boot-vm`, which `cleanup.sh
+--reap` found and killed. A delete without `--force` exited 1 with the confirmation message, a
+paused machine refused `stop` with `machine has saved execution; use resume or delete`, and a
+second `machine stop` of a missing name gave `vm_dirs=FAIL` until `serve start` printed `Reclaimed
+1 dangling VM data dir(es)`. Eval 3 gave `protected_untouched_since_2026-10-04:<dir>=ok` for each
+of the real installation's three directories. New beside `vms/`: `registry-tokens/`. After every
+packet had run, `--uninstall` left `Library/Caches/smolvm-image-archives`, 24 MB;
+`references/locations.md` has it.
+
+Linux aarch64: `verify-clean.sh` gave `result=clean`, and `--uninstall` left
+`~/.cache/smolvm-image-archives` there too.
 
 ## Re-verified on v1.22.2
 
 Run 2026-10-03 PT against v1.22.2 from the published release, checksum checked, under an isolated
-`HOME` on macOS 27.0.1 arm64, once to write and once from a fresh `HOME` to verify. On Lima
-`linux-kvm` (Ubuntu 24.04 aarch64) guests above 2048 MiB timed out that day, so the Linux lines
-below are a single run and the Linux stamp stays on its earlier release.
+`HOME` on macOS 27.0.1 arm64, twice, the second time from a fresh `HOME`. On Lima `linux-kvm`
+(Ubuntu 24.04 aarch64) on 2026-10-03 guests above 2048 MiB timed out, so the Linux lines below are
+a single run and the Linux stamp stays on its earlier release.
 
-macOS: eval 1 gave `result=clean` with `protected_untouched_since_2026-10-03=ok`. `SIGINT` and
+macOS: eval 1 gave `result=clean` with `protected_untouched_since_2026-10-03=ok`, from the
+script's earlier one-directory form. `SIGINT` and
 `SIGKILL` to the CLI each left no VM process at t+1 s; a killed wrapper left `vm-90dd19c7 running
 (eph)` and its `_boot-vm`, which `cleanup.sh --reap` found and killed. A delete without `--force`
 exited 1 with the confirmation message, a paused machine refused `stop`, and a second `machine
 stop` of a missing name gave `vm_dirs=FAIL` until `serve start` printed `Reclaimed 1 dangling VM
-data dir(es)`. After a session of every packet the final check said `result=clean`.
+data dir(es)`. After every packet had run, the final check said `result=clean`.
 
 Linux aarch64: eval 1 clean, the delete and pause refusals the same, and three `image-seed-*`
 helpers left listed by interrupted and failed first boots. Linux was last verified on v1.18.2.
@@ -209,14 +254,15 @@ helpers left listed by interrupted and failed first boots. Linux was last verifi
 ## What was not run
 
 - **Windows through a script.** The sequence on `references/windows.md` was run by hand.
-- **Kubernetes.** `references/kubernetes.md` records a verified sequence on a node that no longer
-  exists.
+- **Kubernetes.** `references/kubernetes.md` records a sweep verified on an Ubuntu 22.04 x86_64 k3s
+  node on v1.14.2, not re-run since. Its lines for the `RuntimeClass`, the node label and the
+  drop-in are read from the repository's k3s scripts at v1.22.2 and were not run.
 - **Linux x86_64.**
 - **The macOS `hdiutil` mount-point case.** `references/traps.md` records that `rm -rf` on the
   pack cache can fail with `Resource busy` and what the uninstaller does about it. No pack was
-  created in these runs, so that path was not exercised here.
-- **`--oci-cache`.** No `_shared` store existed on either host, so the exclusion these scripts
-  carry was exercised only against its absence.
+  created in the runs recorded here, so that path was not exercised.
+- **The shared pack store.** No `_shared` store existed on either host, so the exclusion these
+  scripts carry was exercised only against its absence.
 
 ## Related packets
 
@@ -239,7 +285,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.22.2"
+VERIFIED_VERSION="1.23.0"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 note() { printf 'note=%s\n' "$1"; }
@@ -296,10 +342,14 @@ case "$kernel" in
         emit platform "linux-$arch"
         emit accel kvm
         if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then emit accel_access ok; else emit accel_access denied; fi
-        data_dir="$HOME/.local/share/smolvm"
-        cache_dir="$HOME/.cache/smolvm"
-        pack_dir="$HOME/.cache/smolvm-pack"
-        libs_dir="$HOME/.cache/smolvm-libs"
+        # With SMOLVM_DATA_DIR set, smolvm runs with HOME there; otherwise XDG wins.
+        data_dir="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.local/share}"
+        data_dir="${data_dir:-${XDG_DATA_HOME:-$HOME/.local/share}}/smolvm"
+        cache_root="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.cache}"
+        cache_root="${cache_root:-${XDG_CACHE_HOME:-$HOME/.cache}}"
+        cache_dir="$cache_root/smolvm"
+        pack_dir="$cache_root/smolvm-pack"
+        libs_dir="$cache_root/smolvm-libs"
         emit state_relocatable via_home_or_data_dir
         ;;
     *)
@@ -334,20 +384,21 @@ report_dir credentials    "$HOME/.config/smolvm"
 
 if [ -L "$HOME/.local/bin/smolvm" ]; then emit launcher_symlink present; else emit launcher_symlink absent; fi
 
-# `_shared` is the image store --oci-cache bakes into. It is the cache, not
-# residue, so counting it as a leak gives a false positive.
+# `_shared` is the Linux shared pack store, written by machine create --from and
+# checkpoint restores. It is cache, not residue, so counting it as a leak gives
+# a false positive.
 if [ -d "$cache_dir/vms" ]; then
     total="$(find "$cache_dir/vms" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
     shared=0
     [ -d "$cache_dir/vms/_shared" ] && shared=1
     emit vm_dirs "$((total - shared))"
-    if [ "$shared" = 1 ]; then emit oci_cache_present yes; else emit oci_cache_present no; fi
 else
     emit vm_dirs 0
-    emit oci_cache_present no
 fi
+# An --oci-cache bake writes its layers to init-layers beside vms.
+if [ -d "$cache_dir/init-layers" ]; then emit bake_cache_present yes; else emit bake_cache_present no; fi
 
-if grep -rqs 'smolvm' "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.profile" 2>/dev/null; then
+if grep -qs 'smolvm' "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.profile" "$HOME/.config/fish/config.fish" 2>/dev/null; then
     emit path_block present
     note "the uninstaller deliberately leaves the PATH block and \$HOME/.config/smolvm; remove them by hand if you want them gone"
 else
@@ -363,9 +414,10 @@ if [ "$blocked" -eq 0 ]; then emit result ready; else emit result blocked; fi
 #!/usr/bin/env bash
 # Delete the machines this packet's scripts created, then prove the host is clean.
 #
-# Only machines recorded in the state file are deleted, so a machine you or
-# another session created by hand is never touched. Scripts record a name by
-# calling: cleanup.sh --record <name>
+# Only machines recorded in the state file are deleted, with --cascade, so any
+# machine branched from one of them goes too, whatever its name. Any other
+# machine you or another session created by hand is never deleted. Scripts
+# record a name by calling: cleanup.sh --record <name>
 #
 # usage: cleanup.sh [--record <name>] [--reap] [--purge]
 #   --record <name>  add a machine name to the state file and exit
@@ -402,22 +454,32 @@ if [ -z "$SMOLVM" ]; then
     exit 2
 fi
 
+# With SMOLVM_DATA_DIR set, smolvm runs with HOME there on Linux, so its cache
+# is under .cache in it.
 case "$(uname -s)" in
     Darwin) VMS_DIR="$HOME/Library/Caches/smolvm/vms" ;;
-    *)      VMS_DIR="${SMOLVM_DATA_DIR:-$HOME/.cache/smolvm}/vms" ;;
+    *)      cache_root="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.cache}"
+            VMS_DIR="${cache_root:-${XDG_CACHE_HOME:-$HOME/.cache}}/smolvm/vms" ;;
 esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$VMS_DIR}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
+if [ -n "${SMOLVM:-}" ]; then
+    case "$(readlink "$SMOLVM" 2>/dev/null || printf '%s' "$SMOLVM")" in
+        "$SMOLVM_PREFIX"/*) ;;
+        *) printf 'note=%s is not under %s, so the process scan cannot see its forked VMs (all of its VMs on macOS); set SMOLVM_PREFIX to its directory\n' "$SMOLVM" "$SMOLVM_PREFIX" ;;
+    esac
+fi
 
 # List this HOME's VM processes as "pid marker". The plain run path execs a
 # `_boot-vm` child that carries its boot config; the pack-run path forks one that
-# carries none. Linux names both `libkrun VM`; on macOS the executable path and
-# the parent chain scope the search. The teardown packet's traps have the why.
+# carries none. Linux names both `libkrun VM`, or `VM:<hostname>` when HOSTNAME
+# is exported; on macOS the executable path and the parent chain scope the
+# search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
             for p in /proc/[0-9]*; do
-                [ "$(cat "$p/comm" 2>/dev/null)" = "libkrun VM" ] || continue
+                case "$(cat "$p/comm" 2>/dev/null)" in "libkrun VM"|VM:*) ;; *) continue ;; esac
                 pid="${p#/proc/}"
                 cfg="$(tr '\0' '\n' < "$p/cmdline" 2>/dev/null | sed -n '3p')"
                 case "$cfg" in
@@ -430,16 +492,21 @@ list_vm_processes() {
             ;;
         Darwin)
             # shellcheck disable=SC2009  # pgrep -f would match this script.
-            own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
-            ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
+            procs="$(ps -axo pid=,ppid=,command= 2>/dev/null)"
+            printf '%s\n' "$procs" | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
+                # An orphan counts only if it is a run; a fork has its parent's command line.
                 if [ "$ppid" = 1 ]; then
-                    printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
+                    case "$rest" in
+                        *" machine run "*|*" vm run "*|*" pack run "*)
+                            printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
+                    esac
                 else
-                    case "$own" in *" $ppid "*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;; esac
+                    parent="$(printf '%s\n' "$procs" | while read -r q qp qrest; do [ "$q" = "$ppid" ] && { printf '%s' "$qrest"; break; }; done)"
+                    [ "$parent" = "$rest" ] && printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 fi
             done
             ;;
@@ -465,13 +532,18 @@ if [ -s "$STATE_FILE" ]; then
     done < "$STATE_FILE"
 fi
 
-# 2. An ephemeral machine's entry retires after its run returns.
-printf 'waiting=20s for ephemeral entries to retire before asserting\n'
-sleep 20
+# 2. An ephemeral machine's entry retires after its run returns: poll, 20 s at most.
+printf 'waiting=up to 20s for ephemeral entries to retire before asserting\n'
+waited=0
+listing="$("$SMOLVM" machine list 2>&1)"
+while ! grep -q 'No machines found' <<<"$listing" && [ "$waited" -lt 20 ]; do
+    sleep 1; waited=$((waited + 1))
+    listing="$("$SMOLVM" machine list 2>&1)"
+done
+printf 'waited=%ss\n' "$waited"
 
 # 3. Assert the value, not the exit code.
-listing="$("$SMOLVM" machine list 2>&1)"
-if printf '%s' "$listing" | grep -q 'No machines found'; then
+if grep -q 'No machines found' <<<"$listing"; then
     printf 'machines=clean\n'
     [ "$purge" -eq 1 ] && rm -f "$STATE_FILE"
 else
@@ -482,8 +554,8 @@ else
     printf '  add --cascade for a machine that was branched from another\n'
 fi
 
-# 4. Report VM processes left under this HOME's state, such as a killed
-# wrapper's; another session's are left alone.
+# 4. Report VM processes under this HOME's state, such as a killed wrapper's.
+# With --reap every one is killed, including a machine another packet kept.
 found=0
 while read -r pid cfg; do
     [ -n "$pid" ] || continue
@@ -511,10 +583,11 @@ fi
 # than an exit code, because the commands teardown runs report success while
 # leaving state behind.
 #
-# usage: verify-clean.sh [--protected <dir>] [--since <date>]
+# usage: verify-clean.sh [--protected <dir>]... [--since <date>]
 #   --protected <dir>  assert nothing under <dir> was written on or after --since.
-#                      Point it at a real installation you ran beside: that is how
-#                      you show a test under an isolated HOME did not reach it.
+#                      Repeatable. Point it at the prefix, data and cache directories
+#                      of a real installation you ran beside: that is how you show a
+#                      test under an isolated HOME did not reach it.
 #                      Omitted, the check is reported as not run rather than passed.
 #   --since <date>     the cutoff for --protected (default: today)
 
@@ -522,10 +595,10 @@ set -uo pipefail
 
 SMOLVM="${SMOLVM:-$(command -v smolvm 2>/dev/null)}"
 since="$(date +%F)"
-protected=""
+protected=()
 while [ $# -gt 0 ]; do
     case "$1" in
-        --protected) protected="$2"; shift ;;
+        --protected) protected+=("$2"); shift ;;
         --since)     since="$2"; shift ;;
         *) printf 'unknown argument: %s\n' "$1" >&2; exit 2 ;;
     esac
@@ -554,20 +627,28 @@ fi
 
 case "$(uname -s)" in
     Darwin) cache_dir="$HOME/Library/Caches/smolvm" ;;
-    *)      cache_dir="${SMOLVM_DATA_DIR:-$HOME/.cache/smolvm}" ;;
+    *)      cache_root="${SMOLVM_DATA_DIR:+$SMOLVM_DATA_DIR/.cache}"
+            cache_dir="${cache_root:-${XDG_CACHE_HOME:-$HOME/.cache}}/smolvm" ;;
 esac
 VMS_DIR="${SMOLVM_VMS_DIR:-$cache_dir/vms}"
 SMOLVM_PREFIX="${SMOLVM_PREFIX:-$HOME/.smolvm}"
+if [ -n "${SMOLVM:-}" ]; then
+    case "$(readlink "$SMOLVM" 2>/dev/null || printf '%s' "$SMOLVM")" in
+        "$SMOLVM_PREFIX"/*) ;;
+        *) printf 'note=%s is not under %s, so the process scan cannot see its forked VMs (all of its VMs on macOS); set SMOLVM_PREFIX to its directory\n' "$SMOLVM" "$SMOLVM_PREFIX" ;;
+    esac
+fi
 
 # List this HOME's VM processes as "pid marker". The plain run path execs a
 # `_boot-vm` child that carries its boot config; the pack-run path forks one that
-# carries none. Linux names both `libkrun VM`; on macOS the executable path and
-# the parent chain scope the search. The teardown packet's traps have the why.
+# carries none. Linux names both `libkrun VM`, or `VM:<hostname>` when HOSTNAME
+# is exported; on macOS the executable path and the parent chain scope the
+# search. The teardown packet's traps have the why.
 list_vm_processes() {
     case "$(uname -s)" in
         Linux)
             for p in /proc/[0-9]*; do
-                [ "$(cat "$p/comm" 2>/dev/null)" = "libkrun VM" ] || continue
+                case "$(cat "$p/comm" 2>/dev/null)" in "libkrun VM"|VM:*) ;; *) continue ;; esac
                 pid="${p#/proc/}"
                 cfg="$(tr '\0' '\n' < "$p/cmdline" 2>/dev/null | sed -n '3p')"
                 case "$cfg" in
@@ -580,23 +661,28 @@ list_vm_processes() {
             ;;
         Darwin)
             # shellcheck disable=SC2009  # pgrep -f would match this script.
-            own=" $(ps -axo pid=,command= 2>/dev/null | grep -F "$SMOLVM_PREFIX/smolvm-bin" | awk '{print $1}' | tr '\n' ' ') "
-            ps -axo pid=,ppid=,command= 2>/dev/null | while read -r pid ppid rest; do
+            procs="$(ps -axo pid=,ppid=,command= 2>/dev/null)"
+            printf '%s\n' "$procs" | while read -r pid ppid rest; do
                 case "$rest" in "$SMOLVM_PREFIX"/smolvm-bin*) ;; *) continue ;; esac
                 case "$rest" in
                     *" _boot-vm "*) printf '%s %s\n' "$pid" "${rest#* _boot-vm }"; continue ;;
                 esac
+                # An orphan counts only if it is a run; a fork has its parent's command line.
                 if [ "$ppid" = 1 ]; then
-                    printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX"
+                    case "$rest" in
+                        *" machine run "*|*" vm run "*|*" pack run "*)
+                            printf '%s orphaned-under %s\n' "$pid" "$SMOLVM_PREFIX" ;;
+                    esac
                 else
-                    case "$own" in *" $ppid "*) printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX" ;; esac
+                    parent="$(printf '%s\n' "$procs" | while read -r q qp qrest; do [ "$q" = "$ppid" ] && { printf '%s' "$qrest"; break; }; done)"
+                    [ "$parent" = "$rest" ] && printf '%s forked-under %s\n' "$pid" "$SMOLVM_PREFIX"
                 fi
             done
             ;;
     esac
 }
 
-# _shared is the --oci-cache image store, _restore-base the clone of the last
+# _shared is the Linux shared pack store, _restore-base the clone of the last
 # restored checkpoint, _restore-checkpoints the cache of recent restores that
 # replaced it in v1.22.0, and checkpoint-unpack their scratch area, none of them a
 # machine. Excluding them is what makes this a leak check rather than a false
@@ -625,16 +711,19 @@ check vm_processes "$procs" 0
 
 # Proof that a run under an isolated HOME left a real installation alone. Silence
 # here would read as a pass, so an unchecked run says so.
-if [ -n "$protected" ]; then
-    touched="$(find "$protected" -newermt "$since" 2>/dev/null | wc -l | tr -d ' ')"
-    check "protected_untouched_since_$since" "$touched" 0
-else
-    printf 'protected=not_checked (pass --protected <dir> to assert a real install was untouched)\n'
-fi
+for dir in ${protected[@]+"${protected[@]}"}; do
+    if [ ! -d "$dir" ]; then
+        printf 'protected_untouched_since_%s:%s=FAIL not a directory\n' "$since" "$dir"; fail=1; continue
+    fi
+    touched="$(find "$dir" -newermt "$since" 2>/dev/null | wc -l | tr -d ' ')"
+    check "protected_untouched_since_$since:$dir" "$touched" 0
+done
+[ "${#protected[@]}" -eq 0 ] && printf 'protected=not_checked (pass --protected <dir> to assert a real install was untouched)\n'
 
 # Every check above is scoped to this HOME. Name it, so a result read later says
 # which profile it describes and cannot be mistaken for a statement about the host.
 printf 'audited_home=%s\n' "$HOME"
+printf 'scanned_prefix=%s\n' "$SMOLVM_PREFIX"
 if [ "$fail" -eq 0 ]; then printf 'result=clean\n'; else printf 'result=dirty\n'; fi
 exit "$fail"
 ```
@@ -698,9 +787,10 @@ VM. Measured on v1.14.6 on Ubuntu 24.04 aarch64 with two such orphans alive at 2
 argv-only scanner reported `vm_processes=none` and `result=clean`. **That is the worst of the
 outcomes: a false clean.**
 
-**What works.** On Linux both shapes rename themselves to `libkrun VM`, which no shell can hold,
-so `scripts/cleanup.sh` matches `/proc/<pid>/comm`, then scopes by argv[2] where it exists and by
-the executable's path where it does not. macOS exposes no rename, so the search is scoped by the
+**What works.** On Linux both shapes rename themselves to `libkrun VM`, or to `VM:<hostname>` when
+`HOSTNAME` is exported, which no shell can hold, so `scripts/cleanup.sh` matches either in
+`/proc/<pid>/comm`, then scopes by argv[2] where it exists and by the executable's path where it
+does not. macOS exposes no rename, so the search is scoped by the
 executable path under this `HOME` and the parent chain separates a VM from the CLI that started
 it. Verified against a live orphan on both hosts.
 
@@ -737,9 +827,10 @@ machine's own directory, so it goes with the delete.
 
 ### `ls ~/.cache/smolvm/vms/ | wc -l` is not a leak check
 
-Once `--oci-cache` has been used, a `_shared` directory lives there holding the baked images
-(379 MB after one Python image). It is the cache, not residue. `cleanup.sh` and
-`verify-clean.sh` both exclude it.
+On Linux, after `machine create --from` or a checkpoint restore, a `_shared` directory lives
+there: the shared pack store. It is cache, not residue. `cleanup.sh` and `verify-clean.sh` both
+exclude it. An `--oci-cache` bake writes to `init-layers/` beside `vms/` and to the pack cache,
+not here.
 
 ### Small leftover VM directories are not necessarily a leak either
 
@@ -763,16 +854,16 @@ directory then counts as a leak (`vm_dirs=FAIL`). `scripts/cleanup.sh` acts only
 ### Restored checkpoints stay in the cache
 
 On macOS, `vms/_restore-base` is a clone of the most recently restored checkpoint, kept so the next
-restore writes only what differs. It holds that checkpoint's memory and disks, 243 MB after a
-session of restores on v1.18.2, and it stays after every machine and every `.smolcheckpoint` is
+restore writes only what differs. It holds that checkpoint's memory and disks, 243 MB after
+several restores on v1.18.2, and it stays after every machine and every `.smolcheckpoint` is
 deleted; `serve start` does not reclaim it. `checkpoint-unpack`, beside it, is an empty scratch
 directory. `verify-clean.sh` excludes both from the leak count and prints `restore_base=present`
 with the size. Remove it with `rm -rf` when no restore is running, and treat it like the
 checkpoints themselves. Linux aarch64 did not create one.
 
 From v1.22.0 the cache is `vms/_restore-checkpoints`, which keeps the three most recently restored
-checkpoints, up to 16 GiB, so jumping back to one clones it instead of rebuilding its RAM. After a
-session of restores on macOS on v1.22.2 it held 266 MB with no machine and no checkpoint left, and
+checkpoints, up to 16 GiB, so jumping back to one clones it instead of rebuilding its RAM. After
+several restores on macOS on v1.23.0 it held 258 MB with no machine and no checkpoint left, and
 no `_restore-base` was created. `verify-clean.sh` reports it as `restore_cache=present` and does not
 count it. `machine create --from` takes `--restore-cache-entries` and `--restore-cache-gib`, and
 `--restore-cache-entries 0` turns the cache off.
@@ -805,7 +896,7 @@ cleaning up manually.
 
 ### Pre-existing residue is not yours
 
-Check timestamps and paths before reporting a leak. During the runs behind this packet a second
-VM belonging to another session was live on the same host, under a different `HOME`;
+Check timestamps and paths before reporting a leak. During the runs recorded here a second VM
+belonging to another session was live on the same host, under a different `HOME`;
 `cleanup.sh` listed only the one under its own state tree and left the other running, which is
 the behaviour you want from anything you let run unattended.
