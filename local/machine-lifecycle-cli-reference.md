@@ -390,6 +390,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only) requ
 | `--net` | Enable networking |
 | `--allow-host` | Allow egress to a hostname |
 | `--allow-cidr` | Allow egress to a CIDR |
+| `--dns` | Resolve guest names through this resolver IP instead of the host's own; implies `--net` |
 | `--credential` | Bind a credential as `NAME=ENV_VAR@HOST[,HOST...][:body]`: the guest gets a placeholder in `ENV_VAR`; the host substitutes the real value only on HTTPS requests to the listed hosts, which may be wildcards such as `*.example.com`. `:body` also substitutes it in a form-encoded request body, for OAuth tokens |
 | `--cpus` | vCPU count |
 | `--mem` | Guest memory in MiB |
