@@ -182,7 +182,7 @@ init-layer cache, and is unaffected.
 | Field | Type | Description |
 | --- | --- | --- |
 | `allow_hosts` | string array | Hostnames whose resolved IP addresses may be reached. Setting it selects the `virtio-net` backend, because the allow list is enforced by the host-side gateway. |
-| `allow_cidrs` | string array | Allowed IP addresses or CIDR ranges, such as `"10.0.0.0/8"`. |
+| `allow_cidrs` | string array | Allowed IP addresses or CIDR ranges, such as `"10.0.0.0/8"`. Setting it also selects the `virtio-net` backend, for the same reason. |
 
 ```toml
 net = true
@@ -192,7 +192,7 @@ allow_hosts = ["pypi.org", "files.pythonhosted.org"]
 allow_cidrs = ["10.0.0.0/8"]
 ```
 
-Hostnames are resolved when the VM starts. Use an allowlist instead of unrestricted `net = true` when the workload only needs a few destinations.
+Hostnames are resolved when the VM starts. Use an allowlist instead of unrestricted `net = true` when the workload only needs a few destinations. To change the list of an existing machine, run `smolvm machine update` with `--allow-host` and `--remove-allow-host`, or `--allow-cidr` and `--remove-allow-cidr`; see [Update a machine](/docs/local/machine-lifecycle-cli-reference#update-a-machine).
 
 ### Choosing a networking backend
 
