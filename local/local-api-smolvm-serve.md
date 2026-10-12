@@ -46,7 +46,7 @@ side.
 | Flag | What it does |
 |---|---|
 | `--allow-nested-virt` | Permit machines created with `nestedVirt`. Off by default, because it exposes the host kernel's nested virtualization to the guest; turning it off again also stops existing nested machines from starting |
-| `--egress-watchlist PATH` | Record, without blocking, guest traffic to destinations named in a file of `<label> dns-sha256:<hex>` or `<label> ip-sha256:<hex>` lines. Matches come back as `egressSignals` on the machine, the file is re-read when it changes, and it applies to virtio-net machines |
+| `--egress-watchlist PATH` | Record guest traffic to destinations named in a file of `<label> dns-sha256:<hex>` or `<label> ip-sha256:<hex>` lines, and block it on a line that ends in `block`: a matching lookup is answered as nonexistent and a matching connection is dropped. Matches come back as `egressSignals` on the machine, the file is re-read when it changes, and it applies to virtio-net machines |
 | `--shutdown-grace SECS` | Seconds in-flight requests get once the server stops accepting connections, five by default and capped at 3600. Connections are refused for the whole grace, so to restart without cutting off a long `exec`, wait for `GET /inflight` on the loopback door to report nothing in flight |
 | `--mtls-client-cn CN` | Require this subject CN on the mTLS client certificate. Only applies when serve TLS is configured; unset, every certificate the client CA signed is accepted for every route |
 
