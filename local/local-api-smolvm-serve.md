@@ -50,6 +50,13 @@ side.
 | `--egress-watchlist PATH` | Record guest traffic to destinations named in a file of `<label> dns-sha256:<hex>` or `<label> ip-sha256:<hex>` lines, and block it on a line that ends in `block`: a matching lookup is answered as nonexistent and a matching connection is dropped. Matches come back as `egressSignals` on the machine, the file is re-read when it changes, and it applies to virtio-net machines |
 | `--shutdown-grace SECS` | Seconds in-flight requests get once the server stops accepting connections, five by default and capped at 3600. Connections are refused for the whole grace, so to restart without cutting off a long `exec`, wait for `GET /inflight` on the loopback door to report nothing in flight |
 | `--mtls-client-cn CN` | Require this subject CN on the mTLS client certificate. Only applies when serve TLS is configured; unset, every certificate the client CA signed is accepted for every route |
+| `--mtls-allow-peer-blobs` | With `--mtls-client-cn`, also accept other certificates the client CA signed, but only on the peer blob routes under `/p2p/`, for sibling hosts that fetch cached layers from this one |
+| `--local-image-dir DIR` | Directory of local images the API may create machines from: `docker save` or OCI archives and unpacked rootfs directories. A request's `image` path must resolve inside it; unset, the API accepts registry images only |
+| `--restore-cache-entries N` | Restored checkpoints kept extracted after their machines are gone, so restoring one again reuses it; 32 by default, `0` keeps none |
+| `--restore-cache-gib GiB` | Space those kept checkpoints may hold together, 256 GiB by default |
+| `--prepared-checkpoint-cache-gib GiB` | Space for captured checkpoints kept on this host, so restoring one here skips the download; 64 GiB by default, and `SMOLVM_PREPARED_CHECKPOINT_CACHE_MAX_BYTES` takes precedence when set |
+| `--cors-origin ORIGIN` | Allowed CORS origin, repeatable; `localhost:8080` and `localhost:3000` by default |
+| `--json-logs` | Write logs as structured JSON for a log aggregator |
 
 ## Selected HTTP endpoints
 
