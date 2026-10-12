@@ -187,6 +187,9 @@ The Cloud API also provides endpoints for:
 - Sharing a machine through scoped share links
 - Branching a branchable machine
 - Exporting a machine to a `.smolmachine` artifact
+- Resizing a running machine's vCPUs, memory or disk in place, `POST /v1/machines/{id}/resize`
+- Minting a short-lived token that opens only one machine's connect bridge, `POST /v1/machines/{id}/connect-token`
+- Listing every checkpoint the account owns, `GET /v1/checkpoints`, and uploading a `.checkpoint` file captured outside the cloud with `POST /v1/checkpoints` and then `POST /v1/checkpoints/{id}/complete`
 
 Use the OpenAPI document or Explorer to inspect the exact routes, request bodies, and feature availability for your account.
 
