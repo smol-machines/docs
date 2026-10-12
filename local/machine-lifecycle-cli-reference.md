@@ -395,6 +395,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only) requ
 | `--cpus` | vCPU count |
 | `--mem` | Guest memory in MiB |
 | `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]` |
+| `--cache-disk` | Mount a shared cache disk as `BASE:/guest/path`. `BASE` is a raw or qcow2 image that stays read-only and can back many machines; this machine writes only to its own layer, which its branches copy. A blank `BASE` gets an ext4 filesystem |
 | `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT` |
 | `--user`, `-u` | Run the workload as a name or `uid[:gid]` |
 | `--interactive`, `-i` | Keep stdin open |

@@ -45,6 +45,7 @@ side.
 
 | Flag | What it does |
 |---|---|
+| `--cache-disk-dir DIR` | Directory of cache disk bases the API may attach, named by file name in `cacheDisk` on create and never by path. `POST /api/v1/machines/:name/cache-disk/publish` writes a stopped machine's cache, base and writes together, into it as a new base under a new name. Unset, the API refuses cache disks |
 | `--allow-nested-virt` | Permit machines created with `nestedVirt`. Off by default, because it exposes the host kernel's nested virtualization to the guest; turning it off again also stops existing nested machines from starting |
 | `--egress-watchlist PATH` | Record guest traffic to destinations named in a file of `<label> dns-sha256:<hex>` or `<label> ip-sha256:<hex>` lines, and block it on a line that ends in `block`: a matching lookup is answered as nonexistent and a matching connection is dropped. Matches come back as `egressSignals` on the machine, the file is re-read when it changes, and it applies to virtio-net machines |
 | `--shutdown-grace SECS` | Seconds in-flight requests get once the server stops accepting connections, five by default and capped at 3600. Connections are refused for the whole grace, so to restart without cutting off a long `exec`, wait for `GET /inflight` on the loopback door to report nothing in flight |
