@@ -245,8 +245,8 @@ result=clean
 ```
 
 That is Lima on v1.14.2, on the network-on route. On the offline route the VM is a forked child, and
-on v1.22.2 and v1.23.0 on macOS the same cancel printed `cancelled=<pid> config=forked-under
-<HOME>/.smolvm`.
+on v1.22.2 and v1.23.0 on macOS the same cancel printed
+`cancelled=<pid> config=forked-under <HOME>/.smolvm`.
 
 **3. "Can I run untrusted code on this host?"**
 
