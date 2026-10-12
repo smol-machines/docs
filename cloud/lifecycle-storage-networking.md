@@ -208,6 +208,8 @@ smol cloud checkpoint rm CHECKPOINT_ID
 
 `restore` creates and starts a new machine from the checkpoint. A downloaded artifact can also be restored locally with `smolvm machine create --from`, subject to the host requirements in [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots). Neither branching nor checkpoint provides a cross-architecture restore format.
 
+`smol machine move --name NAME` moves a running local machine to the cloud, processes and all: it pauses the machine, uploads the saved execution as a checkpoint and resumes it as a cloud machine. Commands that name the machine then reach the cloud copy, and the paused one stays here as `local/NAME` until `smol machine resume` runs it again or `smol machine rm` removes it. `--keep-local` leaves the local machine running and sends a copy as of now, `--as` names the cloud machine, and `--net` or `--no-net` overrides the networking it had. When the upload fails, the local machine stays paused with its execution saved.
+
 ## GPU
 
 Hosted cloud machine resource requests currently expose CPU, memory, and disk fields. They do not expose GPU fields. Local smolvm GPU support does not imply hosted cloud GPU availability.

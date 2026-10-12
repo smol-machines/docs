@@ -122,4 +122,4 @@ Creating a cloud machine from a `.smolmachine` reference, where enabled, uses a 
 
 Packed artifacts are architecture-specific. Set optional `arch` to `amd64` or `arm64` when you need an explicit placement constraint. When it is omitted, the control plane attempts to resolve the architecture from the registry manifest and place the machine on a matching node; specify it if manifest resolution is unavailable.
 
-This artifact workflow does not move a running local VM into cloud. Live local-to-cloud migration is a separate capability and is not generally available.
+This artifact workflow does not move a running local VM into cloud; `smol machine move` does, as [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) describes.
