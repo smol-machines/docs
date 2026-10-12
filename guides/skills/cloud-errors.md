@@ -10,11 +10,19 @@ Verified on **smolfleet API 0.1.0** and **smol v1.14.3**, macOS 26.6.2 arm64 cli
 2026-09-10. One pass cost **89 micros (USD 0.00009)** for 7 uptime-seconds; most of the packet
 costs nothing, because most failures happen before a machine exists.
 
-Two rules, and both are the same shape: **the status code is not the result.**
+Three rules:
 
 1. **A failing guest command returns HTTP 200.** The exit code is in the body and nowhere else.
-2. **The status does not tell you the body's format.** `401` is JSON with a `code` field.
-   `400`, `403`, `404`, `409`, `422` and `501` are plain text.
+2. **Every error is `application/problem+json`.** Branch on its `code`, read its `detail`, and
+   never parse the sentence.
+3. **`retryable` says whether to send the request again**, and a retryable error carries
+   `Retry-After`. A `503` with code `machine_interrupted` is retryable, but the command may
+   have partly run, so a retry runs it again from the start.
+
+Updated 2026-10-12 against smolfleet `a5580fd0`: the problem bodies, `retryable`,
+`Retry-After` and the unauthenticated 404 were checked against the live API, and
+`machine_interrupted` against the control plane's test suite. The rest of the procedure below
+is the 2026-09-10 run.
 
 ## Procedure
 
@@ -26,7 +34,7 @@ scripts/provoke-http.sh
 
 ```
 unknown_key_401=ok (401)
-nonexistent_path_401=ok (401)
+nonexistent_path_404=ok (404)
 missing_scope_403=ok (403)
 not_json_400=ok (400)
 missing_field_422=ok (422)
@@ -52,18 +60,23 @@ result=all_provoked
 
 ## What to branch on
 
-| Situation | Status | Body | What a client must do |
+Every row but the last is a problem body: `{"type","title","status","detail","code","retryable"}`.
+
+| Situation | Status | `code` | What a client must do |
 |---|---|---|---|
-| Bad or missing key | `401` | JSON, `{"code":"unknown_key"}` | Stop. Do not retry with the same key |
-| Any path without a key | `401` | empty | You cannot probe routes unauthenticated |
-| Missing scope | `403` | text, names the scope | Stop. The key needs minting again |
-| Body is not JSON | `400` | text | Fix the request |
-| Body parses, schema unsatisfied | `422` | text | Fix the request. **Not** retryable |
-| Semantic rule broken | `400` | text | Fix the request. See the counterexample below |
-| No such machine | `404` | text, `machine not found` | Stop |
-| Duplicate name | `409` | text | Choose another name |
-| Route deliberately unimplemented | `501` | text | Stop. It will not start working |
-| **Guest command failed** | **`200`** | JSON, `exitCode` non-zero | **Read `exitCode`** |
+| Bad or missing key | `401` | `unknown_key`, `unauthorized` | Stop. Do not retry with the same key |
+| Path that does not exist | `404` | `not_found` | Fix the path. The `detail` links the OpenAPI document |
+| Missing scope | `403` | `forbidden` | Stop. `detail` names the scope; the key needs minting again |
+| Body is not JSON | `400` | `bad_request` | Fix the request |
+| Body parses, schema unsatisfied | `422` | `unprocessable` | Fix the request. **Not** retryable |
+| Semantic rule broken | `400` | `bad_request` | Fix the request. See the counterexample below |
+| No such machine | `404` | `not_found` | Stop |
+| Duplicate name | `409` | `conflict` | Choose another name |
+| Rate limited | `429` | `too_many_requests` | Wait `Retry-After`, then resend. It never ran |
+| Machine went away under an exec | `503` | `machine_interrupted` | Wait `Retry-After`. Resend only if the command is safe to run twice |
+| Briefly unavailable | `502`, `503`, `504` | varies | Wait `Retry-After`, then resend |
+| Route deliberately unimplemented | `501` | `not_implemented` | Stop. It will not start working |
+| **Guest command failed** | **`200`** | none, JSON `exitCode` non-zero | **Read `exitCode`** |
 
 Guest exit codes worth knowing: `42` is whatever the command returned, `124` is a timeout, and
 `255` is an executable that was not found.
@@ -84,13 +97,13 @@ allowCidrs network mode requires at least one CIDR or host
 http=400
 ```
 
-So a client cannot triage by status and must read the body, which is prose for every status but
-`401`.
+So a client cannot triage by status alone. The `code` narrows it, but every `422` shares
+`unprocessable`, so a quota refusal and a typo still differ only in `detail`.
 
 ## Security defaults, and why they are the defaults
 
-- **Nothing here retries.** Every failure this packet provokes is a client error, and the two
-  that would be retryable in principle are the two it cannot provoke.
+- **Nothing here retries.** Every failure this packet provokes is a client error
+  (`retryable: false`), and the retryable ones cannot be provoked on a healthy account.
 - **The 403 body names the missing scope**, so a scope failure is diagnosable without widening
   the key. Read it rather than minting a broader key by reflex.
 - **The bad-key probe uses a deliberately invalid string**, never a real key with a character
@@ -113,7 +126,8 @@ So a client cannot triage by status and must read the body, which is prose for e
 - **`429`, rate limiting.** The budget is roughly 10000 requests per period and a burst did not
   approach it. `x-ratelimit-remaining` is returned and is undocumented; it is the cheapest way to
   see what a burst consumed.
-- **`5xx`.** Nothing here can cause one on purpose.
+- **`5xx`.** Nothing here can cause one on purpose. `machine_interrupted` is covered by the
+  control plane's tests instead: an exec whose machine is stopped under it.
 - **`501`** was recorded from the export route by an earlier run and was not re-provoked here.
 
 ## Related packets
@@ -191,11 +205,11 @@ probe() {
 H="Authorization: Bearer $SMOL_CLOUD_TOKEN"
 J='content-type: application/json'
 
-# 401: the body here IS json with a code field. Almost nothing else is.
+# Every error is problem+json; 401 carries code unknown_key.
 probe unknown_key_401 401 unknown_key -H 'Authorization: Bearer smk_wrong' "$API/v1/machines"
-# 401 on a route that does not exist, so route probing without a key tells you nothing.
-probe nonexistent_path_401 401 "" "$API/v1/nope"
-# 403 names the exact missing scope in plain text.
+# A route that does not exist is 404 even without a key, and points at the OpenAPI document.
+probe nonexistent_path_404 404 "openapi.json" "$API/v1/nope"
+# 403 names the exact missing scope in its detail.
 probe missing_scope_403 403 "missing scope" -H "$H" "$API/v1/volumes"
 # 400 is reserved for a body that is not JSON at all.
 probe not_json_400 400 "" -X POST -H "$H" -H "$J" -d 'not json' "$API/v1/machines"
@@ -207,7 +221,7 @@ probe wrong_type_422 422 "" -X POST -H "$H" -H "$J" \
 probe no_such_machine_404 404 "not found" -H "$H" "$API/v1/machines/mach-does-not-exist"
 
 echo "---"
-echo "note=401 is JSON with a code field; 400, 403, 404, 409, 422 and 501 are plain text"
+echo "note=every error is problem+json: branch on code, read detail, retry only when retryable"
 echo "note=a 422 cannot be triaged by status: a typo, a wrong type and a quota refusal are all 422"
 rm -f /tmp/ce.$$
 [ "$fails" -eq 0 ] && echo "result=all_provoked" || echo "result=unexpected_shapes"
@@ -345,20 +359,30 @@ The CLI does the right thing and propagates the guest exit code; raw HTTP does n
 propagate it too, but their `exec` promise **resolves** for a failed command, so a `try/catch`
 around it catches transport errors only.
 
-### Error bodies are not one format
+### Error bodies are one format now
 
-`401` is JSON with a `code`:
+Since 2026-10, every error is `application/problem+json`:
 
 ```
-{"code":"unknown_key","error":"unknown API key"}
+{"code":"unknown_key","detail":"unknown API key","retryable":false,"status":401,"title":"Unauthorized","type":"about:blank"}
 ```
 
-`400`, `403`, `404`, `409`, `422` and `501` are plain text. So the common advice not to parse
-error message text when a type or code is available is good advice that mostly cannot be followed
-here, because for most statuses no code is available.
+Older reports of plain-text `400`, `403`, `404`, `409`, `422` and `501` bodies predate this.
+Branch on `code` and `retryable`; show `detail` to a person.
 
-A client that calls `.json()` on an error path works against an expired key and throws on a
-duplicate name.
+### Retry what says it is retryable, and wait as asked
+
+`retryable` is true for `408`, `429`, `502`, `503` and `504`, and those responses carry
+`Retry-After` in seconds. Two cases differ in what a retry costs:
+
+- `429` was refused before anything ran, so resending is always safe.
+- `503 machine_interrupted` means the machine stopped or became unreachable while the command
+  ran. The command may have partly run, and a resend runs it again from the start. Resend only
+  a command that is safe to run twice.
+
+The Node and Python SDKs do this for you on reads, deletes, start, stop and resume, up to three
+times (`maxRetries` / `max_retries`). They never resend an exec or a create; the error carries
+`retryable` and `retryAfterMs` (`retry_after_s` in Python), so the caller decides.
 
 ### A 422 cannot be triaged by status, and neither can a 400
 
@@ -381,16 +405,15 @@ http=400
 So the status separates a parse failure from a validation failure in neither direction. Read the
 body.
 
-### Unauthenticated, every path is 401, including paths that do not exist
+### A path that does not exist is 404, with or without a key
 
-`GET /v1/nope` with no credential is 401 with an empty body, not 404. Route probing without a key
-tells you nothing, and an empty-bodied 401 cannot be told from a missing route.
+`GET /v1/nope` with no credential is a 404 problem whose `detail` points at
+`https://smolmachines.com/openapi.json`. (Before 2026-10 it was an empty-bodied 401.)
 
 ### The 403 body names the exact missing scope
 
 ```
-missing scope: volume:read
-http=403
+{"code":"forbidden","detail":"missing scope: volume:read","retryable":false,"status":403,...}
 ```
 
 That is more useful than the status and more reliable than comparing against `smol auth status`,
@@ -410,6 +433,6 @@ documented failure that a healthy account cannot easily provoke.
 
 ### A duplicate name is one of the few real 4xx a healthy account produces
 
-Creating a second machine with a name already in use returns 409 with a plain-text body. It is
+Creating a second machine with a name already in use returns a 409 `conflict` problem. It is
 worth having in a test suite for that reason: most of this API's failure surface needs either a
 malformed request or a broken account, and this one needs neither.
