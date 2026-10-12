@@ -191,12 +191,12 @@ smolvm machine cp dev:/workspace/result.json ./result.json
 
 ### Checkpoint and restore a running machine
 
-`machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.smolcheckpoint` file. The machine keeps running.
+`machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.checkpoint` file; the earlier `.smolcheckpoint` name is still accepted. The machine keeps running.
 
 Capture it while it runs:
 
 ```bash
-smolvm machine checkpoint --name dev -o ./dev.smolcheckpoint
+smolvm machine checkpoint --name dev -o ./dev.checkpoint
 ```
 
 The source is paused only for the copy-on-write snapshot, a fraction of a second, and the command
@@ -207,7 +207,7 @@ shorter.
 Restore it through `machine create`, which accepts a checkpoint wherever it accepts a pack:
 
 ```bash
-smolvm machine create --name dev-restored --from ./dev.smolcheckpoint
+smolvm machine create --name dev-restored --from ./dev.checkpoint
 smolvm machine start --name dev-restored
 ```
 

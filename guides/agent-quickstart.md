@@ -58,7 +58,7 @@ smolvm machine exec --name "$source_name" -- sh -ec \
   'printf "prepared\n" > /root/result; printf "ram-marker\n" > /dev/shm/marker'
 
 smolvm machine checkpoint --name "$source_name" \
-  --output "$artifact_dir/prepared.smolcheckpoint"
+  --output "$artifact_dir/prepared.checkpoint"
 
 for i in 1 2 3 4; do
   child="$prefix-child-$i"
@@ -84,13 +84,13 @@ smolvm machine exec --name "$source_name" -- sh -ec \
 
 machines+=("$restored_name")
 smolvm machine create --name "$restored_name" \
-  --from "$artifact_dir/prepared.smolcheckpoint"
+  --from "$artifact_dir/prepared.checkpoint"
 smolvm machine start --name "$restored_name"
 smolvm machine exec --name "$restored_name" -- sh -ec \
   'test "$(cat /root/result)" = prepared
    test "$(cat /dev/shm/marker)" = ram-marker
    echo "checkpoint: disk and RAM restored"'
-printf 'PASS; checkpoint retained at %s/prepared.smolcheckpoint\n' "$artifact_dir"
+printf 'PASS; checkpoint retained at %s/prepared.checkpoint\n' "$artifact_dir"
 ```
 
 Each branch starts with the prepared files, then changes them independently.

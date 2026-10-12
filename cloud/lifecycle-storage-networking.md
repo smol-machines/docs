@@ -196,12 +196,12 @@ For a tree of machines that build on each other, branch rather than checkpoint, 
 
 Machine snapshots are not implemented in the cloud API: the snapshot routes return `501`. To keep a stopped machine's disk state, export it to a `.smolmachine` artifact instead.
 
-Checkpoints capture a running machine, guest RAM and processes included, into durable cloud storage, and can be pulled down as a `.smolcheckpoint` artifact. As locally, the machine has to be branchable before it can be captured:
+Checkpoints capture a running machine, guest RAM and processes included, into durable cloud storage, and can be pulled down as a `.checkpoint` artifact. As locally, the machine has to be branchable before it can be captured:
 
 ```bash
 smol cloud checkpoint create myapp
 smol cloud checkpoint ls myapp
-smol cloud checkpoint download CHECKPOINT_ID -o ./myapp.smolcheckpoint
+smol cloud checkpoint download CHECKPOINT_ID -o ./myapp.checkpoint
 smol cloud checkpoint restore CHECKPOINT_ID --name myapp-restored
 smol cloud checkpoint rm CHECKPOINT_ID
 ```
