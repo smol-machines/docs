@@ -47,6 +47,7 @@ These fields describe the machine and its workload. All are optional.
 | `storage` | integer | Storage disk size in GiB. |
 | `overlay` | integer | Overlay disk size in GiB. |
 | `block_io` | string | Host block I/O engine, `"sync"` or `"async"`. Default: `"sync"`. |
+| `disk_durability` | string | `"full"` makes a guest `fsync` wait for the host disk; `"deferred"` lets writes reach it on the host's schedule, and a host crash can lose recent writes. Default: `"full"`. |
 | `net` | boolean | Enable outbound networking. Networking is off by default. |
 | `gpu` | boolean | Enable Vulkan GPU acceleration through virtio-gpu. |
 | `gpu_vram` | integer | GPU shared-memory size in MiB. Ignored unless `gpu = true`. |
