@@ -40,6 +40,8 @@ smolvm machine run --net --image alpine -- uname -a
 
 The final command passes `--net` for the workload rather than for the image. On a macOS or Linux node, a separate builder machine pulls a registry image into a seed and the run starts from that, so a machine with no networking of its own still starts from one; on a Windows node the pull runs in the machine and needs `--net`.
 
+Run as root on Linux, the installer installs system-wide: smolvm goes to `/opt/smolvm` with the agent rootfs beside the binary, and the commands are linked into `/usr/local/bin`. That is the install `smolvm serve` needs when it runs as root, because each VM then runs as its own unprivileged uid, which cannot read anything under `/root`. `serve` refuses to start when that uid cannot reach the data root, the libraries or the agent rootfs, and names the path that blocks it; `SMOLVM_VM_UID_DROP=off` runs VMs as root instead. `--prefix DIR` installs somewhere else.
+
 For production installation, pin a tested release and verify its published SHA-256 checksum. Release archives are not currently signed or accompanied by provenance attestations.
 
 ## Per-host API
