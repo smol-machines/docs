@@ -252,7 +252,7 @@ once: `nproc` and `/proc/meminfo` report the new figures on the next command. It
 and platform alignment applies to a memory target; CPU shrinking works only on compatible Linux
 x86_64 runtimes. To make a smaller machine on any host, stop it and use `machine update`.
 
-### Update a stopped machine
+### Update a machine
 
 ```bash
 smolvm machine stop --name dev
@@ -260,20 +260,26 @@ smolvm machine update --name dev --cpus 6 --mem 12288
 smolvm machine start --name dev
 ```
 
-`machine update` changes configuration for the next start. The machine must be stopped first, and
-it says so rather than guessing: on a running machine the command fails with `invalid vm state:
-expected stopped, got Running`.
+`machine update` changes configuration for the next start, so the machine must be stopped first,
+and it says so rather than guessing: on a running machine the command fails with `invalid vm state:
+expected stopped, got Running`. The allow list is the one exception.
 
 It also edits the egress policy, which is otherwise fixed at create time. `--allow-host`,
 `--allow-host-pattern`, `--allow-cidr` and `--outbound-localhost-only` add to the policy, and
 `--remove-allow-host` and `--remove-allow-cidr` take entries back out; `--net` and `--no-net` turn
-networking on and off. The new policy applies from the next start, and only the named destinations
-answer afterwards:
+networking on and off. On a stopped machine the new policy applies from the next start, and only
+the named destinations answer afterwards:
 
 ```bash
 smolvm machine update --name dev --allow-host example.com
 smolvm machine start --name dev
 ```
+
+On a running machine that was started with an allow list, an update that only adds or removes
+allowed hosts and CIDRs applies at once, from the machine's next connection or DNS lookup, and the
+command reports `running; applies now`. A change that would lift the list, or give one to a running
+machine that has none, is refused until the machine is stopped. Removing a host leaves allowed the
+addresses `machine create` resolved it to; take those out with `--remove-allow-cidr`.
 
 ### Mount a host directory
 
