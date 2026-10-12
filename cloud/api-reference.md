@@ -69,6 +69,24 @@ POST   /v1/machines/{id}/sessions/{sessionId}/exec
 DELETE /v1/machines/{id}/sessions/{sessionId}
 ```
 
+A job runs a command detached and keeps its stdout, stderr and exit code in the machine, so a client
+can disconnect and come back for them:
+
+```text
+POST /v1/machines/{id}/jobs
+GET  /v1/machines/{id}/jobs
+GET  /v1/machines/{id}/jobs/{job_id}
+GET  /v1/machines/{id}/jobs/{job_id}/output
+POST /v1/machines/{id}/jobs/{job_id}/cancel
+```
+
+`POST` takes `command`, with optional `cwd`, `env`, `user` and `timeoutSeconds`, and returns `202`
+at once; it wakes a stopped machine, and a running job keeps the machine from auto-stopping. A job's
+`state` is `running`, `exited` with its `exitCode`, or `lost` when the machine stopped or restarted
+while it ran. Read output with `?stream=stdout` or `stderr` from an `offset`, asking again from
+`nextOffset` until `eof`. Cancel sends `SIGTERM`, and a cancelled or timed-out job records exit
+code `143`. The image needs `sh`.
+
 ### Interactive terminal
 
 The console's terminal is a WebSocket you can open yourself, to give your own product a real shell in a machine: full-screen programs, colors, prompts, and resizing all work.
