@@ -167,7 +167,7 @@ Behavior to plan for:
 - **A connection lasts at most one hour.** Reconnect before then; with `tmux`, reconnecting lands you back where you were.
 - **Quiet sessions are kept alive.** The server pings every 30 seconds, which WebSocket clients answer automatically. A client that stops answering for 90 seconds is treated as gone and its session ends, so a machine is not kept awake by a connection nobody is using.
 - **Several terminals can be open at once.** Each has its own session and does not block the others or `exec` calls.
-- **Treat a key in a browser as visible.** Anyone who can read the page can read an `access_token`, and query strings can appear in proxy logs. Have your backend mint a key for that user with `"scopes": ["machine:exec"]` and `"expiresInDays": 1` through `POST /v1/apikeys`, and revoke it when the session ends.
+- **Treat a key in a browser as visible.** Anyone who can read the page can read an `access_token`, and query strings can appear in proxy logs. Give the page a key of its own, created in the console with only the `machine:exec` scope and a short expiry, and revoke it when the session ends.
 
 For command output without a terminal, such as an agent running a build, `POST /v1/machines/{id}/exec` with `"stream": true` returns output as Server-Sent Events and is simpler to consume.
 
@@ -214,7 +214,7 @@ The [cloud-usage](/docs/guides/skills/cloud-usage) skill packet reads these tota
 
 ### API keys
 
-The API supports listing, creating, and revoking keys:
+Keys are listed, created and revoked through these routes:
 
 ```text
 GET    /v1/apikeys
@@ -222,7 +222,10 @@ POST   /v1/apikeys
 DELETE /v1/apikeys/{id}
 ```
 
-The plaintext value of a newly created key is shown once.
+Each needs the `members:write` scope, which a signed-in owner or admin holds and a newly created key
+cannot carry: a key may hold only `machine:`, `volume:`, `usage:read` and `group:write` scopes. So
+keys are managed from the [console](/console), and a call with an API key gets a `403` naming the
+missing scope. The plaintext value of a newly created key is shown once.
 
 ## Readiness and lifecycle
 
