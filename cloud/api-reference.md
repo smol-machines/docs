@@ -253,7 +253,7 @@ a stopped machine still holds its slot.
 
 ## Errors and request IDs
 
-Use the HTTP status code first. Error bodies may be plain text. For guest exit codes and SDK error patterns, see [Error handling](/docs/guides/error-handling).
+Use the HTTP status code first. Error bodies are RFC 9457 `application/problem+json`: a stable `code`, a `detail` sentence, and `retryable`, which is true for `408`, `429`, `502`, `503` and `504`; those also carry `Retry-After` in seconds. An exec whose machine stopped under it returns `503` with code `machine_interrupted`: the command may have partly run, and a retry runs it again. For guest exit codes and SDK error patterns, see [Error handling](/docs/guides/error-handling).
 
 Common statuses include:
 

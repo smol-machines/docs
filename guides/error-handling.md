@@ -87,11 +87,32 @@ try {
 }
 ```
 
-Do not parse error message text when a type or code is available. Common SDK codes include `COMMAND_FAILED`, `INVALID_CONFIG`, `NOT_SUPPORTED`, `NOT_FOUND`, `UNAUTHORIZED`, `CONNECTION`, and `TIMEOUT`.
+Do not parse error message text when a type or code is available. Common SDK codes include `COMMAND_FAILED`, `INVALID_CONFIG`, `NOT_SUPPORTED`, `NOT_FOUND`, `UNAUTHORIZED`, `CONNECTION`, `TIMEOUT`, and `MACHINE_INTERRUPTED`.
+
+### Retries
+
+A cloud error also says whether retrying can help: `retryable`, the HTTP `status`, the server's `problemCode`, and how long to wait (`retryAfterMs` in Node, `retry_after_s` in Python).
+
+The SDKs retry on their own, up to three times and waiting as the server asks, when that is safe: a `429` for any call, and a `502`, `503` or `504` for reads, deletes, start, stop and resume. Set `maxRetries` (Node) or `max_retries` (Python) on the connection to change the count, or `0` to turn retries off.
+
+They never resend an exec or a create, which could run twice. `MACHINE_INTERRUPTED` means the machine stopped or became unreachable while a command ran: the command may have partly run, and running it again starts it from the beginning. Retry it yourself only when that is safe:
+
+```ts
+try {
+  await machine.exec(["./migrate.sh"]);
+} catch (error) {
+  if (error instanceof SmolError && error.code === "MACHINE_INTERRUPTED") {
+    await new Promise((r) => setTimeout(r, error.retryAfterMs ?? 2000));
+    // Re-check what the command already did before running it again.
+  } else {
+    throw error;
+  }
+}
+```
 
 ## REST API errors
 
-Check the HTTP status before decoding a success response. Keep the response body and `x-request-id` for debugging:
+Check the HTTP status before decoding a success response. Every error body is RFC 9457 `application/problem+json` with a stable `code`, a `detail` sentence, and `retryable`. Keep the body and `x-request-id` for debugging:
 
 ```bash
 body=$(mktemp)
@@ -120,10 +141,12 @@ Typical meanings:
 - `404`: machine or other resource does not exist
 - `409`: lifecycle conflict or duplicate name
 - `422`: the body parsed but did not satisfy the schema, or the request was refused by a quota. A quota refusal names the plan and the ceiling it hit, so the body is worth surfacing to whoever triggered the call — see [plan limits](/docs/cloud/api-reference)
-- `429`: rate limited; retry with bounded backoff and jitter
-- `5xx`: service failure; retry idempotent requests with bounded backoff
+- `429`: rate limited; wait `Retry-After` seconds, then resend. The request never ran
+- `503` with code `machine_interrupted`: the machine stopped or became unreachable while an exec ran. Wait `Retry-After`; resend only a command that is safe to run twice
+- `502`, `503`, `504`: briefly unavailable; wait `Retry-After`, then resend requests that are safe to repeat
+- `500`: server error; not marked retryable
 
-The status does not separate these cleanly, so read the body rather than branching on the code alone: a wrong field name, a wrong type and a quota refusal are all `422`, and a body that parses but breaks a semantic rule comes back as `400`.
+Every response with `retryable: true` carries `Retry-After`. The status does not separate client errors cleanly, so read `code` and `detail` rather than branching on the status alone: a wrong field name, a wrong type and a quota refusal are all `422` (`unprocessable`), and a body that parses but breaks a semantic rule comes back as `400`.
 
 Do not automatically retry invalid input, authentication failures, or arbitrary non-idempotent creates. When a create times out, list or fetch the resource before submitting another create.
 
