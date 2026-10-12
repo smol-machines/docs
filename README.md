@@ -109,12 +109,10 @@ request:
   handled during review.
 
 A merge here does not appear on the site immediately. The website pins this
-repository at an exact commit, so the two are joined by a scheduled job that
-moves that pin to `main` and redeploys — currently **twice a day, at 00:00 and
-12:00 UTC**. A page merged just after a run waits for the next one. Twelve hours
-is the schedule rather than a guarantee: the job moves the pin before it
-deploys, so a deploy that fails leaves the site on the old commit while every
-later run finds the pin already current and does nothing.
+repository at an exact commit, so the two are joined by a sync job in the site
+repository: it tests and builds the new `main` and opens a pull request that
+moves the pin to it. The site changes when a maintainer merges that pull
+request, so there is no fixed delay.
 
 The pin is why an unrelated website deploy never publishes docs by accident, and
 why a rollback of the site rolls the docs back with it.
