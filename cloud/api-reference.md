@@ -270,6 +270,8 @@ Common statuses include:
 
 Every response includes `x-request-id`. A safe client-provided ID is echoed; otherwise the service generates one. Record it with the status and response body when reporting a failed request.
 
-## Branches and snapshots
+## Checkpoints and branches
 
-Branch routes are specialized cloud operations. They do not move a running local VM into cloud or provide a portable cross-architecture restore format. Machine snapshots are not implemented in the cloud API: the snapshot routes return `501`. To capture a stopped machine's disk state, export it to a `.smolmachine` artifact instead (`POST /v1/machines/{id}/export`, or `smol cloud export`).
+Checkpoints capture a running branchable machine, guest RAM and processes included, into durable storage: `POST /v1/machines/{id}/checkpoints` captures one, `GET /v1/machines/{id}/checkpoints` lists them, and `POST /v1/checkpoints/{id}/restore` starts a new machine from one. See [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) for the lifecycle and the CLI equivalents.
+
+Branch routes are specialized cloud operations. They do not move a running local VM into cloud or provide a portable cross-architecture restore format. The separate `/snapshot` routes are not implemented and return `501`; use a checkpoint to capture a running machine, or export a stopped machine's disk to a `.smolmachine` artifact (`POST /v1/machines/{id}/export`, or `smol cloud export`).
