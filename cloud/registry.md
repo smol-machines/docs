@@ -107,7 +107,7 @@ credentials separate from Docker's.
 
 The public catalog and local `smolvm pack pull` workflow are live.
 
-Starting a smol cloud machine directly from a registry artifact is represented in current cloud request types, but one-click launch from the public catalog is still being developed. User-owned namespaces and the complete publish-to-cloud workflow are also still in development. Do not build a production workflow around those paths until they are documented as supported for your account.
+An account can also push an artifact into its own namespace, `tenants/<tenant>/name:tag`, authenticated by its cloud API key, and run a cloud machine from it with the `smolmachine` source below; the [cloud-registry](/docs/guides/skills/cloud-registry) skill packet does both end to end. A push cannot be undone, because no shipped command deletes a pushed artifact. One-click launch from the public catalog does not exist.
 
 Creating a cloud machine from a `.smolmachine` reference, where enabled, uses a source shaped like:
 
