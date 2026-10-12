@@ -119,9 +119,11 @@ text here.
 
 ## Security defaults, and why they are the defaults
 
-- **The installer is a user-level install and needs no root.** Everything lands under `$HOME`,
-  which is what lets an agent or a CI job install a private copy and remove it without a
-  privileged step. Nothing in this packet escalates privilege.
+- **The installer is a user-level install and needs no root.** Run as a user, everything lands
+  under `$HOME`, which is what lets an agent or a CI job install a private copy and remove it
+  without a privileged step. Nothing in this packet escalates privilege. Run as root on Linux, it
+  installs system-wide to `/opt/smolvm` instead, the install a root `smolvm serve` needs; see
+  [Self-hosting](/docs/local/self-hosting).
 - **`sudo usermod -aG kvm` is the one privileged step, and it is yours to run.** Group membership
   on `/dev/kvm` is the host's boundary between users who can start VMs and users who cannot, so a
   script should report `accel_access=denied` and stop rather than widen it for you. `sg kvm -c`

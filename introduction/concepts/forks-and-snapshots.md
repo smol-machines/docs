@@ -38,7 +38,7 @@ These mechanisms preserve different state:
 |---|---|---|---|
 | Branch | Yes, then copy-on-write | Yes | No |
 | Pack from VM | Yes | No | Yes, `.smolmachine` |
-| Checkpoint | Yes | Yes | Yes, `.smolcheckpoint` |
+| Checkpoint | Yes | Yes | Yes, `.checkpoint` |
 
 A pack from a VM requires the source VM to be stopped. It captures disk state and boots as a new machine later. It does not preserve running processes.
 
@@ -47,7 +47,7 @@ need a file to retain or transfer independently of the live machine lifecycle.
 
 ## Checkpoints
 
-A checkpoint captures a running machine, including guest RAM and processes, into a single `.smolcheckpoint` file. The machine must have been started branchable, with `--branchable` on `machine start`. A machine started without it can be stopped and started again with the flag. Unlike a branch it is an independent artifact: the source machine keeps running, and the file can be kept, copied, and restored later.
+A checkpoint captures a running machine, including guest RAM and processes, into a single `.checkpoint` file. The machine must have been started branchable, with `--branchable` on `machine start`. A machine started without it can be stopped and started again with the flag. Unlike a branch it is an independent artifact: the source machine keeps running, and the file can be kept, copied, and restored later.
 
 Restoring one creates a machine that resumes from the captured instant rather than booting. That is the difference from a pack, which captures disk state only and starts the machine from the beginning.
 

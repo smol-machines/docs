@@ -63,7 +63,7 @@ A packet is written only when the procedure behind it can be run end to end and 
 |---|---|
 | Scoping egress, publishing ports | The behaviour a packet would have to route around is not resolved, so a packet would teach a workaround with no end date. Until then, prefer an explicit allow list over a blanket deny, and read `cloud-machine`'s notes on published ports |
 | Cloud volumes | The feature is not built. A create request carrying `mounts` is accepted and produces a machine silently missing its storage |
-| Empty folder to a deployed tool in three commands | The documented route does not currently complete on every host |
+| Empty folder to a deployed tool in three commands | The first two steps run locally, but the third, `smol cloud deploy` with no argument, stops with `a reference is required` |
 | Headless browsing on cloud | A browser in a cloud machine renders nothing, and the cause is narrowed rather than found |
 | Anything behind the console sign-in | Account creation and key minting are human steps by design. The packets start where a person hands an agent a key |
 | Checkpoint a running cloud machine and restore it | On cloud the capability is advertised with no route in the published spec. Locally, [branch-and-checkpoint](/docs/guides/skills/branch-and-checkpoint) covers it |

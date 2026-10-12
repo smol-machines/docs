@@ -36,7 +36,9 @@ const machine = await Machine.connect(id, connection?);
 machine = Machine.connect(machine_id, conn=None)
 ```
 
-For local, pass the name of a persisted machine. For cloud, pass the `mach-...` machine ID. `connect()` does not wait for readiness; call `waitUntilReady()` or `wait_until_ready()` before use.
+For local, pass the name of a persisted machine, a paused one included. For cloud, pass the `mach-...` machine ID. `connect()` does not wait for readiness; call `waitUntilReady()` or `wait_until_ready()` before use.
+
+`Machine.probe(connection?)` (`Machine.probe(conn)` in Python) checks a cloud connection before any machine exists: it throws unless the key is accepted and the base URL answers with a machine list.
 
 ## Identity, state, and readiness
 
@@ -87,6 +89,8 @@ result = machine.exec(
     ),
 )
 ```
+
+On cloud, `background: true` (`ExecOptions(background=True)`) starts the command detached and returns at once with its `pid`, leaving it running after the call ends.
 
 ### `run`
 
@@ -211,7 +215,14 @@ The port must be declared in `MachineConfig.ports`, and the service must listen 
 | TypeScript | Python | Behavior |
 |---|---|---|
 | `await machine.stop()` | `machine.stop()` | Stops the machine without deleting storage |
+| `await machine.start(options?)` | `machine.start()` | Boots a stopped machine from its disk, not its previous RAM |
+| `await machine.pause()` | `machine.pause()` | Saves RAM and disk durably, then stops at that point |
+| `await machine.resume(options?)` | `machine.resume()` | Resumes the saved execution |
 | `await machine.delete()` | `machine.delete()` | Stops the machine and permanently deletes its storage |
+
+`start()` and `resume()` wait for readiness; pass `{ waitUntilReady: false }`, or `wait_until_ready=False` in Python, to return as soon as the request is accepted.
+
+Three more are cloud only: `info()` returns the machine's full cloud record, `logs(tail)` the last lines of its console log (100 by default), and `exportArtifact()` (`export_artifact()`) exports the stopped machine as a `.smolmachine` in your registry namespace. `Machine.deleteCheckpoint(id)` (`Machine.delete_checkpoint(id)`) deletes a durable cloud checkpoint, or a local checkpoint file by path; a cloud checkpoint a machine was restored from, or that holds a paused machine's saved execution, is refused until that machine is gone.
 
 Use `try` / `finally` in TypeScript:
 
@@ -293,6 +304,7 @@ A machine created with `detach` keeps running after the process that made it exi
 | `target` | `target` | `"local"` or `"cloud"`; select explicitly when both are configured |
 | `baseUrl` | `base_url` | Cloud API base URL |
 | `apiKey` | `api_key` | Cloud API key |
+| `fetch` | | TypeScript only: the `fetch` cloud requests go through, for a proxy, retries or tracing; the global `fetch` by default |
 
 Cloud authentication also reads `SMOL_CLOUD_TOKEN`. The base URL override is `SMOL_CLOUD_URL`.
 

@@ -80,7 +80,7 @@ result = machine.run(
 result.assert_success()
 ```
 
-An uncached registry image does not need `resources.network` at the default storage size with image seeding on: the engine builds a shared seed for the image and the machine starts from a copy of it. A different `storage_gb`, or `SMOLVM_IMAGE_SEEDS=0`, moves the pull into the guest, which then needs networking. Enable it when the guest workload needs DNS or outbound network access; guest networking is off by default.
+`run(image, command)` pulls the image inside the guest, so it needs `resources.network`. A machine created with an `image` in its config does not, at any `storage_gb`, because that image is fetched before the guest boots. Enable networking as well when the guest workload needs DNS or outbound network access; guest networking is off by default.
 
 ## Mount a host directory
 

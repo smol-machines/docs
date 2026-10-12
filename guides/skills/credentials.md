@@ -151,9 +151,10 @@ Full detail in `references/traps.md`.
 - **A binding is narrower than a secret.** `--secret-env` puts the plaintext in the workload's
   environment, where any code in the guest can read and send it anywhere the network allows. A
   binding lets the workload use the key only in a header, only toward the hosts named.
-- **Bind to the exact host and nothing wider.** Hosts are exact names with no wildcards, and when
-  the machine also has `--allow-host`, every credential host has to sit inside that list; a create
-  that breaks either rule is refused.
+- **Bind to the exact host and nothing wider.** Hosts are exact names, or a wildcard such as
+  `*.example.com` that matches every subdomain and needs a parent of at least two labels; when the
+  machine also has `--allow-host`, every credential host has to sit inside that list; a create that
+  breaks either rule is refused.
 - **Substitution is not data-loss prevention.** An API that echoes your key back in a response
   body hands it to the guest. Bind keys only to APIs you trust with them.
 - **The scripts never print the value** or its length, and the preflight reports only whether the
@@ -413,9 +414,9 @@ if [ -n "$VAR" ]; then
     fi
 fi
 if [ -n "$HOST" ]; then
-    case "$HOST" in
+    case "${HOST#\*.}" in
         *[!a-z0-9.-]*|*..*|.*|*.|[0-9]*[0-9]) emit host_form rejected; blocked=1
-            note "a credential host must be an exact lowercase DNS name: no wildcard, scheme, port or IP address" ;;
+            note "a credential host must be a lowercase DNS name, optionally after *.: no scheme, port or IP address" ;;
         *) emit host_form ok ;;
     esac
 fi
@@ -825,13 +826,13 @@ answered normally.
 ### The create-time rules
 
 ```
-credential "t" host "*.example.com" must be an exact lowercase DNS name (no wildcard, scheme, port or IP)
-credential "t" host "93.184.215.14" must be an exact lowercase DNS name (no wildcard, scheme, port or IP)
-credential "t" host "example.com" is not reachable under the machine's network allow_hosts
+credential "gh" host "*.com" must be a lowercase DNS name, optionally `*.` plus a name with at least two labels (no scheme, port or IP)
+credential "gh" host "*.github.com" is not reachable under the machine's network allow_hosts
 ```
 
-The last is a machine with `--allow-host example.org` and a credential for `example.com`: a
-credential never widens what the machine may reach.
+Both measured on v1.27.1 on macOS arm64. The second is a machine with
+`--allow-host api.github.com` and a credential for `*.github.com`: a wildcard needs its whole
+subtree allowed, so a credential never widens what the machine may reach.
 
 ### Port 80 and other ports are not intercepted
 

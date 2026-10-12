@@ -22,7 +22,7 @@ Networking is off by default, and an ephemeral run usually does not need it for
 the image. The pull runs in a separate builder machine that smolvm starts with
 networking on, once per image, leaving a shared seed your machine starts from a
 copy of, so `--net` above is for the workload. Three things have to hold: the
-machine takes the default storage size, seeding is not turned off with
+machine's storage is at least the 20 GiB default, seeding is not turned off with
 `SMOLVM_IMAGE_SEEDS=0`, and the host is not Windows. Seeding is best effort, so
 when it does not happen the pull falls back into your own machine, which then
 needs `--net`. The pull running in the builder machine has one consequence worth
@@ -55,11 +55,10 @@ a workload from learning where something lives.
 ## Persistent machines
 
 `machine create` no longer needs networking for an uncached registry image: the host fetches it on
-the machine's behalf, so neither a non-default `--storage` nor `SMOLVM_IMAGE_SEEDS=0` stops it,
+the machine's behalf, so neither a smaller `--storage` nor `SMOLVM_IMAGE_SEEDS=0` stops it,
 where both of those send an ephemeral run back to pulling in the guest. An image whose registry serves an older manifest format is the
 case that still fails, at `start` rather than at `create`, with `parse manifest: missing field
 mediaType`. Supply such an image locally with `--image -`, or pass `--net`.
-
 
 A persistent machine separates creation from execution:
 
@@ -192,12 +191,12 @@ smolvm machine cp dev:/workspace/result.json ./result.json
 
 ### Checkpoint and restore a running machine
 
-`machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.smolcheckpoint` file. The machine keeps running.
+`machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.checkpoint` file; the earlier `.smolcheckpoint` name is still accepted. The machine keeps running.
 
 Capture it while it runs:
 
 ```bash
-smolvm machine checkpoint --name dev -o ./dev.smolcheckpoint
+smolvm machine checkpoint --name dev -o ./dev.checkpoint
 ```
 
 The source is paused only for the copy-on-write snapshot, a fraction of a second, and the command
@@ -208,7 +207,7 @@ shorter.
 Restore it through `machine create`, which accepts a checkpoint wherever it accepts a pack:
 
 ```bash
-smolvm machine create --name dev-restored --from ./dev.smolcheckpoint
+smolvm machine create --name dev-restored --from ./dev.checkpoint
 smolvm machine start --name dev-restored
 ```
 
@@ -252,7 +251,7 @@ once: `nproc` and `/proc/meminfo` report the new figures on the next command. It
 and platform alignment applies to a memory target; CPU shrinking works only on compatible Linux
 x86_64 runtimes. To make a smaller machine on any host, stop it and use `machine update`.
 
-### Update a stopped machine
+### Update a machine
 
 ```bash
 smolvm machine stop --name dev
@@ -260,20 +259,26 @@ smolvm machine update --name dev --cpus 6 --mem 12288
 smolvm machine start --name dev
 ```
 
-`machine update` changes configuration for the next start. The machine must be stopped first, and
-it says so rather than guessing: on a running machine the command fails with `invalid vm state:
-expected stopped, got Running`.
+`machine update` changes configuration for the next start, so the machine must be stopped first,
+and it says so rather than guessing: on a running machine the command fails with `invalid vm state:
+expected stopped, got Running`. The allow list is the one exception.
 
 It also edits the egress policy, which is otherwise fixed at create time. `--allow-host`,
 `--allow-host-pattern`, `--allow-cidr` and `--outbound-localhost-only` add to the policy, and
 `--remove-allow-host` and `--remove-allow-cidr` take entries back out; `--net` and `--no-net` turn
-networking on and off. The new policy applies from the next start, and only the named destinations
-answer afterwards:
+networking on and off. On a stopped machine the new policy applies from the next start, and only
+the named destinations answer afterwards:
 
 ```bash
 smolvm machine update --name dev --allow-host example.com
 smolvm machine start --name dev
 ```
+
+On a running machine that was started with an allow list, an update that only adds or removes
+allowed hosts and CIDRs applies at once, from the machine's next connection or DNS lookup, and the
+command reports `running; applies now`. A change that would lift the list, or give one to a running
+machine that has none, is refused until the machine is stopped. Removing a host leaves allowed the
+addresses `machine create` resolved it to; take those out with `--remove-allow-cidr`.
 
 ### Mount a host directory
 
@@ -385,16 +390,19 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only) requ
 | `--net` | Enable networking |
 | `--allow-host` | Allow egress to a hostname |
 | `--allow-cidr` | Allow egress to a CIDR |
-| `--credential` | Bind a credential as `NAME=ENV_VAR@HOST[,HOST]`: the guest gets a placeholder in `ENV_VAR`; the host substitutes the real value only on HTTPS requests to the listed hosts |
+| `--dns` | Resolve guest names through this resolver IP instead of the host's own; implies `--net` |
+| `--credential` | Bind a credential as `NAME=ENV_VAR@HOST[,HOST...][:body]`: the guest gets a placeholder in `ENV_VAR`; the host substitutes the real value only on HTTPS requests to the listed hosts, which may be wildcards such as `*.example.com`. `:body` also substitutes it in a form-encoded request body, for OAuth tokens |
 | `--cpus` | vCPU count |
 | `--mem` | Guest memory in MiB |
 | `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]` |
+| `--cache-disk` | Mount a shared cache disk as `BASE:/guest/path`. `BASE` is a raw or qcow2 image that stays read-only and can back many machines; this machine writes only to its own layer, which its branches copy. A blank `BASE` gets an ext4 filesystem |
 | `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT` |
 | `--user`, `-u` | Run the workload as a name or `uid[:gid]` |
 | `--interactive`, `-i` | Keep stdin open |
 | `--tty`, `-t` | Allocate a TTY |
 | `--smolfile`, `-s` | Read configuration from a Smolfile |
 | `--block-io` | Host block I/O engine, `sync` or `async` |
+| `--disk-durability` | `full` (the default): a guest `fsync` waits for the host's disk. `deferred`: guest writes reach it on the host's schedule, much faster for fsync-heavy work such as database commits, but a host crash can lose recent writes |
 | `--stop-on-exit` | Stop the machine once its workload exits, whatever the status, flushing storage first |
 | `--seed-digest-ttl` | Reuse an image digest resolved at most this many seconds ago when seeding |
 | `--guest-subnet` | IPv4 subnet for the guest link, such as `10.200.0.0/30` |

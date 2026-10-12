@@ -26,6 +26,15 @@ On macOS, the supported release path is Apple Silicon with macOS 11 or later. On
 
 Native Windows runs x86_64 Linux guests. WSL2 is an alternative on Windows 11 only when nested virtualization and KVM are available.
 
+### Shell completion
+
+`smolvm completion` prints a completion script for `bash`, `zsh`, `fish`, `powershell` or `elvish` to stdout and installs nothing. Load it from the shell's startup file:
+
+```bash
+echo 'source <(smolvm completion zsh)' >> ~/.zshrc
+echo 'eval "$(smolvm completion bash)"' >> ~/.bashrc
+```
+
 ## Run an ephemeral machine
 
 ```bash

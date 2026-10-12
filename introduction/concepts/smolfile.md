@@ -47,6 +47,7 @@ These fields describe the machine and its workload. All are optional.
 | `storage` | integer | Storage disk size in GiB. |
 | `overlay` | integer | Overlay disk size in GiB. |
 | `block_io` | string | Host block I/O engine, `"sync"` or `"async"`. Default: `"sync"`. |
+| `disk_durability` | string | `"full"` makes a guest `fsync` wait for the host disk; `"deferred"` lets writes reach it on the host's schedule, and a host crash can lose recent writes. Default: `"full"`. |
 | `net` | boolean | Enable outbound networking. Networking is off by default. |
 | `gpu` | boolean | Enable Vulkan GPU acceleration through virtio-gpu. |
 | `gpu_vram` | integer | GPU shared-memory size in MiB. Ignored unless `gpu = true`. |
@@ -181,7 +182,7 @@ init-layer cache, and is unaffected.
 | Field | Type | Description |
 | --- | --- | --- |
 | `allow_hosts` | string array | Hostnames whose resolved IP addresses may be reached. Setting it selects the `virtio-net` backend, because the allow list is enforced by the host-side gateway. |
-| `allow_cidrs` | string array | Allowed IP addresses or CIDR ranges, such as `"10.0.0.0/8"`. |
+| `allow_cidrs` | string array | Allowed IP addresses or CIDR ranges, such as `"10.0.0.0/8"`. Setting it also selects the `virtio-net` backend, for the same reason. |
 
 ```toml
 net = true
@@ -191,7 +192,7 @@ allow_hosts = ["pypi.org", "files.pythonhosted.org"]
 allow_cidrs = ["10.0.0.0/8"]
 ```
 
-Hostnames are resolved when the VM starts. Use an allowlist instead of unrestricted `net = true` when the workload only needs a few destinations.
+Hostnames are resolved when the VM starts. Use an allowlist instead of unrestricted `net = true` when the workload only needs a few destinations. To change the list of an existing machine, run `smolvm machine update` with `--allow-host` and `--remove-allow-host`, or `--allow-cidr` and `--remove-allow-cidr`; see [Update a machine](/docs/local/machine-lifecycle-cli-reference#update-a-machine).
 
 ### Choosing a networking backend
 
@@ -311,7 +312,7 @@ environment_variable = "NOTION_API_KEY"
 allowed_hosts = ["api.notion.com"]
 ```
 
-Each binding lists exact hosts. When `[network].allow_hosts` is set, every credential host must fall under it.
+Each binding lists exact hosts or wildcards such as `*.example.com`, and `injection_location = { body = true }` also substitutes the value in a form-encoded request body, for OAuth refresh grants. When `[network].allow_hosts` is set, every credential host must fall under it.
 
 ## Service metadata
 

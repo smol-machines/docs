@@ -65,6 +65,47 @@ Credentials and configuration are a common case. A configuration path that is a 
 
 Stopping is not a backup. Delete removes the machine, and infrastructure failures can still affect machine-local state. Keep important source data and outputs in an external system of record.
 
+## Cache disks
+
+A cache disk is a disk image many machines start from, each through its own copy-on-write layer,
+so a dependency or build cache is filled once and shared. Cache disks come with the Pro plan and
+above; on other plans the routes answer `402`, naming the plan.
+
+A cache disk is published in immutable versions. Version 0 is an empty filesystem, 20 GiB unless
+`sizeGb` says otherwise, mounted at `/cache` unless `mountPath` does. A machine created with
+`cacheDisk` starts from the latest version, or the one it names, and writes only to its own layer.
+Publishing that machine's cache disk once it has stopped adds the next version, which later
+machines start from:
+
+```ts
+import { CacheDisk, Machine } from "smolmachines";
+
+await CacheDisk.create({ name: "deps" }, { target: "cloud" });
+const machine = await Machine.create(
+  { image: "node:22", cacheDisk: { cache: "deps" } },
+  { target: "cloud" },
+);
+await machine.exec(["sh", "-c", "cd /cache && npm install"]);
+await machine.stop();
+await machine.publishCacheDisk();
+```
+
+In Python the same steps are `CacheDisk.create("deps")`, `MachineConfig(cache_disk=CacheDiskRef("deps"))`
+and `publish_cache_disk()`.
+
+| Method | Path | Operation |
+|---|---|---|
+| `POST` | `/v1/cache-disks` | Create a cache disk |
+| `GET` | `/v1/cache-disks` | List cache disks, each with its versions newest first |
+| `GET` | `/v1/cache-disks/{id}` | Get one cache disk by id or name |
+| `DELETE` | `/v1/cache-disks/{id}` | Delete a cache disk and every version; refused while a machine runs with it |
+| `POST` | `/v1/machines/{id}/cache-disk/publish` | Publish a stopped machine's cache disk as the next version |
+
+Restoring a checkpoint keeps the disks it was captured with, so a new cache disk cannot be attached
+to a restore. To restore one checkpoint with a different cache for each machine, create the source
+with the cache disk as a slot (`slot: true`): it is attached unmounted, and a restore then mounts
+any cache no larger than it at the slot's path (`cacheDisk` on restore).
+
 ## Outbound networking
 
 Set `network.mode` explicitly so behavior does not depend on a changing default.
@@ -151,19 +192,23 @@ Seeing that means the deployment is behind, not that the flag is wrong.
 
 Branching creates a copy-on-write child from a running branchable cloud machine. It does not provide local-to-cloud live migration.
 
+For a tree of machines that build on each other, branch rather than checkpoint, because a branch carries its source's disks and cache disk. Branch with `freezeSource` (`freeze_source` in Python) and the source is kept paused as a reusable branch base that no longer counts toward the concurrency cap. A frozen source cannot run commands again; work in its branches, or stop it.
+
 Machine snapshots are not implemented in the cloud API: the snapshot routes return `501`. To keep a stopped machine's disk state, export it to a `.smolmachine` artifact instead.
 
-Checkpoints capture a running machine, guest RAM and processes included, into durable cloud storage, and can be pulled down as a `.smolcheckpoint` artifact. As locally, the machine has to be branchable before it can be captured:
+Checkpoints capture a running machine, guest RAM and processes included, into durable cloud storage, and can be pulled down as a `.checkpoint` artifact. As locally, the machine has to be branchable before it can be captured:
 
 ```bash
 smol cloud checkpoint create myapp
 smol cloud checkpoint ls myapp
-smol cloud checkpoint download CHECKPOINT_ID -o ./myapp.smolcheckpoint
+smol cloud checkpoint download CHECKPOINT_ID -o ./myapp.checkpoint
 smol cloud checkpoint restore CHECKPOINT_ID --name myapp-restored
 smol cloud checkpoint rm CHECKPOINT_ID
 ```
 
 `restore` creates and starts a new machine from the checkpoint. A downloaded artifact can also be restored locally with `smolvm machine create --from`, subject to the host requirements in [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots). Neither branching nor checkpoint provides a cross-architecture restore format.
+
+`smol machine move --name NAME` moves a running local machine to the cloud, processes and all: it pauses the machine, uploads the saved execution as a checkpoint and resumes it as a cloud machine. Commands that name the machine then reach the cloud copy, and the paused one stays here as `local/NAME` until `smol machine resume` runs it again or `smol machine rm` removes it. `--keep-local` leaves the local machine running and sends a copy as of now, `--as` names the cloud machine, and `--net` or `--no-net` overrides the networking it had. When the upload fails, the local machine stays paused with its execution saved.
 
 ## GPU
 
