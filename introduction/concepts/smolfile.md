@@ -311,7 +311,7 @@ environment_variable = "NOTION_API_KEY"
 allowed_hosts = ["api.notion.com"]
 ```
 
-Each binding lists exact hosts. When `[network].allow_hosts` is set, every credential host must fall under it.
+Each binding lists exact hosts or wildcards such as `*.example.com`, and `injection_location = { body = true }` also substitutes the value in a form-encoded request body, for OAuth refresh grants. When `[network].allow_hosts` is set, every credential host must fall under it.
 
 ## Service metadata
 

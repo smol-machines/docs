@@ -52,7 +52,7 @@ SSH-agent forwarding follows a different model. Private keys remain in the host 
 
 ## Credential substitution
 
-A credential binding gives a workload the ability to *use* a secret at named hosts without ever holding it. The guest receives an opaque placeholder in the environment variable it expects; the host replaces the placeholder with the real value only on HTTPS requests to the binding's allowed hosts, and only inside a request header.
+A credential binding gives a workload the ability to *use* a secret at named hosts without ever holding it. The guest receives an opaque placeholder in the environment variable it expects; the host replaces the placeholder with the real value only on HTTPS requests to the binding's allowed hosts, and only inside a request header unless the binding also allows a form body.
 
 ```bash
 NOTION_API_KEY=secret_... smolvm machine create --name notes --image alpine:3.20 \
@@ -62,9 +62,9 @@ smolvm machine exec --name notes -- sh -c \
   'echo "$NOTION_API_KEY"; curl -s -H "Authorization: Bearer $NOTION_API_KEY" https://api.notion.com/v1/users/me'
 ```
 
-The first line of output is `SMOL_PLACEHOLDER_NOTION_...`, which is all the guest can read or exfiltrate. Notion receives the real key. The same placeholder sent to any other host travels as a literal string; a placeholder in a URL, query string or request body is refused with a `403`.
+The first line of output is `SMOL_PLACEHOLDER_NOTION_...`, which is all the guest can read or exfiltrate. Notion receives the real key. The same placeholder sent to any other host travels as a literal string; a placeholder in a URL or query string is refused with a `403`, and so is one in a request body unless the binding opts in to form bodies, below.
 
-The value is read on the host for every request, from a `[secrets]` reference of the same variable name or, failing that, from the host environment variable of that name. Rotating it needs no restart. Each binding lists exact hosts, and when the machine also has `allow_hosts` every credential host must fall under it, so widening the network never widens a credential. Branched machines inherit placeholders and keep working; each branch is resolved under its own name, so one branch can be cut off without touching the others.
+The value is read on the host for every request, from a `[secrets]` reference of the same variable name or, failing that, from the host environment variable of that name. Rotating it needs no restart. Each binding lists exact hosts or a wildcard such as `*.example.com`, which matches every subdomain but not `example.com` itself and needs a parent of at least two labels. When the machine also has `allow_hosts` every credential host must fall under it, a wildcard by its whole subtree, so widening the network never widens a credential. An OAuth refresh grant carries its token in the body: end the binding with `:body` and the placeholder is also substituted in an `application/x-www-form-urlencoded` body to the bound hosts. Branched machines inherit placeholders and keep working; each branch is resolved under its own name, so one branch can be cut off without touching the others.
 
 Clients that honor `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `GIT_SSL_CAINFO`, `NODE_EXTRA_CA_CERTS` or `DENO_CERT` work unmodified; the guest is given a bundle of the image's own roots plus a per-machine CA at `/run/smolvm/ca-bundle.pem`. Substitution covers HTTPS on port 443 and needs the default `virtio-net` backend.
 
