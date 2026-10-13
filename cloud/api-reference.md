@@ -69,6 +69,24 @@ POST   /v1/machines/{id}/sessions/{sessionId}/exec
 DELETE /v1/machines/{id}/sessions/{sessionId}
 ```
 
+A job runs a command detached and keeps its stdout, stderr and exit code in the machine, so a client
+can disconnect and come back for them:
+
+```text
+POST /v1/machines/{id}/jobs
+GET  /v1/machines/{id}/jobs
+GET  /v1/machines/{id}/jobs/{job_id}
+GET  /v1/machines/{id}/jobs/{job_id}/output
+POST /v1/machines/{id}/jobs/{job_id}/cancel
+```
+
+`POST` takes `command`, with optional `cwd`, `env`, `user` and `timeoutSeconds`, and returns `202`
+at once; it wakes a stopped machine, and a running job keeps the machine from auto-stopping. A job's
+`state` is `running`, `exited` with its `exitCode`, or `lost` when the machine stopped or restarted
+while it ran. Read output with `?stream=stdout` or `stderr` from an `offset`, asking again from
+`nextOffset` until `eof`. Cancel sends `SIGTERM`, and a cancelled or timed-out job records exit
+code `143`. The image needs `sh`.
+
 ### Interactive terminal
 
 The console's terminal is a WebSocket you can open yourself, to give your own product a real shell in a machine: full-screen programs, colors, prompts, and resizing all work.
@@ -149,7 +167,7 @@ Behavior to plan for:
 - **A connection lasts at most one hour.** Reconnect before then; with `tmux`, reconnecting lands you back where you were.
 - **Quiet sessions are kept alive.** The server pings every 30 seconds, which WebSocket clients answer automatically. A client that stops answering for 90 seconds is treated as gone and its session ends, so a machine is not kept awake by a connection nobody is using.
 - **Several terminals can be open at once.** Each has its own session and does not block the others or `exec` calls.
-- **Treat a key in a browser as visible.** Anyone who can read the page can read an `access_token`, and query strings can appear in proxy logs. Have your backend mint a key for that user with `"scopes": ["machine:exec"]` and `"expiresInDays": 1` through `POST /v1/apikeys`, and revoke it when the session ends.
+- **Treat a key in a browser as visible.** Anyone who can read the page can read an `access_token`, and query strings can appear in proxy logs. Give the page a key of its own, created in the console with only the `machine:exec` scope and a short expiry, and revoke it when the session ends.
 
 For command output without a terminal, such as an agent running a build, `POST /v1/machines/{id}/exec` with `"stream": true` returns output as Server-Sent Events and is simpler to consume.
 
@@ -169,6 +187,9 @@ The Cloud API also provides endpoints for:
 - Sharing a machine through scoped share links
 - Branching a branchable machine
 - Exporting a machine to a `.smolmachine` artifact
+- Resizing a running machine's vCPUs, memory or disk in place, `POST /v1/machines/{id}/resize`
+- Minting a short-lived token that opens only one machine's connect bridge, `POST /v1/machines/{id}/connect-token`
+- Listing every checkpoint the account owns, `GET /v1/checkpoints`, and uploading a `.smolcheckpoint` file captured outside the cloud with `POST /v1/checkpoints` and then `POST /v1/checkpoints/{id}/complete`
 
 Use the OpenAPI document or Explorer to inspect the exact routes, request bodies, and feature availability for your account.
 
@@ -193,7 +214,7 @@ The [cloud-usage](/docs/guides/skills/cloud-usage) skill packet reads these tota
 
 ### API keys
 
-The API supports listing, creating, and revoking keys:
+Keys are listed, created and revoked through these routes:
 
 ```text
 GET    /v1/apikeys
@@ -201,7 +222,10 @@ POST   /v1/apikeys
 DELETE /v1/apikeys/{id}
 ```
 
-The plaintext value of a newly created key is shown once.
+Each needs the `members:write` scope, which a signed-in owner or admin holds and a newly created key
+cannot carry: a key may hold only `machine:`, `volume:`, `usage:read` and `group:write` scopes. So
+keys are managed from the [console](/console), and a call with an API key gets a `403` naming the
+missing scope. The plaintext value of a newly created key is shown once.
 
 ## Readiness and lifecycle
 

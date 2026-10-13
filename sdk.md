@@ -92,12 +92,12 @@ with Machine.create(config, ConnectOptions(target="local")) as machine:
 
 :::
 
-Guest networking is disabled by default, and an uncached registry image does not need it at the default storage size with image seeding on: the engine builds a shared seed for the image and the machine starts from a copy of it. Ask for a different `storageGb`, or set `SMOLVM_IMAGE_SEEDS=0`, and the pull moves into the guest, which then does need `resources.network`. Enable it when the workload itself needs outbound access, which is what the examples above do.
+Guest networking is disabled by default. A machine created with an `image` in its config does not need it for that image, at any `storageGb`, because the image is fetched before the guest boots. `run(image, command)` pulls inside the guest, so it needs `resources.network`, which is why the examples above turn it on; enable it as well when the workload itself needs outbound access.
 
 ## Complete examples
 
-- [TypeScript local machine](https://github.com/smol-machines/smol/blob/v1.23.1/sdk/node/examples/basic.ts)
-- [TypeScript cloud machine](https://github.com/smol-machines/smol/blob/v1.23.1/sdk/node/examples/cloud.ts)
-- [Python cloud machine](https://github.com/smol-machines/smol/blob/v1.23.1/sdk/python/examples/cloud.py)
+- [TypeScript local machine](https://github.com/smol-machines/smol/blob/v1.27.0/sdk/node/examples/basic.ts)
+- [TypeScript cloud machine](https://github.com/smol-machines/smol/blob/v1.27.0/sdk/node/examples/cloud.ts)
+- [Python cloud machine](https://github.com/smol-machines/smol/blob/v1.27.0/sdk/python/examples/cloud.py)
 
 See [Machine API](/docs/sdk/machine-api) for the released methods and configuration types.

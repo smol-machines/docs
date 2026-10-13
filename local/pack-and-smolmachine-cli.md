@@ -28,6 +28,10 @@ You can also run a payload through the installed CLI:
 smolvm pack run --sidecar ./python312.smolmachine -- python3 --version
 ```
 
+The VM that `pack create` pulls in resolves names through the host's own resolver. Pass `--dns <IP>`
+when the pull needs a different one; a pack made `--from-vm` defaults to that machine's own `--dns`.
+`pack run --dns <IP>` points the running guest at another resolver and implies `--net`.
+
 ## Pack a stopped machine
 
 Use a persistent machine when setup requires multiple commands:
@@ -132,7 +136,7 @@ A `.smolmachine` is a disk artifact. It packages the prepared filesystem and sto
 - A live migration stream
 - A way to move an active VM between hosts without stopping it
 
-For a local-to-cloud move, stop and pack the machine, then use an artifact deployment path supported by the destination. Live migration of a running local machine is not part of this workflow.
+For a local-to-cloud move, stop and pack the machine, then use an artifact deployment path supported by the destination. Live migration of a running local machine is not part of this workflow; `smol machine move` moves one to the cloud with its processes.
 
 ## Registry
 
