@@ -189,7 +189,7 @@ The Cloud API also provides endpoints for:
 - Exporting a machine to a `.smolmachine` artifact
 - Resizing a running machine's vCPUs, memory or disk in place, `POST /v1/machines/{id}/resize`
 - Minting a short-lived token that opens only one machine's connect bridge, `POST /v1/machines/{id}/connect-token`
-- Listing every checkpoint the account owns, `GET /v1/checkpoints`, and uploading a `.checkpoint` file captured outside the cloud with `POST /v1/checkpoints` and then `POST /v1/checkpoints/{id}/complete`
+- Listing every checkpoint the account owns, `GET /v1/checkpoints`, and uploading a `.smolcheckpoint` file captured outside the cloud with `POST /v1/checkpoints` and then `POST /v1/checkpoints/{id}/complete`
 
 Use the OpenAPI document or Explorer to inspect the exact routes, request bodies, and feature availability for your account.
 
@@ -294,6 +294,8 @@ Common statuses include:
 
 Every response includes `x-request-id`. A safe client-provided ID is echoed; otherwise the service generates one. Record it with the status and response body when reporting a failed request.
 
-## Branches and snapshots
+## Checkpoints and branches
 
-Branch routes are specialized cloud operations. They do not move a running local VM into cloud or provide a portable cross-architecture restore format. Machine snapshots are not implemented in the cloud API: the snapshot routes return `501`. To capture a stopped machine's disk state, export it to a `.smolmachine` artifact instead (`POST /v1/machines/{id}/export`, or `smol cloud export`).
+Checkpoints capture a running branchable machine, guest RAM and processes included, into durable storage: `POST /v1/machines/{id}/checkpoints` captures one, `GET /v1/machines/{id}/checkpoints` lists them, and `POST /v1/checkpoints/{id}/restore` starts a new machine from one. See [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) for the lifecycle and the CLI equivalents.
+
+Branch routes are specialized cloud operations. They do not move a running local VM into cloud or provide a portable cross-architecture restore format. `POST /v1/machines/{id}/snapshot` is not implemented and returns `501`; use a checkpoint to capture a running machine, or export a stopped machine's disk to a `.smolmachine` artifact (`POST /v1/machines/{id}/export`, or `smol cloud export`).

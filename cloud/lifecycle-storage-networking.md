@@ -190,18 +190,12 @@ Seeing that means the deployment is behind, not that the flag is wrong.
 
 ## Branches and checkpoints
 
-Branching creates a copy-on-write child from a running branchable cloud machine. It does not provide local-to-cloud live migration.
-
-For a tree of machines that build on each other, branch rather than checkpoint, because a branch carries its source's disks and cache disk. Branch with `freezeSource` (`freeze_source` in Python) and the source is kept paused as a reusable branch base that no longer counts toward the concurrency cap. A frozen source cannot run commands again; work in its branches, or stop it.
-
-Machine snapshots are not implemented in the cloud API: the snapshot routes return `501`. To keep a stopped machine's disk state, export it to a `.smolmachine` artifact instead.
-
-Checkpoints capture a running machine, guest RAM and processes included, into durable cloud storage, and can be pulled down as a `.checkpoint` artifact. As locally, the machine has to be branchable before it can be captured:
+Checkpoints are how you save a cloud machine and get back to a known-good state. A checkpoint captures a running machine, guest RAM and processes included, into durable cloud storage, and can be pulled down as a `.smolcheckpoint` artifact. As locally, the machine has to be branchable before it can be captured: deploy it with `smol cloud deploy --branchable`, or create it with `"branchable": true`.
 
 ```bash
 smol cloud checkpoint create myapp
 smol cloud checkpoint ls myapp
-smol cloud checkpoint download CHECKPOINT_ID -o ./myapp.checkpoint
+smol cloud checkpoint download CHECKPOINT_ID -o ./myapp.smolcheckpoint
 smol cloud checkpoint restore CHECKPOINT_ID --name myapp-restored
 smol cloud checkpoint rm CHECKPOINT_ID
 ```
@@ -209,6 +203,12 @@ smol cloud checkpoint rm CHECKPOINT_ID
 `restore` creates and starts a new machine from the checkpoint. A downloaded artifact can also be restored locally with `smolvm machine create --from`, subject to the host requirements in [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots). Neither branching nor checkpoint provides a cross-architecture restore format.
 
 `smol machine move --name NAME` moves a running local machine to the cloud, processes and all: it pauses the machine, uploads the saved execution as a checkpoint and resumes it as a cloud machine. Commands that name the machine then reach the cloud copy, and the paused one stays here as `local/NAME` until `smol machine resume` runs it again or `smol machine rm` removes it. `--keep-local` leaves the local machine running and sends a copy as of now, `--as` names the cloud machine, and `--net` or `--no-net` overrides the networking it had. When the upload fails, the local machine stays paused with its execution saved.
+
+Branching creates a copy-on-write child from a running branchable cloud machine. It does not provide local-to-cloud live migration.
+
+For a tree of machines that build on each other, branch rather than checkpoint, because a branch carries its source's disks and cache disk. Branch with `freezeSource` (`freeze_source` in Python) and the source is kept paused as a reusable branch base that no longer counts toward the concurrency cap. A frozen source cannot run commands again; work in its branches, or stop it.
+
+`POST /v1/machines/{id}/snapshot` is not implemented and returns `501`; use a checkpoint to capture a running machine. To keep a stopped machine's disk state without its running state, export it to a `.smolmachine` artifact.
 
 ## GPU
 
