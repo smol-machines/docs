@@ -251,7 +251,9 @@ smolvm machine resize --name dev --cpus 4 --mem 2048
 once: `nproc` and `/proc/meminfo` report the new figures on the next command. It takes `--cpus`,
 `--mem`, `--storage` and `--overlay`, at least one of them. Memory, storage and overlay grow only,
 and platform alignment applies to a memory target; CPU shrinking works only on compatible Linux
-x86_64 runtimes. To make a smaller machine on any host, stop it and use `machine update`.
+x86_64 runtimes. To make a smaller machine on any host, stop it and use `machine update`. A memory
+grow the host cannot back is refused with `insufficient host or VMM parent memory headroom for
+requested growth`, and the machine keeps running at its old size.
 
 ### Update a machine
 
