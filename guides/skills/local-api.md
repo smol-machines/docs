@@ -127,8 +127,8 @@ Full detail in `references/traps.md` and `references/api-fields.md`.
   a `memory` for `memoryMb` got no diagnostic at all and the machine took the default.
 - **A second `serve start` on the same host fails** with `bind guest rollout ingress:
   127.0.0.1:10081: Address already in use`, whatever `--listen` says: every server binds that port
-  for the branch-pool rollout routes. Set `SMOLVM_GUEST_ROLLOUT_HOST_PORT` to another port for the
-  second one.
+  for the branch-pool rollout routes. Give the second one `--guest-rollout-port` (v1.29.0+) or
+  `SMOLVM_GUEST_ROLLOUT_HOST_PORT` with another port.
 - **Stopping the server leaves machines running.**
 - **The spec's `info.version` is not the binary's.** It says `0.5.2` on v1.14.2 while `/health`
   says `1.14.2`, and still `0.5.2` on v1.22.2. Take the version from `/health`.
@@ -870,8 +870,9 @@ written and the exit code is 0.
 ### A plain server has no authentication of any kind
 
 `serve start` exposes create, exec and file routes, and started plainly it has no TLS, token or
-auth. On loopback that is a single-user boundary; the Unix socket, whose file permissions are the
-boundary, is the safer default and is why it is smolvm's default and this packet's.
+auth. Loopback TCP is reachable by other local users. A Unix socket is the safer default: smolvm
+binds it in a private temporary directory, sets mode `0600`, then publishes it at the requested
+path before accepting connections. Run the server and its API clients as the same user.
 
 **Mutual TLS is configured from the environment, not by a flag.** With `SMOLVM_SERVE_TLS_CERT`,
 `SMOLVM_SERVE_TLS_KEY` and `SMOLVM_SERVE_TLS_CLIENT_CA` set, measured on macOS arm64 on v1.22.2: a
@@ -908,7 +909,8 @@ Error: config operation failed: bind guest rollout ingress: 127.0.0.1:10081: Add
 ```
 
 Measured on macOS arm64 on v1.22.2 with another server already holding the port. With
-`SMOLVM_GUEST_ROLLOUT_HOST_PORT=10091` the second server started and answered on `/health`.
+`SMOLVM_GUEST_ROLLOUT_HOST_PORT=10091` the second server started and answered on `/health`. From
+v1.29.0 the same setting is the `--guest-rollout-port` flag; the variable still works.
 
 ### Field names, versions and error bodies
 
