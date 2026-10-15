@@ -21,9 +21,9 @@ Filesystem changes do not carry into the next run. Use this mode for one-off job
 Networking is off by default, and an ephemeral run usually does not need it for
 the image. The pull runs in a separate builder machine that smolvm starts with
 networking on, once per image, leaving a shared seed your machine starts from a
-copy of, so `--net` above is for the workload. Three things have to hold: the
-machine's storage is at least the 20 GiB default, seeding is not turned off with
-`SMOLVM_IMAGE_SEEDS=0`, and the host is not Windows. Seeding is best effort, so
+copy of, so `--net` above is for the workload. Two things have to hold: seeding is
+not turned off with `SMOLVM_IMAGE_SEEDS=0`, and the host is not Windows. A storage
+size below the 20 GiB default gets a seed built at its own size. Seeding is best effort, so
 when it does not happen the pull falls back into your own machine, which then
 needs `--net`. The pull running in the builder machine has one consequence worth
 knowing: an egress allow list on your machine governs the workload and not the
@@ -56,8 +56,8 @@ a workload from learning where something lives.
 
 `machine create` no longer needs networking for an uncached registry image: the host fetches it on
 the machine's behalf whenever the machine's own network cannot reach the registry, including a
-machine whose allow list does not name it, so neither a smaller `--storage` nor `SMOLVM_IMAGE_SEEDS=0` stops it,
-where both of those send an ephemeral run back to pulling in the guest. An image whose registry serves an older manifest format is the
+machine whose allow list does not name it, so `SMOLVM_IMAGE_SEEDS=0` does not stop it, where it
+sends an ephemeral run back to pulling in the guest. An image whose registry serves an older manifest format is the
 case that still fails, at `start` rather than at `create`, with `parse manifest: missing field
 mediaType`. Supply such an image locally with `--image -`, or pass `--net`.
 
