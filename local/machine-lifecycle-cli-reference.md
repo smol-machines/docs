@@ -136,6 +136,17 @@ Every command takes `--error-format json`, which reports a failure on stderr as
 `{"error":{"code":"NOT_FOUND","message":"..."}}` with a stable `code`, so a script can branch on the
 code rather than parse the message.
 
+### The local usage journal
+
+smolvm appends one JSON line per machine lifecycle event, such as create, start, stop, branch or
+checkpoint, to a journal on the host: `~/.local/share/smolvm/usage/events.jsonl` on Linux and
+`~/Library/Application Support/smolvm/usage/events.jsonl` on macOS. A line records the machine's
+shape (sizes, flags, the image's registry host) under a per-install hash of its name, never the name
+itself, commands, paths, image names, labels or environment. Sharing is off by default, and smolvm
+does not send the journal anywhere. `SMOLVM_USAGE=0` turns recording off for one command, `[usage]
+record = false` in `~/.config/smolvm/config.toml` turns it off for good, and `SMOLVM_USAGE_DIR`
+moves it. The file rotates past 8 MiB and keeps one old copy.
+
 ### Publish a port or a range of ports
 
 `--port` takes a single port, a `HOST:GUEST` pair, or a range on either side:
