@@ -189,6 +189,8 @@ The Cloud API also provides endpoints for:
 - Exporting a machine to a `.smolmachine` artifact
 - Resizing a running machine's vCPUs, memory or disk in place, `POST /v1/machines/{id}/resize`
 - Minting a short-lived token that opens only one machine's connect bridge, `POST /v1/machines/{id}/connect-token`
+- Replacing a machine's published ports, live while it runs, `PUT /v1/machines/{id}/ports`
+- Getting or revoking login-free port links, one URL per published port, `POST` and `DELETE /v1/machines/{id}/port-links`
 - Listing every checkpoint the account owns, `GET /v1/checkpoints`, and uploading a `.smolcheckpoint` file captured outside the cloud with `POST /v1/checkpoints` and then `POST /v1/checkpoints/{id}/complete`
 
 Use the OpenAPI document or Explorer to inspect the exact routes, request bodies, and feature availability for your account.

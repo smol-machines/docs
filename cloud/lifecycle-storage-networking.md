@@ -164,6 +164,10 @@ The connect route also accepts WebSocket upgrades for clients that need a bidire
 
 Set `public: true` only when the service should be reachable without the caller's API authorization. Public ingress exposes application traffic, so the application must provide any authentication and authorization it needs.
 
+To change the ports of a machine that already exists, send the whole new list to `PUT /v1/machines/{id}/ports`. A started machine serves new ports at once and stops serving removed ones, without a restart; a stopped machine takes them at its next start. A port kept from before keeps its host port.
+
+A client that cannot send an API key, such as a sandbox framework that calls its tunnel URLs directly, can use port links instead. `POST /v1/machines/{id}/port-links` returns a login-free URL for each published port, `https://p<port>-<token>.<appsDomain>`. Anyone holding a link reaches the port, so treat it as a credential. The machine keeps one token, so asking again returns the same links and a port published later is reached with the same token; `DELETE /v1/machines/{id}/port-links` revokes every link at once.
+
 Verify port and ingress fields in the API Explorer for the deployment you use.
 
 ## Running a command as a chosen user

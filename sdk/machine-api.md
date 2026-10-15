@@ -210,6 +210,14 @@ body = machine.request(
 
 The port must be declared in `MachineConfig.ports`, and the service must listen on the guest port.
 
+### Publish a port on a running machine
+
+`publish({ guest })` (`publish(guest)` in Python) publishes a guest port without a restart and returns the mapping in effect; without `host`, a free host port is picked. `unpublish({ guest })` stops publishing it, and connections already open carry on. `ports()` lists what is published. A running local machine takes a TCP port at once; a UDP port, or a machine not on virtio-net networking, needs it stopped. On cloud the node picks the host port and ports are TCP.
+
+### Port links
+
+Cloud only. `portLinks()` (`port_links()`) returns a login-free URL for each published port, keyed by guest port, for a client that cannot send an API key. Anyone holding a link reaches the port, so treat it as a credential. `revokePortLinks()` (`revoke_port_links()`) revokes them all, and the next call issues new ones.
+
 ## Lifecycle
 
 | TypeScript | Python | Behavior |
