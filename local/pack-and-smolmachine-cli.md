@@ -30,7 +30,8 @@ smolvm pack run --sidecar ./python312.smolmachine -- python3 --version
 
 The VM that `pack create` pulls in resolves names through the host's own resolver. Pass `--dns <IP>`
 when the pull needs a different one; a pack made `--from-vm` defaults to that machine's own `--dns`.
-`pack run --dns <IP>` points the running guest at another resolver and implies `--net`.
+`pack run --dns <IP>` points the running guest at another resolver and implies `--net`, and
+`pack run --dns-option` adds resolver options as `machine run` does.
 
 ## Pack a stopped machine
 

@@ -13,8 +13,9 @@ the repo is unchanged, the workload could not reach the network, and nothing is 
 The Linux runs used the scripts of their date; this version's preflight, run and cleanup scripts
 ran on Linux aarch64 on v1.22.2 on 2026-10-03.
 
-**The cancel is `scripts/cleanup.sh --cancel`, never Ctrl-C**: on `run.sh` Ctrl-C leaves the CLI
-and its VM running on v1.20.2 too, as "Cancelling" below measures.
+**Ctrl-C on `run.sh` ends the run from v1.20.2**: the script forwards an interrupt or a `SIGTERM`
+to the CLI, which ends its VM. Before v1.20.2 the cancel is `scripts/cleanup.sh --cancel`, as
+"Cancelling" below measures.
 
 Two issues shaped this packet and **v1.20.2 fixed both on macOS and Linux**; older releases still
 have them:
@@ -132,13 +133,28 @@ scripts/cleanup.sh --cancel --purge   # to stop a run that is still going
 up to 20 seconds, polling, before asserting an empty machine list, and says so, because the ephemeral entry retires
 after the run returns and an immediate assertion fails on a healthy host.
 
-## Cancelling, and why Ctrl-C is not it
+## Looking around by hand
+
+To inspect the repo interactively under the same isolation, open a shell in a throwaway machine
+with the repo read-only and no network:
+
+```bash
+smolvm machine run -it --image alpine -v "$PWD/repo:/workspace:ro" -- /bin/sh
+```
+
+`exit` ends the shell and the machine. On v1.23.1 on macOS arm64, inside it `cat` read the repo,
+`touch /workspace/x` gave `Read-only file system` and `wget` gave `bad address 'example.com'`; after
+`exit`, `machine list` printed `No machines found` and no smolvm process was left.
+
+## Cancelling
 
 On v1.20.2, Ctrl-C or `SIGKILL` on the CLI itself ends the VM within a second on both routes, on
-macOS arm64 and Linux aarch64. **Interrupting `run.sh` is not a cancel**: the CLI it backgrounds
-ignores `SIGINT`, so Ctrl-C on the script left the CLI and its VM running on the offline route on both
-hosts, and killing the script alone left them on either route. For code that hangs or loops that is
-unbounded exposure.
+macOS arm64 and Linux aarch64. `run.sh` starts the CLI in the background, which starts it with
+`SIGINT` ignored, so before the script forwarded signals Ctrl-C on it left the CLI and its VM
+running on the offline route on both hosts, and killing the script alone left them on either route.
+It now forwards `SIGINT` and `SIGTERM` to the CLI: on macOS arm64 on v1.27.3, on the network-on
+route, Ctrl-C to the script's process group and `SIGTERM` to the script alone each ended the CLI and
+its VM, with `cli_exit=130` and `cli_exit=143`. The offline route was not run again.
 
 Before v1.20.2 the offline route is worse: interrupting the CLI itself leaves the VM running with no
 CLI route to it, roughly 230 MB held per survivor (#1193). `references/traps.md` has the
@@ -620,13 +636,13 @@ exit 1
 #                       (smol-machines/smolvm#1192), and any host that cannot give
 #                       the bake helper its 8192 MiB.
 #
-# The VM's pid is recorded before the workload finishes, because Ctrl-C on this
-# script does not stop the machine. The CLI runs in the background below, and a
-# background command in a script ignores SIGINT, so the CLI and its VM keep
-# running. Before v1.20.2 an interrupted CLI also leaves a cached run's VM
-# behind, invisible to `machine list` (smol-machines/smolvm#1193). Cancel with
-# `scripts/cleanup.sh --cancel`, never with Ctrl-C. Image seeding is off for the
-# run, so the first VM process is the workload's.
+# The CLI runs in the background below so the script can record the VM's pid
+# before the workload finishes. A background command in a script starts with
+# SIGINT ignored and never sees a TERM sent to the script, so the script forwards
+# INT and TERM to the CLI, which ends its VM as it exits. Before v1.20.2 an
+# interrupted CLI leaves a cached run's VM behind, invisible to `machine list`
+# (smol-machines/smolvm#1193); `scripts/cleanup.sh --cancel` ends that one. Image
+# seeding is off for the run, so the first VM process is the workload's.
 
 set -uo pipefail
 
@@ -769,6 +785,7 @@ SMOLVM_IMAGE_SEEDS=0 "$SMOLVM" machine run --mem 2048 ${cache[@]+"${cache[@]}"} 
     ${allow[@]+"${allow[@]}"} \
     -- "$@" > "$logfile" 2>&1 &
 cli_pid=$!
+trap 'kill -TERM "$cli_pid" 2>/dev/null' INT TERM
 
 # Record the VM before waiting on it. If the caller kills this script, the pid
 # in that file is the only route back to the machine.
@@ -808,6 +825,8 @@ fi
 
 wait "$cli_pid"
 rc=$?
+# A forwarded signal ends the first wait before the CLI has exited.
+if kill -0 "$cli_pid" 2>/dev/null; then wait "$cli_pid"; rc=$?; fi
 sed 's/^/  /' "$logfile"
 
 # On the offline route the cache-hit line is the assertion that the bake worked
@@ -1137,7 +1156,7 @@ exit 1
 
 ## Throwaway machine traps
 
-### Ctrl-C does not stop the machine, and which release and route that applies to
+### What Ctrl-C stops, by release, route and wrapper
 
 **On v1.20.2, interrupting the CLI ends the VM; interrupting `run.sh` does not.** Measured
 2026-09-29 on macOS 27.0.1 arm64 and Ubuntu 24.04 aarch64, a `sleep 600` workload, watching the VM
@@ -1156,6 +1175,11 @@ pid itself:
 command with `SIGINT` ignored. On macOS the same cached run backgrounded by `bash -c '... & wait'`
 kept its CLI and VM after `SIGINT`, and with `SIGINT` reset to the default before the exec both were
 gone.
+
+`run.sh` now forwards `SIGINT` and `SIGTERM` to the CLI. On macOS arm64 on v1.27.3, network-on
+route, `sleep 600`: before the change `SIGTERM` to `run.sh` alone left the CLI and its VM running,
+reparented to pid 1, while Ctrl-C to the group ended both; after it, both signals ended both and the
+script printed the run's log with `cli_exit=143` and `cli_exit=130`.
 
 **Before v1.20.2, on the offline route the CLI itself is no better, and this is the reason the
 packet has a cancel script.**

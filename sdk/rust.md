@@ -25,7 +25,7 @@ to refuse the fetch, which makes a host with no engine fail rather than reach th
 cloud target needs none of this.
 
 For the local target, the supported hosts are macOS on Apple Silicon and Linux x64 or arm64 with
-glibc 2.34 or newer, each with a hypervisor: the Hypervisor framework on macOS, KVM on Linux. The
+glibc 2.31 or newer, each with a hypervisor: the Hypervisor framework on macOS, KVM on Linux. The
 cloud target works anywhere the crate builds.
 
 ## Create a local machine
@@ -52,13 +52,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 The builder takes the machine's name, and `create()` returns before the machine is started, so
 `start()` is a separate call. `exec` returns a result whose `stdout_utf8()` is the captured output.
 
-Networking is off unless you ask for it, and whether a registry image needs `.network(true)` on
-the local target depends on the engine the crate pins, which is the engine of its own version. The
-engine this crate currently pins refuses an uncached registry image on a machine with no
-networking, and says so at `create` with a message that names the remedies: add networking, publish
-a port, set an egress policy, or supply the image locally. Newer engines fetch the image on the
-machine's behalf and need none of that. Pass `.network(true)`, or pin a newer engine with
-`SMOLMACHINES_ENGINE_VERSION`.
+Networking is off unless you ask for it. On the local target the crate drives the engine of its own
+version, which fetches an uncached registry image on the host whenever the machine cannot reach the
+registry itself, so `.network(true)` is for the workload rather than the image. Pin a different
+engine with `SMOLMACHINES_ENGINE_VERSION`.
+
+`update_network(&policy)` replaces a stopped local machine's network policy with exactly the one
+given (no network, every host, or an allow list that drops whatever the machine allowed before),
+from its next start, and `network()` reads the policy back. A cloud machine's network is set when it
+is created. `smolmachines::engine_cli()` returns the path of the engine binary the crate drives, for
+a program that runs `smolvm machine exec -t` in its own terminal while the SDK manages the machine.
 
 ## Choose local or cloud
 

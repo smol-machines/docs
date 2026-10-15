@@ -38,8 +38,8 @@ Running `scripts/start-dockerd.sh` afterwards restored everything, and `docker i
 listed `alpine:latest`, because the images are on `/storage`. **The failure mode is a daemon that
 will not start, or one running on the wrong filesystem, not lost data.**
 
-`smolvm machine create --help` describes `--init` as "Run command on every VM start" at v1.22.2;
-`init` runs on the first start only, as [`smolfile.md`](https://github.com/smol-machines/smolvm/blob/main/docs/smolfile.md) says. More in
+`smolvm machine create --help` describes `--init` as "Run command on every VM start" at v1.22.2,
+and as running once from v1.23.7; `init` runs on the first start only, as [`smolfile.md`](https://github.com/smol-machines/smolvm/blob/main/docs/smolfile.md) says. More in
 `references/traps.md`.
 
 ## Procedure
@@ -784,6 +784,6 @@ smolmachines.com/docs.
   `dockerd`", which was verified; its example applies them in `init`, which runs on the first start
   only.
 - `smolvm machine create --help` describes `--init` as "Run command on every VM start", at v1.14.6
-  and at v1.22.2. The docs site's `introduction/concepts/smolfile.md` says under "When init runs"
+  and at v1.22.2; from v1.23.7 it says once, on the machine's first start. The docs site's `introduction/concepts/smolfile.md` says under "When init runs"
   that init runs once, on the first start, as does [`smolfile.md`](https://github.com/smol-machines/smolvm/blob/main/docs/smolfile.md) here.
 - It has no platform note; on Windows the procedure cannot succeed. See `references/windows.md`.

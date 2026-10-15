@@ -21,9 +21,9 @@ Filesystem changes do not carry into the next run. Use this mode for one-off job
 Networking is off by default, and an ephemeral run usually does not need it for
 the image. The pull runs in a separate builder machine that smolvm starts with
 networking on, once per image, leaving a shared seed your machine starts from a
-copy of, so `--net` above is for the workload. Three things have to hold: the
-machine's storage is at least the 20 GiB default, seeding is not turned off with
-`SMOLVM_IMAGE_SEEDS=0`, and the host is not Windows. Seeding is best effort, so
+copy of, so `--net` above is for the workload. Two things have to hold: seeding is
+not turned off with `SMOLVM_IMAGE_SEEDS=0`, and the host is not Windows. A storage
+size below the 20 GiB default gets a seed built at its own size. Seeding is best effort, so
 when it does not happen the pull falls back into your own machine, which then
 needs `--net`. The pull running in the builder machine has one consequence worth
 knowing: an egress allow list on your machine governs the workload and not the
@@ -55,8 +55,9 @@ a workload from learning where something lives.
 ## Persistent machines
 
 `machine create` no longer needs networking for an uncached registry image: the host fetches it on
-the machine's behalf, so neither a smaller `--storage` nor `SMOLVM_IMAGE_SEEDS=0` stops it,
-where both of those send an ephemeral run back to pulling in the guest. An image whose registry serves an older manifest format is the
+the machine's behalf whenever the machine's own network cannot reach the registry, including a
+machine whose allow list does not name it, so `SMOLVM_IMAGE_SEEDS=0` does not stop it, where it
+sends an ephemeral run back to pulling in the guest. An image whose registry serves an older manifest format is the
 case that still fails, at `start` rather than at `create`, with `parse manifest: missing field
 mediaType`. Supply such an image locally with `--image -`, or pass `--net`.
 
@@ -109,7 +110,42 @@ shape as `docker ps -q`:
 smolvm machine ls --quiet | xargs -I{} smolvm machine stop --name {}
 ```
 
-`--json` gives the full records when a script needs more than the name.
+`--json` gives the full records when a script needs more than the name, including any labels.
+`--label KEY=VALUE` on `machine create` attaches them, and `machine branch --label` labels the
+child: a child inherits its source's labels, and a key given on the branch replaces the inherited
+value.
+
+```bash
+smolvm machine create --name agent --image alpine --label team=docs --label tier=a
+smolvm machine branch --from agent --name agent-b --label tier=b
+```
+
+### Read the workload's output
+
+`machine logs` prints what the machine's workload wrote to stdout and stderr, and it still works
+after the machine has stopped:
+
+```bash
+smolvm machine logs --name dev --tail 50
+smolvm machine logs --name dev --follow
+```
+
+### Machine-readable errors
+
+Every command takes `--error-format json`, which reports a failure on stderr as
+`{"error":{"code":"NOT_FOUND","message":"..."}}` with a stable `code`, so a script can branch on the
+code rather than parse the message.
+
+### The local usage journal
+
+smolvm appends one JSON line per machine lifecycle event, such as create, start, stop, branch or
+checkpoint, to a journal on the host: `~/.local/share/smolvm/usage/events.jsonl` on Linux and
+`~/Library/Application Support/smolvm/usage/events.jsonl` on macOS. A line records the machine's
+shape (sizes, flags, the image's registry host) under a per-install hash of its name, never the name
+itself, commands, paths, image names, labels or environment. Sharing is off by default, and smolvm
+does not send the journal anywhere. `SMOLVM_USAGE=0` turns recording off for one command, `[usage]
+record = false` in `~/.config/smolvm/config.toml` turns it off for good, and `SMOLVM_USAGE_DIR`
+moves it. The file rotates past 8 MiB and keeps one old copy.
 
 ### Publish a port or a range of ports
 
@@ -120,6 +156,8 @@ smolvm machine run --net -p 8080 --image nginx -- nginx -g "daemon off;"
 smolvm machine run --net -p 18080:80 --image nginx -- nginx -g "daemon off;"
 smolvm machine run --net -p 3000-3009:3000-3009 --image node:22-alpine -- node server.js
 ```
+
+Append `/udp` to publish a UDP port instead, for example `-p 27015:27015/udp`.
 
 A bare port or range uses the same numbers on both sides. Ranges map one to one, so the host and guest sides must cover the same number of ports; `3000-3009:4000-4001` is rejected. A range start must not exceed its end, and port 0 is not valid.
 
@@ -249,7 +287,9 @@ smolvm machine resize --name dev --cpus 4 --mem 2048
 once: `nproc` and `/proc/meminfo` report the new figures on the next command. It takes `--cpus`,
 `--mem`, `--storage` and `--overlay`, at least one of them. Memory, storage and overlay grow only,
 and platform alignment applies to a memory target; CPU shrinking works only on compatible Linux
-x86_64 runtimes. To make a smaller machine on any host, stop it and use `machine update`.
+x86_64 runtimes. To make a smaller machine on any host, stop it and use `machine update`. A memory
+grow the host cannot back is refused with `insufficient host or VMM parent memory headroom for
+requested growth`, and the machine keeps running at its old size.
 
 ### Update a machine
 
@@ -278,7 +318,14 @@ On a running machine that was started with an allow list, an update that only ad
 allowed hosts and CIDRs applies at once, from the machine's next connection or DNS lookup, and the
 command reports `running; applies now`. A change that would lift the list, or give one to a running
 machine that has none, is refused until the machine is stopped. Removing a host leaves allowed the
-addresses `machine create` resolved it to; take those out with `--remove-allow-cidr`.
+addresses `machine create` resolved it to; take those out with `--remove-allow-cidr`, or replace
+the whole list with `--reset-allow-list` and the entries to keep, which leaves exactly those. `machine
+status --json` and `machine ls --json` show the list as `allowed_hosts` and `allowed_cidrs`.
+
+Published TCP ports change the same way: on a running virtio-net machine, `-p` and `--remove-port`
+apply at once and the command reports `running; applies now`. A removed port stops accepting while
+connections it already accepted carry on. A UDP port, or an update that mixes ports with other
+settings, still needs the machine stopped.
 
 ### Mount a host directory
 
@@ -354,7 +401,7 @@ something `tsi` cannot provide:
 | You passed | Why virtio-net |
 |---|---|
 | `--port` / `-p` | only virtio-net serves inbound connections |
-| `--allow-host`, `--allow-cidr`, `--outbound-localhost-only` | the allow list is enforced by the host-side gateway |
+| `--allow-host`, `--allow-cidr`, `--outbound-localhost-only`, `--block-private` | the egress policy is enforced by the host-side gateway |
 | `--network` | a named inter-VM network is fabric routing in that gateway |
 | `--guest-subnet` | a custom guest link shapes the virtio-net interface |
 
@@ -376,9 +423,9 @@ Naming `tsi` explicitly alongside any of them is refused rather than silently ig
 ```text
 ports:  published ports require the virtio-net backend (TSI is outbound-only); remove
         --net-backend tsi or set it to virtio-net
-egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only) requires the
-        virtio-net backend; TSI does not enforce it. Remove --net-backend tsi or set it to
-        virtio-net
+egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--block-private)
+        requires the virtio-net backend; TSI does not enforce it. Remove --net-backend tsi or
+        set it to virtio-net
 ```
 
 ## Common resource flags
@@ -390,13 +437,16 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only) requ
 | `--net` | Enable networking |
 | `--allow-host` | Allow egress to a hostname |
 | `--allow-cidr` | Allow egress to a CIDR |
+| `--block-private` | Keep the public internet open and block private, internal and link-local destinations, cloud metadata and the host's loopback; implies `--net` |
+| `--allow-private` | Reopen one private CIDR under `--block-private`, which it implies; cloud metadata stays blocked |
 | `--dns` | Resolve guest names through this resolver IP instead of the host's own; implies `--net` |
+| `--dns-option` | Add a resolver option to the guest's `resolv.conf`, such as `timeout:1`; repeatable, written in order as one `options` line. musl images such as Alpine honor only `ndots`, `timeout` and `attempts` |
 | `--credential` | Bind a credential as `NAME=ENV_VAR@HOST[,HOST...][:body]`: the guest gets a placeholder in `ENV_VAR`; the host substitutes the real value only on HTTPS requests to the listed hosts, which may be wildcards such as `*.example.com`. `:body` also substitutes it in a form-encoded request body, for OAuth tokens |
 | `--cpus` | vCPU count |
 | `--mem` | Guest memory in MiB |
-| `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]` |
+| `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]`. A guest path alone, such as `-v /var/lib/docker`, is a directory on the machine's own disk that persists across stop and start |
 | `--cache-disk` | Mount a shared cache disk as `BASE:/guest/path`. `BASE` is a raw or qcow2 image that stays read-only and can back many machines; this machine writes only to its own layer, which its branches copy. A blank `BASE` gets an ext4 filesystem |
-| `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT` |
+| `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT`, with `/udp` appended for a UDP port |
 | `--user`, `-u` | Run the workload as a name or `uid[:gid]` |
 | `--interactive`, `-i` | Keep stdin open |
 | `--tty`, `-t` | Allocate a TTY |

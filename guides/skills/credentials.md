@@ -11,7 +11,7 @@ is decided on the host; **the substitution arriving at a real API was not observ
 for the reason under "What was not run". Done means the guest's variable is a placeholder, the value
 is nowhere in the guest, the machine's record or smolvm's database, TLS to the bound host goes
 through the machine's own CA, and a placeholder anywhere but a request header is refused before it
-leaves the host.
+leaves the host (from v1.27.0 a binding with `:body` also substitutes into a form body).
 The Linux runs used the scripts of their date; this version's preflight and cleanup scripts ran
 on Linux aarch64 on v1.22.2 on 2026-10-03.
 
@@ -52,7 +52,8 @@ result=ready
 `tsi_stream_intercept` is read from the symbols of the bundled libkrun: a binding selects virtio-net
 by default, and `--net-backend tsi` carries a credential only when libkrun exports
 `krun_set_stream_intercept`, which both v1.18.2 release libraries do. `host_form=rejected` means the
-host is not an exact lowercase DNS name; `create` would refuse it anyway, with a clearer message.
+host is neither a lowercase DNS name nor, from v1.26.0, a wildcard such as `*.example.com`; `create`
+would refuse it anyway, with a clearer message.
 
 **2. Create the machine.** The value is read from the environment of this command's `machine
 start`, and that is the value the machine uses until its next start.
@@ -119,6 +120,21 @@ scripts/cleanup.sh --purge
 `cleanup.sh` waits up to 20 seconds, polling the machine list, and prints `waiting=up to 20s`
 first: an ephemeral machine's entry retires after its run returns.
 
+## When the workload has to read the value
+
+A binding keeps the value out of the guest, which is what this packet is for. When the workload
+itself has to hold the key, `--secret-env` puts it in the workload's environment instead, resolved
+from a host variable when the machine launches:
+
+```bash
+smolvm machine run --image alpine --secret-env API_TOKEN=API_TOKEN -- sh -c 'test -n "$API_TOKEN" && echo set'
+```
+
+On v1.23.1 on macOS arm64, with a dummy value in `API_TOKEN`, that printed `set`. With the host
+variable unset the run stopped before the workload with `Error: config operation failed: resolve
+secret 'API_TOKEN': env_unset`. The value is plaintext in the guest, where any process can read it
+and send it anywhere the network allows; that is why the binding is the default here.
+
 ## Traps
 
 Full detail in `references/traps.md`.
@@ -134,8 +150,8 @@ Full detail in `references/traps.md`.
   planted it in `agent-console.log` and failed itself. `verify-containment.sh` hands the value to
   `grep` on standard input, in the guest and on the host, for that reason.
 - **A 403 from smolvm is a refusal, not the API.** The body says which rule: a placeholder in the
-  path, query or body; in a routing or framing header such as `Cookie`; more than one in a request;
-  or one the machine did not mint. A `403` with `this credential is not allowed for this host`
+  path or query, or in a body without `:body`; in a routing or framing header such as `Cookie`;
+  more than one in a request; or one the machine did not mint. A `403` with `this credential is not allowed for this host`
   means the placeholder belongs to a binding for another host; a `405` means the binding does not
   allow the method.
 - **On v1.18.2 a machine created from a pack ignores `--credential`**, silently; on v1.22.2 it
@@ -150,11 +166,13 @@ Full detail in `references/traps.md`.
 
 - **A binding is narrower than a secret.** `--secret-env` puts the plaintext in the workload's
   environment, where any code in the guest can read and send it anywhere the network allows. A
-  binding lets the workload use the key only in a header, only toward the hosts named.
-- **Bind to the exact host and nothing wider.** Hosts are exact names, or a wildcard such as
-  `*.example.com` that matches every subdomain and needs a parent of at least two labels; when the
-  machine also has `--allow-host`, every credential host has to sit inside that list; a create that
-  breaks either rule is refused.
+  binding lets the workload use the key only in a header, or a form body when you add `:body`, only
+  toward the hosts named.
+- **Bind to the narrowest hosts that work.** A host is an exact name or, from v1.26.0, a whole-label
+  wildcard such as `*.example.com`, which matches its subdomains and not `example.com` itself; a
+  one-label parent such as `*.com` is refused. When the machine also has `--allow-host`, every
+  credential host has to sit inside that list, and a wildcard only when the list admits its whole
+  subtree; a create that breaks either rule is refused.
 - **Substitution is not data-loss prevention.** An API that echoes your key back in a response
   body hands it to the guest. Bind keys only to APIs you trust with them.
 - **The scripts never print the value** or its length, and the preflight reports only whether the
@@ -206,9 +224,15 @@ a forged SMOL_PLACEHOLDER_DEMO_...        -> 403 unknown placeholder
 Cookie: a=<placeholder>                   -> 403 placeholders are not substituted in routing or framing headers
 ```
 
-Create-time rules, both hosts: `*.example.com` and an IP address are refused with `must be an exact
-lowercase DNS name`, and a credential host outside the machine's `--allow-host` with `is not
-reachable under the machine's network allow_hosts`.
+From v1.27.0 the body case reads `403 smolvm credentials: body substitution is disabled for this
+binding`, and a binding created with `:body` substitutes into an `application/x-www-form-urlencoded`
+body instead; that is read from the source, not run here.
+
+Create-time rules, both hosts, on v1.22.2: `*.example.com` and an IP address are refused with
+`must be an exact lowercase DNS name`, and a credential host outside the machine's `--allow-host`
+with `is not reachable under the machine's network allow_hosts`. From v1.26.0 `*.example.com` is
+accepted, and an IP address is refused with `must be a lowercase DNS name, optionally` followed by
+the wildcard form.
 
 ## Re-verified on v1.22.2
 
@@ -375,7 +399,8 @@ esac
 
 if [ -n "$SMOLVM" ]; then
     createhelp="$("$SMOLVM" machine create --help 2>&1)"
-    if grep -q -- '--credential <NAME=ENV_VAR@HOST>' <<<"$createhelp"; then
+    # v1.27.0 prints the value as <NAME=ENV_VAR@HOST[:body]>, so match the prefix.
+    if grep -q -- '--credential <NAME=ENV_VAR@HOST' <<<"$createhelp"; then
         emit has_credential_flag yes
     else
         emit has_credential_flag no
@@ -414,11 +439,18 @@ if [ -n "$VAR" ]; then
     fi
 fi
 if [ -n "$HOST" ]; then
-    case "${HOST#\*.}" in
-        *[!a-z0-9.-]*|*..*|.*|*.|[0-9]*[0-9]) emit host_form rejected; blocked=1
-            note "a credential host must be a lowercase DNS name, optionally after *.: no scheme, port or IP address" ;;
-        *) emit host_form ok ;;
+    # From v1.26.0 a host may also be `*.` plus a name of at least two labels.
+    name="${HOST#\*.}"
+    case "$name" in
+        *[!a-z0-9.-]*|*..*|.*|*.|[0-9]*[0-9]) form=rejected ;;
+        *) form=ok ;;
     esac
+    case "$HOST:$name" in \*.*:*.*|[!*]*) ;; *) form=rejected ;; esac
+    emit host_form "$form"
+    if [ "$form" = rejected ]; then
+        blocked=1
+        note "a credential host must be a lowercase DNS name, or *. plus a name with at least two labels: no scheme, port or IP address"
+    fi
 fi
 
 emit memory_required_mib 1024
@@ -811,7 +843,7 @@ Measured refusals, each decided on the host before anything was forwarded:
 | request from the guest | answer |
 |---|---|
 | placeholder in the query string | `403 smolvm credentials: placeholders are substituted in request headers only` |
-| placeholder in a form body | the same |
+| placeholder in a form body | the same; from v1.27.0 `403 smolvm credentials: body substitution is disabled for this binding`, unless the binding has `:body` |
 | the placeholder in two headers | `403 smolvm credentials: a request may carry one placeholder` |
 | a made-up `SMOL_PLACEHOLDER_DEMO_...` | `403 smolvm credentials: unknown placeholder` |
 | placeholder in `Cookie` | `403 smolvm credentials: placeholders are not substituted in routing or framing headers` |
@@ -825,14 +857,22 @@ answered normally.
 
 ### The create-time rules
 
+Measured on v1.22.2:
+
 ```
-credential "gh" host "*.com" must be a lowercase DNS name, optionally `*.` plus a name with at least two labels (no scheme, port or IP)
-credential "gh" host "*.github.com" is not reachable under the machine's network allow_hosts
+credential "t" host "*.example.com" must be an exact lowercase DNS name (no wildcard, scheme, port or IP)
+credential "t" host "93.184.215.14" must be an exact lowercase DNS name (no wildcard, scheme, port or IP)
+credential "t" host "example.com" is not reachable under the machine's network allow_hosts
 ```
 
-Both measured on v1.27.1 on macOS arm64. The second is a machine with
-`--allow-host api.github.com` and a credential for `*.github.com`: a wildcard needs its whole
-subtree allowed, so a credential never widens what the machine may reach.
+The last is a machine with `--allow-host example.org` and a credential for `example.com`: a
+credential never widens what the machine may reach.
+
+From v1.26.0 a host may be a whole-label wildcard, `*.example.com`, matching every subdomain and not
+the apex; `*.com` and other one-label parents are refused. Under `--allow-host`, a wildcard binding
+needs an entry that admits the whole subtree (`example.com` or `*.example.com`, not
+`api.example.com`). The IP refusal now reads `must be a lowercase DNS name, optionally` followed by
+the wildcard form. Read from the source at v1.27.3, not run here.
 
 ### Port 80 and other ports are not intercepted
 

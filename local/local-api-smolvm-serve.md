@@ -30,7 +30,7 @@ smolvm serve openapi
 
 ### One server to a host, unless you move a second port
 
-Every `smolvm serve` also binds a fixed guest ingress port, `127.0.0.1:10081`, which `--listen`
+Every `smolvm serve` also binds a guest ingress port, `127.0.0.1:10081` by default, which `--listen`
 does not move. A second server on the same host therefore fails at start whatever address it was
 given:
 
@@ -38,8 +38,9 @@ given:
 Error: config operation failed: bind guest rollout ingress: 127.0.0.1:10081: Address already in use
 ```
 
-Set `SMOLVM_GUEST_ROLLOUT_HOST_PORT` to a free port for the second server, and the two run side by
-side.
+Give the second server its own port with `--guest-rollout-port PORT`, or
+`SMOLVM_GUEST_ROLLOUT_HOST_PORT`, and the two run side by side. A running machine keeps the port it
+started with.
 
 ### Operator flags
 
@@ -68,6 +69,7 @@ side.
 | `POST` | `/api/v1/machines/:name/start` | Start a machine |
 | `POST` | `/api/v1/machines/:name/stop` | Stop a machine |
 | `DELETE` | `/api/v1/machines/:name` | Delete a machine |
+| `PUT` | `/api/v1/machines/:name/ports` | Replace a machine's published ports, live while it runs; a taken host port answers `409` `PORT_IN_USE` |
 | `POST` | `/api/v1/machines/:name/exec` | Execute a command |
 | `POST` | `/api/v1/machines/:name/exec/stream` | Stream execution over SSE |
 | `PUT` | `/api/v1/machines/:name/files/*path` | Upload a file |
@@ -76,6 +78,8 @@ side.
 | `POST` | `/api/v1/machines/:name/images/pull` | Pull an OCI image |
 
 The HTTP API covers common lifecycle, execution, file, image, volume, export, and branch operations. It does not have complete parity with every CLI command or interactive CLI behavior. Use the generated OpenAPI document as the wire-level reference for your installed release.
+
+A start takes `branchable`, `branchPoolSize` and `cudaVramLimitMib` in its JSON body or its query string; when both carry one, the query string wins.
 
 A create body is validated strictly: an unknown field is refused with `422` and a message naming
 the field and listing the ones it accepts, and so is a known field of the wrong type. A field this

@@ -106,8 +106,8 @@ need the privilege. Only the workload runs as `user`.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `volumes` | string array | Host bind mounts, such as `"./src:/app"`. |
-| `ports` | string array | Port mappings, such as `"8080:8080"`. |
+| `volumes` | string array | Host bind mounts, such as `"./src:/app"`, or a guest path alone, such as `"/var/lib/docker"`, for a directory on the machine's own disk. |
+| `ports` | string array | Port mappings, such as `"8080:8080"`, or `"27015:27015/udp"` for UDP. |
 | `env` | string array | Development-only `KEY=VALUE` variables. |
 | `init` | string array | Commands run once, on first start. |
 | `workdir` | string | Development-only working directory. |
@@ -177,12 +177,14 @@ init-layer cache, and is unaffected.
 
 ## Network policy
 
-`[network]` narrows outbound access. Both fields imply networking when they contain entries.
+`[network]` narrows outbound access. Each field implies networking when it is set.
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `allow_hosts` | string array | Hostnames whose resolved IP addresses may be reached. Setting it selects the `virtio-net` backend, because the allow list is enforced by the host-side gateway. |
 | `allow_cidrs` | string array | Allowed IP addresses or CIDR ranges, such as `"10.0.0.0/8"`. Setting it also selects the `virtio-net` backend, for the same reason. |
+| `block_private` | boolean | Block private, internal and link-local destinations while the public internet stays open. Cloud metadata is blocked either way. |
+| `allow_private` | string array | Private ranges to reopen under `block_private`, which it implies. |
 
 ```toml
 net = true

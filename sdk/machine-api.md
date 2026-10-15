@@ -130,6 +130,24 @@ for event in machine.exec_stream(["sh", "-lc", "make test"]):
         print(event["data"], end="")
 ```
 
+### Jobs
+
+Cloud only. `startJob(command, options?)` (`start_job` in Python) runs a command detached and returns a `Job` at once; its output and exit code stay in the machine, so the caller can disconnect and come back. Unlike `exec`, a job survives a dropped connection, so prefer it for anything that runs longer than a few minutes. The machine does not auto-stop while a job runs.
+
+```ts
+const job = await machine.startJob(["sh", "-c", "make test"], { timeout: 3600 });
+const done = await job.wait();
+const stdout = await job.readAll("stdout");
+```
+
+```python
+job = machine.start_job(["sh", "-c", "make test"], timeout=3600)
+done = job.wait()
+stdout = job.read_all("stdout")
+```
+
+The options are `env`, `workdir`, `user` and `timeout` in seconds, after which the job is stopped with `SIGTERM`. `wait()` returns the final state: `exited` with its `exitCode`, or `lost` when the machine stopped or restarted while the job ran. `output()` reads a slice of stdout or stderr from an offset, `cancel()` sends `SIGTERM` and records exit code `143`, and `machine.jobs()` lists the machine's jobs, newest first. A string command runs through `sh -c`, so the image needs `sh`. The routes behind these are in the [API reference](/docs/cloud/api-reference#commands-and-sessions).
+
 ### `ExecResult`
 
 | TypeScript | Python | Meaning |
@@ -209,6 +227,14 @@ body = machine.request(
 ```
 
 The port must be declared in `MachineConfig.ports`, and the service must listen on the guest port.
+
+### Publish a port on a running machine
+
+`publish({ guest })` (`publish(guest)` in Python) publishes a guest port without a restart and returns the mapping in effect; without `host`, a free host port is picked. `unpublish({ guest })` stops publishing it, and connections already open carry on. `ports()` lists what is published. A running local machine takes a TCP port at once; a UDP port, or a machine not on virtio-net networking, needs it stopped. On cloud the node picks the host port and ports are TCP.
+
+### Port links
+
+Cloud only. `portLinks()` (`port_links()`) returns a login-free URL for each published port, keyed by guest port, for a client that cannot send an API key. Anyone holding a link reaches the port, so treat it as a credential. `revokePortLinks()` (`revoke_port_links()`) revokes them all, and the next call issues new ones.
 
 ## Lifecycle
 
