@@ -130,6 +130,24 @@ for event in machine.exec_stream(["sh", "-lc", "make test"]):
         print(event["data"], end="")
 ```
 
+### Jobs
+
+Cloud only. `startJob(command, options?)` (`start_job` in Python) runs a command detached and returns a `Job` at once; its output and exit code stay in the machine, so the caller can disconnect and come back. Unlike `exec`, a job survives a dropped connection, so prefer it for anything that runs longer than a few minutes. The machine does not auto-stop while a job runs.
+
+```ts
+const job = await machine.startJob(["sh", "-c", "make test"], { timeout: 3600 });
+const done = await job.wait();
+const stdout = await job.readAll("stdout");
+```
+
+```python
+job = machine.start_job(["sh", "-c", "make test"], timeout=3600)
+done = job.wait()
+stdout = job.read_all("stdout")
+```
+
+The options are `env`, `workdir`, `user` and `timeout` in seconds, after which the job is stopped with `SIGTERM`. `wait()` returns the final state: `exited` with its `exitCode`, or `lost` when the machine stopped or restarted while the job ran. `output()` reads a slice of stdout or stderr from an offset, `cancel()` sends `SIGTERM` and records exit code `143`, and `machine.jobs()` lists the machine's jobs, newest first. A string command runs through `sh -c`, so the image needs `sh`. The routes behind these are in the [API reference](/docs/cloud/api-reference#commands-and-sessions).
+
 ### `ExecResult`
 
 | TypeScript | Python | Meaning |
