@@ -121,6 +121,8 @@ smolvm machine run --net -p 18080:80 --image nginx -- nginx -g "daemon off;"
 smolvm machine run --net -p 3000-3009:3000-3009 --image node:22-alpine -- node server.js
 ```
 
+Append `/udp` to publish a UDP port instead, for example `-p 27015:27015/udp`.
+
 A bare port or range uses the same numbers on both sides. Ranges map one to one, so the host and guest sides must cover the same number of ports; `3000-3009:4000-4001` is rejected. A range start must not exceed its end, and port 0 is not valid.
 
 Publishing a port selects the virtio-net backend for the machine, because the default outbound-only backend cannot accept inbound connections.
@@ -280,6 +282,11 @@ command reports `running; applies now`. A change that would lift the list, or gi
 machine that has none, is refused until the machine is stopped. Removing a host leaves allowed the
 addresses `machine create` resolved it to; take those out with `--remove-allow-cidr`.
 
+Published TCP ports change the same way: on a running virtio-net machine, `-p` and `--remove-port`
+apply at once and the command reports `running; applies now`. A removed port stops accepting while
+connections it already accepted carry on. A UDP port, or an update that mixes ports with other
+settings, still needs the machine stopped.
+
 ### Mount a host directory
 
 ```bash
@@ -398,7 +405,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--mem` | Guest memory in MiB |
 | `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]`. A guest path alone, such as `-v /var/lib/docker`, is a directory on the machine's own disk that persists across stop and start |
 | `--cache-disk` | Mount a shared cache disk as `BASE:/guest/path`. `BASE` is a raw or qcow2 image that stays read-only and can back many machines; this machine writes only to its own layer, which its branches copy. A blank `BASE` gets an ext4 filesystem |
-| `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT` |
+| `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT`, with `/udp` appended for a UDP port |
 | `--user`, `-u` | Run the workload as a name or `uid[:gid]` |
 | `--interactive`, `-i` | Keep stdin open |
 | `--tty`, `-t` | Allocate a TTY |

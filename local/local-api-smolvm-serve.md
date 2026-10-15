@@ -68,6 +68,7 @@ side.
 | `POST` | `/api/v1/machines/:name/start` | Start a machine |
 | `POST` | `/api/v1/machines/:name/stop` | Stop a machine |
 | `DELETE` | `/api/v1/machines/:name` | Delete a machine |
+| `PUT` | `/api/v1/machines/:name/ports` | Replace a machine's published ports, live while it runs; a taken host port answers `409` `PORT_IN_USE` |
 | `POST` | `/api/v1/machines/:name/exec` | Execute a command |
 | `POST` | `/api/v1/machines/:name/exec/stream` | Stream execution over SSE |
 | `PUT` | `/api/v1/machines/:name/files/*path` | Upload a file |
