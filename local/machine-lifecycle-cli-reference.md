@@ -110,7 +110,15 @@ shape as `docker ps -q`:
 smolvm machine ls --quiet | xargs -I{} smolvm machine stop --name {}
 ```
 
-`--json` gives the full records when a script needs more than the name.
+`--json` gives the full records when a script needs more than the name, including any labels.
+`--label KEY=VALUE` on `machine create` attaches them, and `machine branch --label` labels the
+child: a child inherits its source's labels, and a key given on the branch replaces the inherited
+value.
+
+```bash
+smolvm machine create --name agent --image alpine --label team=docs --label tier=a
+smolvm machine branch --from agent --name agent-b --label tier=b
+```
 
 ### Read the workload's output
 
