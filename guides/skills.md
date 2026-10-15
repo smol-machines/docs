@@ -66,7 +66,7 @@ A packet is written only when the procedure behind it can be run end to end and 
 | Empty folder to a deployed tool in three commands | The first two steps run locally, but the third, `smol cloud deploy` with no argument, stops with `a reference is required` |
 | Headless browsing on cloud | A browser in a cloud machine renders nothing, and the cause is narrowed rather than found |
 | Anything behind the console sign-in | Account creation and key minting are human steps by design. The packets start where a person hands an agent a key |
-| Checkpoint a running cloud machine and restore it | On cloud the capability is advertised with no route in the published spec. Locally, [branch-and-checkpoint](/docs/guides/skills/branch-and-checkpoint) covers it |
+| Checkpoint a running cloud machine and restore it | The cloud routes exist, as [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) shows, but no packet has run them end to end yet. Locally, [branch-and-checkpoint](/docs/guides/skills/branch-and-checkpoint) covers it |
 
 ## What is on a packet page
 
