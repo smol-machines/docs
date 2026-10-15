@@ -78,6 +78,8 @@ side.
 
 The HTTP API covers common lifecycle, execution, file, image, volume, export, and branch operations. It does not have complete parity with every CLI command or interactive CLI behavior. Use the generated OpenAPI document as the wire-level reference for your installed release.
 
+A start takes `branchable`, `branchPoolSize` and `cudaVramLimitMib` in its JSON body or its query string; when both carry one, the query string wins.
+
 A create body is validated strictly: an unknown field is refused with `422` and a message naming
 the field and listing the ones it accepts, and so is a known field of the wrong type. A field this
 release does not have is refused rather than dropped in silence.
