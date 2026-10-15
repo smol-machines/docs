@@ -6,7 +6,7 @@ title: "Local API: drive smolvm over HTTP"
 
 Drives smolvm programmatically over its local HTTP API (smolvm serve) instead of the CLI: create machines, exec and stream commands, move files in and out, and tear them down. Use when building a client, harness, agent tool or MCP backend over smolvm; when a create call is accepted but the machine behaves as if a field was ignored; when a file uploaded over the API has disappeared; when an exec that failed still returned HTTP 200; or when choosing between the Unix socket and loopback TCP. Do not use it as a substitute for the CLI in a shell script, and do not bind a plain listener beyond loopback: a server started without mutual TLS has no authentication of any kind.
 
-Verified on **smolvm v1.23.0** on macOS arm64, 2026-10-04, and on **v1.18.2** on Linux aarch64, 2026-09-24. Done means a machine went through
+Verified on **smolvm v1.27.3** on macOS arm64, 2026-10-12, and on **v1.18.2** on Linux aarch64, 2026-09-24. Done means a machine went through
 its whole lifecycle over HTTP and `GET /api/v1/machines/<name>` answers `NOT_FOUND` at the end.
 The Linux runs used the scripts of their date; this version's preflight and cleanup scripts ran
 on Linux aarch64 on v1.22.2 on 2026-10-03.
@@ -175,7 +175,7 @@ messages, and `branch-and-checkpoint` covers pause alongside checkpoints.
 
 ## Platform arms
 
-- **macOS arm64**: v1.23.0, over loopback TCP, and v1.22.2 over the Unix socket as well.
+- **macOS arm64**: v1.27.3 over the Unix socket, v1.23.0 over loopback TCP, and v1.22.2 over both.
 - **Linux aarch64**: v1.18.2 over the Unix socket, 2026-09-24, `result=lifecycle_ok` with all
   eleven checks. The single v1.22.2 run failed only at `machines_empty`, the check that then
   required an empty machine list, on `image-seed-*` helpers an interrupted run had left listed. On
@@ -216,6 +216,14 @@ POST /api/v1/machines {"name":"...","image":"alpine","network":true,"memory":102
 ```
 
 A 404 returns `{"error":"machine 'nope-does-not-exist' not found","code":"NOT_FOUND"}`.
+
+## Re-verified on v1.27.3
+
+Run 2026-10-12 PT against v1.27.3 from the published release, checksum checked, under a fresh
+isolated `HOME` on macOS 27.0.1 arm64, once: `preflight.sh` `result=ready`, `serve-start.sh`
+`result=serving` on the Unix socket, `lifecycle-check.sh` `result=lifecycle_ok` with all eleven
+checks, and `cleanup.sh --purge` `machines=clean`. The local image refusals in `references/traps.md`
+were measured the same evening. Linux was not run.
 
 ## Re-verified on v1.23.0
 
@@ -281,7 +289,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.23.0"
+VERIFIED_VERSION="1.27.3"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -878,10 +886,17 @@ moves it, to a loopback address only). It has no authentication and answers only
 
 ### Local image archives can be OCI layouts
 
-`POST /api/v1/machines` accepts a server-local `image` path to a `docker save` archive or an OCI
-layout tar (optionally gzipped). For an OCI archive without Docker's `manifest.json`, the guest
-streams a small compatibility manifest into its image flattener; the input archive is unchanged.
-Choose an archive containing a Linux image for the guest's architecture.
+`POST /api/v1/machines` accepts a server-local `image` path to a `docker save` archive, an OCI
+layout tar (optionally gzipped) or an unpacked rootfs directory. For an OCI archive without Docker's
+`manifest.json`, the guest streams a small compatibility manifest into its image flattener; the
+input archive is unchanged. Choose an archive containing a Linux image for the guest's architecture.
+
+**From v1.27.1 the server takes a local path only under `serve start --local-image-dir <DIR>`.**
+Measured on macOS arm64 on v1.27.3, each a `400`: without the flag a create naming a path answers
+``local images are disabled on this server; start `smolvm serve` with --local-image-dir ...``; with
+it, a path that does not resolve inside the directory, symlinks followed, answers `local image
+'<path>' is outside this server's local image directory`; and `"image":"-"` answers `image '-'
+requires CLI stdin`, with or without the flag.
 
 ### Only one server per host, unless you move its rollout port
 

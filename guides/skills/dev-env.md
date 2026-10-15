@@ -14,8 +14,9 @@ on Linux aarch64 on v1.22.2 on 2026-10-03.
 
 The whole use case turns on one fact: **`init` runs once, not on every start**, as
 [`smolfile.md`](https://github.com/smol-machines/smolvm/blob/main/docs/smolfile.md) says, and as the docs site (smolmachines.com/docs) says under "When
-init runs". `smolvm machine create --help` reads "Run command on every VM start" at v1.22.2;
-provisioning that relies on that line is missing on the second boot.
+init runs". `smolvm machine create --help` reads "Run command on every VM start" at v1.22.2, and
+"Run command once, on the machine's first start" from v1.23.7; provisioning that relies on the old
+line is missing on the second boot.
 
 ## Procedure
 
@@ -138,7 +139,7 @@ writes to `/` persist while `tmpfs` mounts do not.
 Full detail in `references/traps.md`. The ones that cost the most:
 
 - **`init` runs once.** `machine create --help` reads "Run command on every VM start" at
-  v1.22.2. Anything that must hold on every boot, a bind mount above all, runs
+  v1.22.2, and says once from v1.23.7. Anything that must hold on every boot, a bind mount above all, runs
   in the command that needs it.
 - **Give a machine you `exec` into a long-lived workload.** Without one, an `exec` right after
   `start` can answer ``the container `smolvm-<hash>` is not running`` instead of running.
@@ -823,7 +824,8 @@ it in the same command that needs it. The `docker-in-machine` packet is built ar
 the workload ... the same as `init` in a Smolfile". [`smolfile.md`](https://github.com/smol-machines/smolvm/blob/main/docs/smolfile.md) says `init`
 "runs once as root, like a Dockerfile `RUN`", and the docs site's `introduction/concepts/smolfile.md`
 (smolmachines.com/docs) says under "When init runs" that it runs once, on the first start. Observed:
-once, on the first start.
+once, on the first start. From v1.23.7 `machine create --help` says the same: "Run command once, on
+the machine's first start".
 
 `init` also runs **as root**, even with `user` set: `/init-ran-as.txt` contained `root` while
 `exec` and `shell` ran as `app`. There is no `machine start --init` to force a re-run.
@@ -906,8 +908,8 @@ regression until the two were compared side by side.
 
 ### `machine shell` does not start a stopped machine
 
-`smolvm machine --help` describes `shell` as "Open an interactive shell in a machine (starts it if
-stopped)". It does not:
+Before v1.23.7 `smolvm machine --help` described `shell` as "Open an interactive shell in a machine
+(starts it if stopped)"; from v1.23.7 it says "in a running machine". It does not start one:
 
 ```
 $ smolvm machine stop --name dev
