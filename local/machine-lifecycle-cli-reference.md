@@ -402,6 +402,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--block-private` | Keep the public internet open and block private, internal and link-local destinations, cloud metadata and the host's loopback; implies `--net` |
 | `--allow-private` | Reopen one private CIDR under `--block-private`, which it implies; cloud metadata stays blocked |
 | `--dns` | Resolve guest names through this resolver IP instead of the host's own; implies `--net` |
+| `--dns-option` | Add a resolver option to the guest's `resolv.conf`, such as `timeout:1`; repeatable, written in order as one `options` line. musl images such as Alpine honor only `ndots`, `timeout` and `attempts` |
 | `--credential` | Bind a credential as `NAME=ENV_VAR@HOST[,HOST...][:body]`: the guest gets a placeholder in `ENV_VAR`; the host substitutes the real value only on HTTPS requests to the listed hosts, which may be wildcards such as `*.example.com`. `:body` also substitutes it in a form-encoded request body, for OAuth tokens |
 | `--cpus` | vCPU count |
 | `--mem` | Guest memory in MiB |
