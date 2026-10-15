@@ -63,7 +63,8 @@ Capture is the fussier side. A checkpoint has to be able to resume every device 
 machine holding host-bound state is refused rather than captured into an artifact that could not
 be restored. The initial profile refuses a machine with any of:
 
-- host mounts, including staged mounts
+- host mounts, unless the capture asks to keep them with `--host-mounts`
+- staged mounts, with or without it
 - published sockets
 - remote volumes
 - host secret references
@@ -73,8 +74,10 @@ be restored. The initial profile refuses a machine with any of:
 - Vulkan GPU state, CUDA state, or Rosetta
 - SSH agent forwarding or Docker socket forwarding
 
+A checkpoint taken with `machine checkpoint --host-mounts` restores only on a host where the same host paths exist, and attaches each one again at its guest path. `machine pause` keeps a machine's host mounts without being asked.
+
 The error names the ones in the way and asks you to stop or detach them before capture. A machine
-that needs a mount or a socket for its work is therefore a machine to pack, not to checkpoint.
+that needs a socket or a staged mount for its work is therefore a machine to pack, not to checkpoint.
 
 `machine branch` is the other way round: it takes no mount or socket flag at all, and children
 inherit whatever the source was created with. To give each child its own mount, build the base as
