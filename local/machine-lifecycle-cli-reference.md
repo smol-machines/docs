@@ -282,7 +282,9 @@ On a running machine that was started with an allow list, an update that only ad
 allowed hosts and CIDRs applies at once, from the machine's next connection or DNS lookup, and the
 command reports `running; applies now`. A change that would lift the list, or give one to a running
 machine that has none, is refused until the machine is stopped. Removing a host leaves allowed the
-addresses `machine create` resolved it to; take those out with `--remove-allow-cidr`.
+addresses `machine create` resolved it to; take those out with `--remove-allow-cidr`, or replace
+the whole list with `--reset-allow-list` and the entries to keep, which leaves exactly those. `machine
+status --json` and `machine ls --json` show the list as `allowed_hosts` and `allowed_cidrs`.
 
 Published TCP ports change the same way: on a running virtio-net machine, `-p` and `--remove-port`
 apply at once and the command reports `running; applies now`. A removed port stops accepting while
