@@ -354,7 +354,7 @@ something `tsi` cannot provide:
 | You passed | Why virtio-net |
 |---|---|
 | `--port` / `-p` | only virtio-net serves inbound connections |
-| `--allow-host`, `--allow-cidr`, `--outbound-localhost-only` | the allow list is enforced by the host-side gateway |
+| `--allow-host`, `--allow-cidr`, `--outbound-localhost-only`, `--block-private` | the egress policy is enforced by the host-side gateway |
 | `--network` | a named inter-VM network is fabric routing in that gateway |
 | `--guest-subnet` | a custom guest link shapes the virtio-net interface |
 
@@ -376,9 +376,9 @@ Naming `tsi` explicitly alongside any of them is refused rather than silently ig
 ```text
 ports:  published ports require the virtio-net backend (TSI is outbound-only); remove
         --net-backend tsi or set it to virtio-net
-egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only) requires the
-        virtio-net backend; TSI does not enforce it. Remove --net-backend tsi or set it to
-        virtio-net
+egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--block-private)
+        requires the virtio-net backend; TSI does not enforce it. Remove --net-backend tsi or
+        set it to virtio-net
 ```
 
 ## Common resource flags
@@ -390,6 +390,8 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only) requ
 | `--net` | Enable networking |
 | `--allow-host` | Allow egress to a hostname |
 | `--allow-cidr` | Allow egress to a CIDR |
+| `--block-private` | Keep the public internet open and block private, internal and link-local destinations, cloud metadata and the host's loopback; implies `--net` |
+| `--allow-private` | Reopen one private CIDR under `--block-private`, which it implies; cloud metadata stays blocked |
 | `--dns` | Resolve guest names through this resolver IP instead of the host's own; implies `--net` |
 | `--credential` | Bind a credential as `NAME=ENV_VAR@HOST[,HOST...][:body]`: the guest gets a placeholder in `ENV_VAR`; the host substitutes the real value only on HTTPS requests to the listed hosts, which may be wildcards such as `*.example.com`. `:body` also substitutes it in a form-encoded request body, for OAuth tokens |
 | `--cpus` | vCPU count |
