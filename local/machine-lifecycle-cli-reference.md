@@ -112,6 +112,22 @@ smolvm machine ls --quiet | xargs -I{} smolvm machine stop --name {}
 
 `--json` gives the full records when a script needs more than the name.
 
+### Read the workload's output
+
+`machine logs` prints what the machine's workload wrote to stdout and stderr, and it still works
+after the machine has stopped:
+
+```bash
+smolvm machine logs --name dev --tail 50
+smolvm machine logs --name dev --follow
+```
+
+### Machine-readable errors
+
+Every command takes `--error-format json`, which reports a failure on stderr as
+`{"error":{"code":"NOT_FOUND","message":"..."}}` with a stable `code`, so a script can branch on the
+code rather than parse the message.
+
 ### Publish a port or a range of ports
 
 `--port` takes a single port, a `HOST:GUEST` pair, or a range on either side:
