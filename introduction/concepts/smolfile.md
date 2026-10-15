@@ -106,7 +106,7 @@ need the privilege. Only the workload runs as `user`.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `volumes` | string array | Host bind mounts, such as `"./src:/app"`. |
+| `volumes` | string array | Host bind mounts, such as `"./src:/app"`, or a guest path alone, such as `"/var/lib/docker"`, for a directory on the machine's own disk. |
 | `ports` | string array | Port mappings, such as `"8080:8080"`. |
 | `env` | string array | Development-only `KEY=VALUE` variables. |
 | `init` | string array | Commands run once, on first start. |

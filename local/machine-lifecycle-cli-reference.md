@@ -394,7 +394,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only) requ
 | `--credential` | Bind a credential as `NAME=ENV_VAR@HOST[,HOST...][:body]`: the guest gets a placeholder in `ENV_VAR`; the host substitutes the real value only on HTTPS requests to the listed hosts, which may be wildcards such as `*.example.com`. `:body` also substitutes it in a form-encoded request body, for OAuth tokens |
 | `--cpus` | vCPU count |
 | `--mem` | Guest memory in MiB |
-| `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]` |
+| `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]`. A guest path alone, such as `-v /var/lib/docker`, is a directory on the machine's own disk that persists across stop and start |
 | `--cache-disk` | Mount a shared cache disk as `BASE:/guest/path`. `BASE` is a raw or qcow2 image that stays read-only and can back many machines; this machine writes only to its own layer, which its branches copy. A blank `BASE` gets an ext4 filesystem |
 | `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT` |
 | `--user`, `-u` | Run the workload as a name or `uid[:gid]` |

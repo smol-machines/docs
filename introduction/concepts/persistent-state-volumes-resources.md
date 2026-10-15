@@ -16,7 +16,7 @@ An ephemeral run is cleaned up when it exits. Use a persistent machine, a pack, 
 
 ## Volumes and mounts
 
-A volume maps storage into the guest. It can come from two places.
+A volume maps storage into the guest. It can come from three places.
 
 A host-directory mount shares a selected host path with the machine and therefore crosses the VM isolation boundary.
 
@@ -24,9 +24,11 @@ A remote volume mounts S3-compatible object storage instead, using the same flag
 
 Credentials come from the machine's own environment: `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, with `AWS_ENDPOINT_URL` for S3-compatible services such as R2 or MinIO and `AWS_REGION` where it matters. Without them the bucket is read anonymously, which covers public datasets.
 
+A disk volume is a guest path with no host side, such as `-v /var/lib/docker`. It is a directory on the machine's own ext4 disk rather than its overlay root, bound into the workload on every start, and it persists across stop and start. Software that nests overlayfs, such as Docker, containerd or BuildKit, needs its data there, because overlayfs cannot use another overlay as its upper layer.
+
 Volumes are runtime attachments. A `.smolmachine` artifact does not make its external volume bindings portable or persistent. Re-specify the required volumes each time a packed artifact runs.
 
-For Docker inside a machine, place Docker data on the machine's ext4 storage disk, such as `/storage/docker`. Docker's `overlay2` driver cannot nest on the overlay-backed root filesystem.
+For Docker inside a machine, give `/var/lib/docker` and `/var/lib/containerd` disk volumes; see [Docker in a Machine](/docs/guides/docker-in-a-machine).
 
 ## Host mount performance
 

@@ -10,56 +10,30 @@ smolvm can boot OCI images without Docker. You only need this setup when softwar
 
 ## Create the machine
 
-The upstream example installs Docker, allocates storage, and enables the guest Docker socket bridge:
+Give Docker its two data directories as disk volumes, a guest path with no host side:
 
 ```bash
-git clone https://github.com/smol-machines/smolvm.git
-cd smolvm
-
-smolvm machine create --name docker \
-  -s examples/docker-in-vm/docker.smolfile \
-  --net-backend virtio-net
+smolvm machine create --name docker --net --image docker:dind \
+  -v /var/lib/docker -v /var/lib/containerd
 smolvm machine start --name docker
 ```
 
-Start `dockerd`:
+The `docker:dind` image starts `dockerd` itself. Wait for it, then run a container from inside the guest:
 
 ```bash
 smolvm machine exec --name docker -- sh -c '
-  mkdir -p /storage/docker /var/lib/docker
-  mount --bind /storage/docker /var/lib/docker
-  rm -f /var/run/docker.pid
-  dockerd --storage-driver=overlay2 >/tmp/dockerd.log 2>&1 &
-  for i in $(seq 1 30); do
-    docker info >/dev/null 2>&1 && break
-    sleep 1
-  done
-  docker info
+  for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 1; done
+  docker run --rm alpine echo "hello from Docker"
 '
 ```
 
-Test it from inside the guest:
+## Why the disk volumes
 
-```bash
-smolvm machine exec --name docker -- \
-  docker run --rm alpine echo "hello from Docker"
-```
+The machine root filesystem is already an overlay, and Docker's `overlay2` cannot place its upper layer on another overlay. Each `-v` with only a guest path is a directory on the machine's ext4 disk, bound into the workload on every start, so Docker's data survives a stop and start and there is no mount to reapply first. In a Smolfile the same volumes are `volumes = ["/var/lib/docker", "/var/lib/containerd"]`.
 
-## Keep Docker data on `/storage/docker`
+The [docker-in-machine](/docs/guides/skills/docker-in-machine) skill packet predates disk volumes: it bind-mounts `/storage/docker` onto `/var/lib/docker` and reapplies that mount on every start, and it asserts which filesystem Docker's root landed on.
 
-The machine root filesystem is already an overlay. Docker's `overlay2` cannot place its upper layer on that overlay because the backing filesystem does not provide the file-handle support nested overlayfs needs.
-
-`/storage` is the machine's ext4 disk. Docker data must live there:
-
-```bash
-dockerd --data-root=/storage/docker --storage-driver=overlay2
-```
-
-The local example instead bind-mounts `/storage/docker` onto `/var/lib/docker`. Bind mounts do not survive a stop and start, so reapply that mount before starting `dockerd`.
-
-The [docker-in-machine](/docs/guides/skills/docker-in-machine) skill packet is this procedure with that reapplication built into the start step, and it asserts which filesystem Docker's root landed on.
-
-When separate exec calls use separate mount namespaces, including on the managed cloud path, point `dockerd` directly at `/storage/docker`.
+When separate exec calls use separate mount namespaces, including on the managed cloud path, point `dockerd` directly at `/storage/docker` with `--data-root=/storage/docker`.
 
 ## Reach the guest daemon from the host
 
@@ -85,9 +59,8 @@ Do not mount `/var/run/docker.sock` from the host into an untrusted guest.
 Declare host-to-guest ports when creating the machine:
 
 ```bash
-smolvm machine create --name docker -p 8080:8080 \
-  -s examples/docker-in-vm/docker.smolfile \
-  --net-backend virtio-net
+smolvm machine create --name docker --net --image docker:dind -p 8080:8080 \
+  -v /var/lib/docker -v /var/lib/containerd
 ```
 
 A container can listen on guest port 8080, and smolvm forwards host port 8080 to it. Dynamic ports chosen later by Docker Compose or Testcontainers are not automatically published through the outer VM boundary. Pin the ports the host must reach.
