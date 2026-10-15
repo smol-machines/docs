@@ -30,7 +30,7 @@ smolvm serve openapi
 
 ### One server to a host, unless you move a second port
 
-Every `smolvm serve` also binds a fixed guest ingress port, `127.0.0.1:10081`, which `--listen`
+Every `smolvm serve` also binds a guest ingress port, `127.0.0.1:10081` by default, which `--listen`
 does not move. A second server on the same host therefore fails at start whatever address it was
 given:
 
@@ -38,8 +38,9 @@ given:
 Error: config operation failed: bind guest rollout ingress: 127.0.0.1:10081: Address already in use
 ```
 
-Set `SMOLVM_GUEST_ROLLOUT_HOST_PORT` to a free port for the second server, and the two run side by
-side.
+Give the second server its own port with `--guest-rollout-port PORT`, or
+`SMOLVM_GUEST_ROLLOUT_HOST_PORT`, and the two run side by side. A running machine keeps the port it
+started with.
 
 ### Operator flags
 
