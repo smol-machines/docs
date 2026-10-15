@@ -96,8 +96,8 @@ Guest networking is disabled by default. A machine created with an `image` in it
 
 ## Complete examples
 
-- [TypeScript local machine](https://github.com/smol-machines/smol/blob/v1.27.0/sdk/node/examples/basic.ts)
-- [TypeScript cloud machine](https://github.com/smol-machines/smol/blob/v1.27.0/sdk/node/examples/cloud.ts)
-- [Python cloud machine](https://github.com/smol-machines/smol/blob/v1.27.0/sdk/python/examples/cloud.py)
+- [TypeScript local machine](https://github.com/smol-machines/smol/blob/v1.28.1/sdk/node/examples/basic.ts)
+- [TypeScript cloud machine](https://github.com/smol-machines/smol/blob/v1.28.1/sdk/node/examples/cloud.ts)
+- [Python cloud machine](https://github.com/smol-machines/smol/blob/v1.28.1/sdk/python/examples/cloud.py)
 
 See [Machine API](/docs/sdk/machine-api) for the released methods and configuration types.
