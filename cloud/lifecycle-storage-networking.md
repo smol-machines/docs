@@ -206,6 +206,8 @@ smol cloud checkpoint rm CHECKPOINT_ID
 
 `restore` creates and starts a new machine from the checkpoint. A downloaded artifact can also be restored locally with `smolvm machine create --from`, subject to the host requirements in [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots). Neither branching nor checkpoint provides a cross-architecture restore format.
 
+To return the same machine to a checkpoint instead, `POST /v1/machines/{id}/rollback` replaces its running state with its newest checkpoint, or the one `checkpointId` names, and starts it again. It keeps the machine's id, name, network policy and credentials, discards the work done since, and is refused while the machine has live branches.
+
 `smol machine move --name NAME` moves a running local machine to the cloud, processes and all: it pauses the machine, uploads the saved execution as a checkpoint and resumes it as a cloud machine. Commands that name the machine then reach the cloud copy, and the paused one stays here as `local/NAME` until `smol machine resume` runs it again or `smol machine rm` removes it. `--keep-local` leaves the local machine running and sends a copy as of now, `--as` names the cloud machine, and `--net` or `--no-net` overrides the networking it had. When the upload fails, the local machine stays paused with its execution saved.
 
 Branching creates a copy-on-write child from a running branchable cloud machine. It does not provide local-to-cloud live migration.

@@ -192,6 +192,7 @@ The Cloud API also provides endpoints for:
 - Replacing a machine's published ports, live while it runs, `PUT /v1/machines/{id}/ports`
 - Getting or revoking login-free port links, one URL per published port, `POST` and `DELETE /v1/machines/{id}/port-links`
 - Listing every checkpoint the account owns, `GET /v1/checkpoints`, and uploading a `.smolcheckpoint` file captured outside the cloud with `POST /v1/checkpoints` and then `POST /v1/checkpoints/{id}/complete`
+- Rolling a machine back in place to its newest or a named checkpoint, keeping its id and name, `POST /v1/machines/{id}/rollback`
 
 Use the OpenAPI document or Explorer to inspect the exact routes, request bodies, and feature availability for your account.
 
