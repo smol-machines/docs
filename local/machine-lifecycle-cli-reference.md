@@ -57,9 +57,7 @@ a workload from learning where something lives.
 `machine create` no longer needs networking for an uncached registry image: the host fetches it on
 the machine's behalf whenever the machine's own network cannot reach the registry, including a
 machine whose allow list does not name it, so `SMOLVM_IMAGE_SEEDS=0` does not stop it, where it
-sends an ephemeral run back to pulling in the guest. An image whose registry serves an older manifest format is the
-case that still fails, at `start` rather than at `create`, with `parse manifest: missing field
-mediaType`. Supply such an image locally with `--image -`, or pass `--net`.
+sends an ephemeral run back to pulling in the guest.
 
 A persistent machine separates creation from execution:
 
