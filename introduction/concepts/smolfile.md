@@ -48,6 +48,8 @@ These fields describe the machine and its workload. All are optional.
 | `overlay` | integer | Overlay disk size in GiB. |
 | `block_io` | string | Host block I/O engine, `"sync"` or `"async"`. Default: `"sync"`. |
 | `disk_durability` | string | `"full"` makes a guest `fsync` wait for the host disk; `"deferred"` lets writes reach it on the host's schedule, and a host crash can lose recent writes. Default: `"full"`. |
+| `stop_signal` | string | Signal the workload gets when the machine stops, as a name such as `"SIGINT"` or a number. Default: `"SIGTERM"`. |
+| `stop_timeout` | integer | Seconds the workload gets to exit after its stop signal before it is killed. Default: `10`. |
 | `net` | boolean | Enable outbound networking. Networking is off by default. |
 | `gpu` | boolean | Enable Vulkan GPU acceleration through virtio-gpu. |
 | `gpu_vram` | integer | GPU shared-memory size in MiB. Ignored unless `gpu = true`. |
