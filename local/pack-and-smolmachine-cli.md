@@ -22,6 +22,14 @@ smolvm pack create --image python:3.12-alpine -o ./python312
 
 The direct launcher run is ephemeral. Each run starts from the packed state and is cleaned up on exit.
 
+`--image` also takes a local source: a `docker save` archive, `-` to read one from stdin, or an
+unpacked root filesystem directory:
+
+```bash
+smolvm pack create --image ./myapp.tar -o ./myapp
+docker save myapp:latest | smolvm pack create --image - -o ./myapp
+```
+
 You can also run a payload through the installed CLI:
 
 ```bash
