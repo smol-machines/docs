@@ -268,7 +268,7 @@ Exceeding a ceiling is refused at create time with `422` and a body naming the
 plan, the limit, and where to change it — nothing is started, so nothing is
 charged:
 
-```
+```text
 machine count quota exceeded: your Standard plan allows 20 machines; upgrade at https://smolmachines.com/pricing
 concurrency limit reached: your Standard plan allows 20 machines running at once; upgrade at https://smolmachines.com/pricing
 ```
