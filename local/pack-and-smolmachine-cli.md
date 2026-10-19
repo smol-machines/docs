@@ -148,4 +148,8 @@ smolvm pack pull registry.smolmachines.com/library/alpine:latest \
   -o alpine.smolmachine
 ```
 
+Without `-o`, `pack pull` keeps the artifact in the local cache and prints the `machine create`
+command that starts a machine from it. `pack list` shows every pulled artifact with its digest,
+size, age and cache path, and `--json` for scripts.
+
 See [Cloud Registry](/docs/cloud/registry) for artifact names, authentication, publishing, and cloud availability. Registry support does not make incompatible architectures interchangeable.
