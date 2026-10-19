@@ -6,7 +6,7 @@ title: "Dev env: a persistent machine you re-enter"
 
 Keeps a persistent smolvm machine with its dependencies already installed and re-enters it cheaply across sessions. Use when a project needs an isolated development environment that survives stop and start; when deciding what belongs in a Smolfile's init versus what has to run on every boot; when a package installed in a machine has vanished after a restart; or when exec answers "the container smolvm-<hash> is not running". Do not use it for untrusted code, which needs a machine that leaves nothing behind (see the throwaway-machine packet), or for running a Docker daemon inside the machine (see docker-in-machine).
 
-Verified on **smolvm v1.22.2** on macOS arm64, 2026-10-03, and on **v1.18.2** on Linux aarch64, 2026-09-24; the Linux runs used
+Verified on **smolvm v1.29.0** on macOS arm64, 2026-10-15, and on **v1.18.2** on Linux aarch64, 2026-09-24; the Linux runs used
 the Smolfile with `memory = 1024`, for the host reason in "Platform arms". Done means a second `start` is fast, skips provisioning, and the packages installed in
 the first session are still there.
 The Linux runs used the scripts of their date; this version's preflight and cleanup scripts ran
@@ -138,9 +138,8 @@ writes to `/` persist while `tmpfs` mounts do not.
 
 Full detail in `references/traps.md`. The ones that cost the most:
 
-- **`init` runs once.** `machine create --help` reads "Run command on every VM start" at
-  v1.22.2, and says once from v1.23.7. Anything that must hold on every boot, a bind mount above all, runs
-  in the command that needs it.
+- **`init` runs once** (top of this file). Anything that must hold on every boot, a bind mount
+  above all, runs in the command that needs it.
 - **Give a machine you `exec` into a long-lived workload.** Without one, an `exec` right after
   `start` can answer ``the container `smolvm-<hash>` is not running`` instead of running.
 - **`machine shell` does not start a stopped machine** on v1.22.2, while its help says "starts it
@@ -173,14 +172,13 @@ Full detail in `references/traps.md`. The ones that cost the most:
   and once on v1.22.2 at 1024. At 2048 on v1.18.2 the restart failed with `agent did not become
   ready within 30 seconds`: on a small or busy host lower `memory` before suspecting smolvm, and
   check the mount source first (the `install` packet's traps have the numbers).
-- **macOS arm64**: the scripts were run here on v1.22.2 as shipped, and every check passed.
+- **macOS arm64**: the scripts were run here on v1.29.0 as shipped, and every check passed.
 - **Linux x86_64**: verified on v1.14.2 on an NVIDIA A10 cloud host, not re-run since.
 - **Windows x86_64**: `references/windows.md`, **re-run on 2026-10-03 against v1.22.2** on
   Windows 11 Home build 10.0.26200 UBR 9457. Create, three stops and three starts, with a marker read back after each start: **a
   stopped machine starts again and its state survives**, as on v1.14.6, where on v1.14.2 it did
   not. That page also carries the WHP device ceiling a Windows preflight needs through v1.22.2:
   four `-v` mounts, three when a port is published.
-- **`init` after a checkpoint restore**: not verified anywhere.
 
 ## Eval prompts, and what they produced
 
@@ -237,6 +235,17 @@ failures_after_restart=0/20
 
 The changing hash is the tell: the workload container is being relaunched between execs.
 
+## Re-verified on v1.29.0
+
+Run 2026-10-15 PT against v1.29.0 from the published release, checksum checked, under a fresh
+isolated `HOME` on macOS 27.0.1 arm64, the scripts twice, the second time from a fresh `HOME`, and
+the checks beyond them once. Linux was not run, so the Linux stamp stays on its earlier release.
+
+`create-dev-machine.sh` gave `result=up` with `init_ran_as=root`, `exec_user=app` and
+`workdir=/app`; `verify-persistence.sh` gave `init_ran_once=ok (yes)`, `package_version=ok (2.34.2)`,
+`home_file=ok (SURVIVES)`, `storage_file=ok (SURVIVES)`, `tmp_file=ok (WIPED)` and
+`result=persistent`, and the second start printed `Init already completed, skipping 3 command(s)`.
+
 ## Re-verified on v1.22.2
 
 Run 2026-10-03 PT against v1.22.2 from the published release, checksum checked, under an isolated
@@ -286,7 +295,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.22.2"
+VERIFIED_VERSION="1.29.0"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -351,7 +360,7 @@ case "$kernel" in
         if [ "$len" -gt 100 ]; then
             emit socket_path_status too_long
             blocked=1
-            note "HOME is too deep: every VM start will fail with krun_start_enter -22, whose text blames disks and device options. Install under a shorter HOME."
+            note "HOME is too deep: every VM start will fail. From v1.28.0 the error names the socket path and its length; before it, krun_start_enter -22, whose text blames disks and device options. Install under a shorter HOME."
         else
             emit socket_path_status ok
         fi

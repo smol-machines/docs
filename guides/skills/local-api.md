@@ -6,7 +6,7 @@ title: "Local API: drive smolvm over HTTP"
 
 Drives smolvm programmatically over its local HTTP API (smolvm serve) instead of the CLI: create machines, exec and stream commands, move files in and out, and tear them down. Use when building a client, harness, agent tool or MCP backend over smolvm; when a create call is accepted but the machine behaves as if a field was ignored; when a file uploaded over the API has disappeared; when an exec that failed still returned HTTP 200; or when choosing between the Unix socket and loopback TCP. Do not use it as a substitute for the CLI in a shell script, and do not bind a plain listener beyond loopback: a server started without mutual TLS has no authentication of any kind.
 
-Verified on **smolvm v1.27.3** on macOS arm64, 2026-10-12, and on **v1.18.2** on Linux aarch64, 2026-09-24. Done means a machine went through
+Verified on **smolvm v1.29.0** on macOS arm64, 2026-10-15, and on **v1.18.2** on Linux aarch64, 2026-09-24. Done means a machine went through
 its whole lifecycle over HTTP and `GET /api/v1/machines/<name>` answers `NOT_FOUND` at the end.
 The Linux runs used the scripts of their date; this version's preflight and cleanup scripts ran
 on Linux aarch64 on v1.22.2 on 2026-10-03.
@@ -122,14 +122,12 @@ Full detail in `references/traps.md` and `references/api-fields.md`.
   PUT returned `200 {"path":"/tmp/r1.txt","size":6}` for a file that was never readable; `/tmp` is
   a path the container mounts over. It did not reproduce on v1.16.1 or v1.22.2, nor ever on macOS.
   Order the upload after a successful `exec`; a run that happens to work proves nothing.
-- **A failing guest command is HTTP 200.**
 - **Unknown fields are refused from v1.22.2, and were silently dropped before it.** Before v1.22.2
   a `memory` for `memoryMb` got no diagnostic at all and the machine took the default.
 - **A second `serve start` on the same host fails** with `bind guest rollout ingress:
   127.0.0.1:10081: Address already in use`, whatever `--listen` says: every server binds that port
   for the branch-pool rollout routes. Give the second one `--guest-rollout-port` (v1.29.0+) or
   `SMOLVM_GUEST_ROLLOUT_HOST_PORT` with another port.
-- **Stopping the server leaves machines running.**
 - **The spec's `info.version` is not the binary's.** It says `0.5.2` on v1.14.2 while `/health`
   says `1.14.2`, and still `0.5.2` on v1.22.2. Take the version from `/health`.
 - **The default listen path differs per platform, and `--help` shows only one of them.** The help
@@ -175,7 +173,7 @@ messages, and `branch-and-checkpoint` covers pause alongside checkpoints.
 
 ## Platform arms
 
-- **macOS arm64**: v1.27.3 over the Unix socket, v1.23.0 over loopback TCP, and v1.22.2 over both.
+- **macOS arm64**: v1.29.0 over both, v1.27.3 over the Unix socket, and v1.22.2 over both.
 - **Linux aarch64**: v1.18.2 over the Unix socket, 2026-09-24, `result=lifecycle_ok` with all
   eleven checks. The single v1.22.2 run failed only at `machines_empty`, the check that then
   required an empty machine list, on `image-seed-*` helpers an interrupted run had left listed. On
@@ -216,6 +214,17 @@ POST /api/v1/machines {"name":"...","image":"alpine","network":true,"memory":102
 ```
 
 A 404 returns `{"error":"machine 'nope-does-not-exist' not found","code":"NOT_FOUND"}`.
+
+## Re-verified on v1.29.0
+
+Run 2026-10-15 PT against v1.29.0 from the published release, checksum checked, under a fresh
+isolated `HOME` on macOS 27.0.1 arm64, the scripts twice, the second time from a fresh `HOME`, and
+the checks beyond them once. Linux was not run, so the Linux stamp stays on its earlier release.
+
+Over the Unix socket and over `127.0.0.1:8899` the lifecycle gave `result=lifecycle_ok`, and
+`/health` reported `"version":"1.29.0"`. An unknown `memory` field got `422` naming it, and an
+exec of `exit 42` came back `200` with `exitCode` 42. A second server failed on port 10081 and
+started with `--guest-rollout-port 10091`.
 
 ## Re-verified on v1.27.3
 
@@ -289,7 +298,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.27.3"
+VERIFIED_VERSION="1.29.0"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -354,7 +363,7 @@ case "$kernel" in
         if [ "$len" -gt 100 ]; then
             emit socket_path_status too_long
             blocked=1
-            note "HOME is too deep: every VM start will fail with krun_start_enter -22, whose text blames disks and device options. Install under a shorter HOME."
+            note "HOME is too deep: every VM start will fail. From v1.28.0 the error names the socket path and its length; before it, krun_start_enter -22, whose text blames disks and device options. Install under a shorter HOME."
         else
             emit socket_path_status ok
         fi
@@ -910,7 +919,7 @@ Error: config operation failed: bind guest rollout ingress: 127.0.0.1:10081: Add
 
 Measured on macOS arm64 on v1.22.2 with another server already holding the port. With
 `SMOLVM_GUEST_ROLLOUT_HOST_PORT=10091` the second server started and answered on `/health`. From
-v1.29.0 the same setting is the `--guest-rollout-port` flag; the variable still works.
+v1.28.2 the same setting is the `--guest-rollout-port` flag; the variable still works.
 
 ### Field names, versions and error bodies
 
@@ -918,3 +927,10 @@ Those have their own page: `references/api-fields.md`. The short version is that
 are refused with `422` from v1.22.2 and were accepted with 200 and ignored before it, `network`
 and `memoryMb` are not `net` and `memory`, and the version in the exported spec is not the
 binary's.
+
+### Corrections
+
+- **2026-10-15, v1.29.0 run.** No v1.28.2 was released: `--guest-rollout-port` first ships in
+  v1.29.0. With it, a second `serve start --listen 127.0.0.1:8898 --guest-rollout-port 10091`
+  answered `/health` while the first held 10081; without it the second failed with
+  `bind guest rollout ingress: 127.0.0.1:10081: Address already in use (os error 48)`.

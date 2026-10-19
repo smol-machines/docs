@@ -6,7 +6,7 @@ title: "Install: set up smolvm and prove the host boots"
 
 Installs smolvm from a published release and proves the host can actually boot a microVM before any other work starts. Use when setting smolvm up on a new machine, a CI runner or an agent's own environment; when a first boot fails with krun_start_enter -22, KVM_DENIED or "agent did not become ready"; when checking whether a host meets smolvm's requirements at all; or when an install has to be isolated from an existing one and then removed. Do not use it to remove an existing install (see the teardown packet) or for anything after the first boot has succeeded.
 
-Verified on **smolvm v1.23.0** on macOS arm64, 2026-10-04, and on **v1.18.2** on Linux aarch64, 2026-09-24. Done means `smolvm --version` prints the release version **and** a throwaway VM has run
+Verified on **smolvm v1.29.0** on macOS arm64, 2026-10-15, and on **v1.18.2** on Linux aarch64, 2026-09-24. Done means `smolvm --version` prints the release version **and** a throwaway VM has run
 one command and exited. A version number alone proves nothing: on every
 platform here there is at least one way for the install to succeed and every VM start to fail.
 The Linux runs used the scripts of their date; this version's preflight and cleanup scripts ran
@@ -31,7 +31,7 @@ two that block a fresh host are
 `accel_access=denied` on Linux (your user cannot open `/dev/kvm`) and `socket_path_status=too_long`
 on macOS (the install path is too deep for a VM's Unix socket). Both have a fix in
 `references/traps.md`, and neither announces itself later: the installer warns about KVM and
-continues, and the path limit surfaces as an error about disks.
+continues, and before v1.28.0 the path limit surfaces as an error about disks.
 
 **2. Install from the published release.**
 
@@ -105,17 +105,13 @@ included, so read the plain report first.
 | key | meaning |
 |---|---|
 | `smolvm_installed`, `smolvm_path`, `smolvm_version` | whether the binary is on `PATH`, which one, and what it says; a `note=` when that binary is not under the `HOME` being checked |
-| `verified_version`, `version_status` | `match`, `newer`, `older` or `unknown` against the version this packet was last verified on. `newer` is the expected state on a current host and is not a failure |
+| `verified_version`, `version_status` | `match`, `newer`, `older` or `unknown` against the version this packet was last verified on. `newer` is the expected state on a current host and a warning, not a failure: flags and messages move every release, so check each step's output against the binary |
 | `platform` | `darwin-aarch64`, `linux-aarch64`, `linux-x86_64` |
 | `accel`, `accel_access` | `hvf` and `kern.hv_support`, or `kvm` and whether `/dev/kvm` is readable and writable |
-| `macos_version`, `hardware_verified` | `hardware_verified=no` and `result=blocked` on an Intel Mac: no `darwin-x86_64` archive is published for v1.23.0 |
+| `macos_version`, `hardware_verified` | `hardware_verified=no` and `result=blocked` on an Intel Mac: no `darwin-x86_64` archive is published for v1.29.0 |
 | `socket_path_bytes`, `socket_path_status` | macOS only, and the single most common cause of "macOS is broken" |
 | `unsupported` | features this platform does not have |
 | `result` | `ready`, `not_installed` (the host is fit and smolvm is missing) or `blocked` |
-
-`version_status=newer` is a warning, not a failure. smolvm's flags and messages move every
-release, so on a newer binary check each step's output against the binary before trusting the
-text here.
 
 ## Security defaults, and why they are the defaults
 
@@ -132,17 +128,17 @@ text here.
   then applies the group to a single command instead of your whole session.
 - **The uninstaller leaves `~/.config/smolvm` and your `PATH` line on purpose.** Those hold
   registry credentials and a change you made to your own shell profile, so removing them is a
-  separate, deliberate act. `references/layout.md` has both commands.
+  separate, deliberate act. The `teardown` packet's `references/locations.md` has both commands.
 
 ## Platform arms
 
-- **macOS arm64**: verified on v1.23.0. The path-length rule in `references/traps.md` applies to
+- **macOS arm64**: verified on v1.29.0. The path-length rule in `references/traps.md` applies to
   every install.
 - **Linux aarch64**: verified on v1.18.2, and run once on v1.22.2. **Linux x86_64**: verified on
   v1.14.2, and installed on v1.14.6 for the gpu-cuda run. The `kvm` group check applies to every
   fresh host.
 - **Intel Mac**: the installer accepts macOS 11 or later on Intel and then stops at the download,
-  because no `darwin-x86_64` archive is published for v1.23.0; `preflight.sh` says so.
+  because no `darwin-x86_64` archive is published for v1.29.0; `preflight.sh` says so.
 - **Windows x86_64**: `references/windows.md`, **re-run on 2026-10-03 against v1.22.2** on
   Windows 11 Home build 10.0.26200 UBR 9457, where it confirmed. The
   three facts that break a Unix-shaped script are there: the zip unpacks into a nested versioned
@@ -171,6 +167,20 @@ disks and device options.
 **3. "Set up smolvm somewhere throwaway so it does not touch my existing install, then remove
 it."** Install under a scratch `HOME`, then `install.sh --uninstall`; on v1.22.2 it printed
 `success: smolvm has been uninstalled`, and `find "$HOME" -iname '*smolvm*'` was empty afterwards.
+
+## Re-verified on v1.29.0
+
+Run 2026-10-15 PT against v1.29.0 from the published release, checksum checked, under a fresh
+isolated `HOME` on macOS 27.0.1 arm64, twice, the second time from a fresh `HOME`. Linux was not
+run.
+
+`result=not_installed`, the installer printed `Installing version: 1.29.0` and `Checksum verified`,
+then `version_status=match`, `result=ready`, `guest_kernel=Linux 6.18.55`, `result=boot_ok` and a
+clean cleanup. Eval 2 changed in v1.28.0: in a 53-character `HOME` the preflight still gave
+`socket_path_bytes=107`, `socket_path_status=too_long` and `result=blocked`, and the boot failed
+with `socket path is 107 bytes, over the 103-byte limit for Unix sockets on this host`, naming the
+path, instead of `-22`. Eval 3 repeated: after `--uninstall`, `find` printed nothing. Evals 2 and 3
+ran in the first pass only.
 
 ## Re-verified on v1.23.0
 
@@ -218,8 +228,8 @@ verified on v1.18.2.
   Windows run whose account already held the privilege. The failure it guards against has been
   reported from outside and reproduced by forcing the state, but the unprivileged install itself
   has not been run.
-- **Linux x86_64** was verified for install and boot on v1.14.2, and installed on v1.14.6 for the
-  gpu-cuda run. The scripts here were re-run on macOS arm64 and Linux aarch64 only.
+- **The scripts on Linux x86_64**; that arm was last verified on v1.14.2 (install and boot) and
+  installed on v1.14.6 for the gpu-cuda run.
 
 ## Related packets
 
@@ -243,7 +253,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.23.0"
+VERIFIED_VERSION="1.29.0"
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 
@@ -305,7 +315,7 @@ case "$kernel" in
         if [ "$arch" != "aarch64" ]; then
             emit hardware_verified no
             blocked=1
-            note "no darwin-x86_64 archive is published for v1.23.0, so the installer accepts an Intel Mac and then stops at the download"
+            note "no darwin-x86_64 archive is published for v1.29.0, so the installer accepts an Intel Mac and then stops at the download"
         else
             emit hardware_verified yes
         fi
@@ -317,7 +327,7 @@ case "$kernel" in
         if [ "$len" -gt 100 ]; then
             emit socket_path_status too_long
             blocked=1
-            note "HOME is too deep: every VM start will fail with krun_start_enter -22, whose text blames disks and device options. Install under a shorter HOME."
+            note "HOME is too deep: every VM start will fail. From v1.28.0 the error names the socket path and its length; before it, krun_start_enter -22, whose text blames disks and device options. Install under a shorter HOME."
         else
             emit socket_path_status ok
         fi
@@ -428,8 +438,8 @@ else
     if printf '%s' "$out" | grep -q 'TOOMANYREQUESTS'; then
         printf '  - "TOOMANYREQUESTS" is Docker Hub refusing anonymous pulls from this address, not the install. Boot the same image from a mirror: verify-boot.sh --image mirror.gcr.io/library/alpine, or public.ecr.aws/docker/library/alpine.\n'
     fi
-    printf '  - "agent did not become ready within 30 seconds" is usually host load or a guest too large for this host, not the install. The 30s limit is fixed and no flag raises it for machine run or machine start; retry with a smaller --mem to tell the two apart.\n'
-    printf '  - "krun_start_enter returned: -22" on macOS is almost always the socket path length, not the disks its text names. Run preflight.sh and read socket_path_status.\n'
+    printf '  - "agent did not become ready within 30 seconds" is usually host load or a guest too large for this host, not the install. No flag raises the limit for machine run or machine start (from v1.29.0 a cold boot fails after 30s without progress, at most 180s in all); retry with a smaller --mem to tell the two apart.\n'
+    printf '  - "krun_start_enter returned: -22" on macOS before v1.28.0 is almost always the socket path length, not the disks its text names; from v1.28.0 the error says "socket path is N bytes". Run preflight.sh and read socket_path_status.\n'
     printf '  - the boot child sends its own output to /dev/null. To see the real failure, copy <vm-dir>/boot-config.json in a loop while a start is in flight (the child deletes it as soon as it reads it) and run: smolvm-bin _boot-vm <copy>\n'
 fi
 
@@ -756,3 +766,12 @@ so the stripping is harmless and tells you nothing about a library problem.
   `HOME`'s smolvm state, or whose executable is under the install prefix, so another session's VM
   is left alone. On macOS it scopes by the executable path under the prefix and the parent chain
   over `ps -axo pid=,ppid=,command=`.
+
+### Corrections
+
+- **2026-10-15, v1.29.0 run.** From v1.28.0 an agent socket path of 104 bytes or more fails with a
+  message that names it, such as `socket path is 107 bytes, over the 103-byte limit for Unix
+  sockets on this host` (#1770), instead of `krun_start_enter returned: -22`. At 102 and 103 bytes
+  it still fails as `-22`, measured on v1.29.0, most likely because `control.sock` in the same
+  directory is two bytes longer and is not checked. Keep `agent.sock` at 101 bytes or less; the
+  preflight's `socket_path_status` check is unchanged.
