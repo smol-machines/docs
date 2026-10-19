@@ -175,6 +175,8 @@ For command output without a terminal, such as an agent running a build, `POST /
 
 The API supports file upload and download for a machine. Use the current OpenAPI or API Explorer for the path shape and request encoding.
 
+Request bodies are capped: 1 MiB on the JSON API, 100 MiB on a file upload to `/v1/machines/{id}/files/...`, and 10 MiB per request through the connect route. A larger body is refused.
+
 Upload targets follow the machine's filesystem layout. Write to `/workspace` or another path on the storage disk when the file must survive a stop and start; `/tmp` is memory-backed and is empty after the machine restarts. An upload whose target resolves through a symlink into a memory-backed path fails instead of writing the file. See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking).
 
 ### Operational endpoints
