@@ -386,6 +386,24 @@ macOS 15 or later; on Linux it means nested KVM is enabled, through `kvm_intel.n
 Running a Docker daemon in a machine does not need this flag. Containers share the guest kernel,
 so [Docker in a Machine](/docs/guides/docker-in-a-machine) works without it.
 
+### Connect machines on a named network
+
+Machines created with the same `--network NAME` reach each other directly by address; machines on
+different networks cannot:
+
+```bash
+smolvm machine create --name db  --image alpine --network lab
+smolvm machine create --name app --image alpine --network lab
+smolvm machine start --name db && smolvm machine start --name app
+smolvm machine exec --name db -- ip -4 addr show eth0
+```
+
+Each member gets a `100.96.N.2` address when it starts, which can change after a stop and start,
+so read it rather than hardcoding it. Names do not resolve: `app` reaches `db` by its address
+only. Each network leases addresses from its own pool, so two networks can hand out the same one.
+`--network` implies `--net`, needs the virtio-net backend, and cannot be combined with
+`--guest-subnet`.
+
 ### Moving the guest off the default range
 
 A virtio-net guest's link is `100.96.0.0/30` by default: the gateway and resolver take the first
