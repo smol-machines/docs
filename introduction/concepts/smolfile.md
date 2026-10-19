@@ -259,7 +259,7 @@ Development mounts and development initialization belong in `[dev]`; they are no
 
 ```toml
 [health]
-exec = ["curl", "-f", "http://127.0.0.1:8080/health"]
+exec = ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]  # runs in the agent, which has no curl
 interval = "10s"
 timeout = "2s"
 retries = 3
