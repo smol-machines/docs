@@ -134,6 +134,6 @@ These methods apply to the local target:
 - `pullImage()` / `pull_image()` caches an OCI image
 - `listImages()` / `list_images()` lists cached images
 
-`endpoint()` and the public `url()` workflow require the cloud control plane. For a local service, publish a host-to-guest port with `PortSpec` and connect to the host port directly.
+The public `url()` workflow requires the cloud control plane. For a local service, publish a host-to-guest port with `PortSpec` and connect to the host port directly; `endpoint()` returns that `127.0.0.1` address for you.
 
 See [Machine API](/docs/sdk/machine-api) for configuration and lifecycle methods.
