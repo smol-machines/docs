@@ -145,8 +145,8 @@ missing. Pass `--no-init-cache` when init depends on live volume contents and
 cannot safely be reused, or `--rebuild-init-cache` to rebuild it once.
 
 The same commands can be given on the command line with `--init`, which is
-accepted on `machine run` as well as `machine create`. The flag wins when a
-Smolfile also sets `init`.
+accepted on `machine run` as well as `machine create`. When a Smolfile also sets
+`init`, both run: the Smolfile's commands first, then the flag's.
 
 ### Secrets and init do not mix on the cached path
 
