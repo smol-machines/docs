@@ -130,6 +130,17 @@ smolvm machine logs --name dev --tail 50
 smolvm machine logs --name dev --follow
 ```
 
+### See a machine's CPU and memory
+
+`machine stats` samples a running machine's CPU and memory; `--json` gives the raw figures:
+
+```text
+$ smolvm machine stats --name dev
+Machine 'dev': running
+  cpu: 0.4% of 400% (4 CPUs)
+  memory: 0.10 GiB of 7.77 GiB used (1%), 7.67 GiB available
+```
+
 ### Machine-readable errors
 
 Every command takes `--error-format json`, which reports a failure on stderr as
