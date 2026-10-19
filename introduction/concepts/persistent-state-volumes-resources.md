@@ -58,7 +58,10 @@ smolvm machine run --net --image node:22-alpine \
 The copy back happens on `machine sync` and on a graceful stop. That is the
 trade: metadata-heavy work runs at guest-disk speed, and the host directory is
 stale until one of those two points, so nothing else may write to the host copy
-while the machine is running.
+while the machine is running. The copy back mirrors the guest's copy onto the host: a host file
+the copy does not have is deleted, including one added on the host after the machine started, and
+a host edit made in the meantime is overwritten. A branch of the machine keeps its own working
+copies and never copies them back.
 
 Use `:staged` for the work the round-trip cost hurts most, a dependency install
 or a build, and a plain mount when the host side has to stay live.
