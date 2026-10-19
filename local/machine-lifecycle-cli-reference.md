@@ -167,7 +167,7 @@ The server inside the machine must listen on `0.0.0.0` (or the machine's own add
 
 ### Publish a Unix socket
 
-`machine create` takes two socket flags, both repeatable. `--expose-socket` makes a socket the
+`machine create` and `machine run` take two socket flags, both repeatable. `--expose-socket` makes a socket the
 guest listens on reachable from the host, and `--mount-socket` puts a host socket inside the
 guest so a guest process can reach a host service:
 
