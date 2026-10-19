@@ -26,7 +26,7 @@ The invoking service account needs permission to access `/dev/kvm` and the runti
 
 ### Other supported hosts
 
-macOS uses Hypervisor.framework and is suitable for local workstations. Native Windows x86_64 uses Windows Hypervisor Platform. Windows branches and checkpoints machines, a live branch there needing `--freeze-source` and the incremental store being refused, and it has no Vulkan acceleration. A packed artifact is created on Windows but does not run there, so verify feature requirements before choosing it for a self-hosted node.
+macOS uses Hypervisor.framework and is suitable for local workstations. Native Windows x86_64 uses Windows Hypervisor Platform, with the differences [Windows and WSL](/docs/introduction/concepts/supported-platforms#windows-and-wsl) lists; check them before choosing it for a self-hosted node.
 
 Guest and artifact architecture must match the host architecture.
 
@@ -38,7 +38,7 @@ smolvm --version
 smolvm machine run --net --image alpine -- uname -a
 ```
 
-The final command passes `--net` for the workload rather than for the image. On a macOS or Linux node, a separate builder machine pulls a registry image into a seed and the run starts from that, so a machine with no networking of its own still starts from one; on a Windows node the pull runs in the machine and needs `--net`.
+The final command passes `--net` for the workload rather than for the image, which comes from a shared seed on macOS and Linux and is pulled in the machine on Windows; see [Ephemeral machines](/docs/local/machine-lifecycle-cli-reference#ephemeral-machines).
 
 Run as root on Linux, the installer installs system-wide: smolvm goes to `/opt/smolvm` with the agent rootfs beside the binary, and the commands are linked into `/usr/local/bin`. That is the install `smolvm serve` needs when it runs as root, because each VM then runs as its own unprivileged uid, which cannot read anything under `/root`. `serve` refuses to start when that uid cannot reach the data root, the libraries or the agent rootfs, and names the path that blocks it; `SMOLVM_VM_UID_DROP=off` runs VMs as root instead. `--prefix DIR` installs somewhere else.
 

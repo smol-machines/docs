@@ -92,7 +92,7 @@ with Machine.create(config, ConnectOptions(target="local")) as machine:
 
 :::
 
-Guest networking is disabled by default. A machine created with an `image` in its config does not need it for that image, at any `storageGb`, because the image is fetched before the guest boots. `run(image, command)` pulls inside the guest, so it needs `resources.network`, which is why the examples above turn it on; enable it as well when the workload itself needs outbound access.
+Guest networking is disabled by default. The examples above turn it on because `run(image, command)` pulls inside the guest; a machine created with an `image` in its config does not need it, as [Use SDK in Local](/docs/sdk/with-local#run-an-oci-image) explains.
 
 ## Go
 
