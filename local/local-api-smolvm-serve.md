@@ -76,6 +76,14 @@ started with.
 | `GET` | `/api/v1/machines/:name/files/*path` | Download a file |
 | `GET` | `/api/v1/machines/:name/logs` | Stream logs over SSE |
 | `POST` | `/api/v1/machines/:name/images/pull` | Pull an OCI image |
+| `POST` | `/api/v1/pools` | Create a warm pool of branched workers from a branchable source |
+| `GET`, `DELETE` | `/api/v1/pools/:name` | Read or delete a pool |
+| `PUT` | `/api/v1/pools/:name/size` | Change how many clean workers a pool keeps ready |
+| `POST` | `/api/v1/pools/:name/leases` | Lease one clean worker |
+| `POST` | `/api/v1/pools/:name/leases/:lease/heartbeat` | Extend a lease |
+| `POST` | `/api/v1/pools/:name/leases/:lease/complete` | Finish a lease; the pool replaces its worker |
+
+A warm pool keeps `desiredReady` workers branched from a source machine and ready to hand out. The source must be started `branchable` and its workload must reach its branch point by running under `smolvm-branch-ready`; until it does, the pool stays provisioning. A lease takes an `idempotencyKey`: repeating a request with the same key and the same body returns the same lease, and the same key with a different body is refused with `409`. A lease expires unless heartbeated, 300 seconds by default, and completing it retires the worker while the pool branches a fresh one.
 
 The HTTP API covers common lifecycle, execution, file, image, volume, export, and branch operations. It does not have complete parity with every CLI command or interactive CLI behavior. Use the generated OpenAPI document as the wire-level reference for your installed release.
 

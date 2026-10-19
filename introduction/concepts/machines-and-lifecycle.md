@@ -10,7 +10,7 @@ A smol machine is a Linux virtual machine with its own guest kernel. It can star
 
 An ephemeral run creates a machine for one command or session and destroys the machine when the run exits. This mode fits one-off jobs, tests, and workloads whose state belongs in external storage.
 
-Local `smolvm machine run` pulls its OCI image for the run and cleans up the VM afterward. If repeated setup or installation dominates startup time, create a [pack](/docs/introduction/concepts/packs-and-smolmachine).
+Local `smolvm machine run` starts from a shared seed of its OCI image, built once per image, and cleans up the VM afterward; see [Ephemeral machines](/docs/local/machine-lifecycle-cli-reference#ephemeral-machines). If repeated setup or installation dominates startup time, create a [pack](/docs/introduction/concepts/packs-and-smolmachine).
 
 ## Persistent machines
 

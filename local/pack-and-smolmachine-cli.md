@@ -22,6 +22,14 @@ smolvm pack create --image python:3.12-alpine -o ./python312
 
 The direct launcher run is ephemeral. Each run starts from the packed state and is cleaned up on exit.
 
+`--image` also takes a local source: a `docker save` archive, `-` to read one from stdin, or an
+unpacked root filesystem directory:
+
+```bash
+smolvm pack create --image ./myapp.tar -o ./myapp
+docker save myapp:latest | smolvm pack create --image - -o ./myapp
+```
+
 You can also run a payload through the installed CLI:
 
 ```bash
@@ -147,5 +155,9 @@ Use the registry to discover and transfer published `.smolmachine` artifacts:
 smolvm pack pull registry.smolmachines.com/library/alpine:latest \
   -o alpine.smolmachine
 ```
+
+Without `-o`, `pack pull` keeps the artifact in the local cache and prints the `machine create`
+command that starts a machine from it. `pack list` shows every pulled artifact with its digest,
+size, age and cache path, and `--json` for scripts.
 
 See [Cloud Registry](/docs/cloud/registry) for artifact names, authentication, publishing, and cloud availability. Registry support does not make incompatible architectures interchangeable.

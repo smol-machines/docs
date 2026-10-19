@@ -175,6 +175,8 @@ For command output without a terminal, such as an agent running a build, `POST /
 
 The API supports file upload and download for a machine. Use the current OpenAPI or API Explorer for the path shape and request encoding.
 
+Request bodies are capped: 1 MiB on the JSON API, 100 MiB on a file upload to `/v1/machines/{id}/files/...`, and 10 MiB per request through the connect route. A larger body is refused.
+
 Upload targets follow the machine's filesystem layout. Write to `/workspace` or another path on the storage disk when the file must survive a stop and start; `/tmp` is memory-backed and is empty after the machine restarts. An upload whose target resolves through a symlink into a memory-backed path fails instead of writing the file. See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking).
 
 ### Operational endpoints
@@ -192,6 +194,7 @@ The Cloud API also provides endpoints for:
 - Replacing a machine's published ports, live while it runs, `PUT /v1/machines/{id}/ports`
 - Getting or revoking login-free port links, one URL per published port, `POST` and `DELETE /v1/machines/{id}/port-links`
 - Listing every checkpoint the account owns, `GET /v1/checkpoints`, and uploading a `.smolcheckpoint` file captured outside the cloud with `POST /v1/checkpoints` and then `POST /v1/checkpoints/{id}/complete`
+- Rolling a machine back in place to its newest or a named checkpoint, keeping its id and name, `POST /v1/machines/{id}/rollback`
 
 Use the OpenAPI document or Explorer to inspect the exact routes, request bodies, and feature availability for your account.
 
@@ -265,7 +268,7 @@ Exceeding a ceiling is refused at create time with `422` and a body naming the
 plan, the limit, and where to change it — nothing is started, so nothing is
 charged:
 
-```
+```text
 machine count quota exceeded: your Standard plan allows 20 machines; upgrade at https://smolmachines.com/pricing
 concurrency limit reached: your Standard plan allows 20 machines running at once; upgrade at https://smolmachines.com/pricing
 ```

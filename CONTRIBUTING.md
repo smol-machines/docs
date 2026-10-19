@@ -177,14 +177,13 @@ table.
 
 ### Code fences
 
-Always tag a fence with a language. Ten are highlighted:
+Always tag a fence with a language. Twelve are highlighted:
 
 ```
-bash  javascript  typescript  json  toml  python  rust  text  shell  markdown
+bash  javascript  typescript  json  toml  python  rust  text  shell  markdown  yaml  http
 ```
 
-Anything outside that list — `yaml` and `http` included — **renders as
-unstyled plain text**. It does not fail the build and it looks fine in your
+Anything outside that list, `go` included, **renders as unstyled plain text**. It does not fail the build and it looks fine in your
 editor, so it is easy to miss. Use `text` deliberately when no listed language
 fits, and open an issue if a language is worth adding.
 

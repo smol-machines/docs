@@ -31,7 +31,7 @@ smolvm machine exec --name docker -- sh -c '
 
 The machine root filesystem is already an overlay, and Docker's `overlay2` cannot place its upper layer on another overlay. Each `-v` with only a guest path is a directory on the machine's ext4 disk, bound into the workload on every start, so Docker's data survives a stop and start and there is no mount to reapply first. In a Smolfile the same volumes are `volumes = ["/var/lib/docker", "/var/lib/containerd"]`.
 
-The [docker-in-machine](/docs/guides/skills/docker-in-machine) skill packet predates disk volumes: it bind-mounts `/storage/docker` onto `/var/lib/docker` and reapplies that mount on every start, and it asserts which filesystem Docker's root landed on.
+The [docker-in-machine](/docs/guides/skills/docker-in-machine) skill packet runs this same setup with a preflight, a check of which filesystem Docker's root landed on, and the older bind-mount configuration for releases without disk volumes.
 
 When separate exec calls use separate mount namespaces, including on the managed cloud path, point `dockerd` directly at `/storage/docker` with `--data-root=/storage/docker`.
 

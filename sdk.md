@@ -9,7 +9,7 @@ The smol SDK provides one `Machine` API for local microVMs and smol cloud. Selec
 ## Install
 
 The package is named `smolmachines` on npm and PyPI, and the crate is `smolmachines` on
-crates.io. This page covers Node and Python; Rust has its own page,
+crates.io. This page covers Node and Python, and Go [below](#go); Rust has its own page,
 [Rust SDK](/docs/sdk/rust), because its install and its host requirements differ.
 
 Install `smolmachines`. The `smolvm` package on npm is an empty placeholder and `smolvm` on PyPI is a different project; neither is this SDK.
@@ -92,12 +92,37 @@ with Machine.create(config, ConnectOptions(target="local")) as machine:
 
 :::
 
-Guest networking is disabled by default. A machine created with an `image` in its config does not need it for that image, at any `storageGb`, because the image is fetched before the guest boots. `run(image, command)` pulls inside the guest, so it needs `resources.network`, which is why the examples above turn it on; enable it as well when the workload itself needs outbound access.
+Guest networking is disabled by default. The examples above turn it on because `run(image, command)` pulls inside the guest; a machine created with an `image` in its config does not need it, as [Use SDK in Local](/docs/sdk/with-local#run-an-oci-image) explains.
+
+## Go
+
+The Go module is `github.com/smol-machines/smol/sdk/go` and needs Go 1.25 or newer. On its first local machine it downloads the runtime released with its own version, about 50 MB, and caches it, so later runs start offline.
+
+```bash
+go get github.com/smol-machines/smol/sdk/go
+```
+
+```go
+import smol "github.com/smol-machines/smol/sdk/go"
+
+m, err := smol.Create(ctx, smol.MachineConfig{
+	Resources: smol.ResourceSpec{CPUs: 2, MemoryMB: 1024, Network: smol.Bool(true)},
+}, nil)
+if err != nil {
+	return err
+}
+defer m.Delete(context.Background())
+
+r, err := m.Run(ctx, "python:3.12-alpine", []string{"python", "-c", "print(2 ** 10)"}, nil)
+fmt.Print(r.Stdout)
+```
+
+To run the same code on smol cloud, give the config an `Image` and pass `&smol.ConnectOptions{Target: smol.TargetCloud}` as the last argument to `Create`. Set `SMOLMACHINES_NO_DOWNLOAD=1` to fail instead of downloading the runtime on a host that may not reach the network at run time.
 
 ## Complete examples
 
-- [TypeScript local machine](https://github.com/smol-machines/smol/blob/v1.28.1/sdk/node/examples/basic.ts)
-- [TypeScript cloud machine](https://github.com/smol-machines/smol/blob/v1.28.1/sdk/node/examples/cloud.ts)
-- [Python cloud machine](https://github.com/smol-machines/smol/blob/v1.28.1/sdk/python/examples/cloud.py)
+- [TypeScript local machine](https://github.com/smol-machines/smol/blob/v1.29.1/sdk/node/examples/basic.ts)
+- [TypeScript cloud machine](https://github.com/smol-machines/smol/blob/v1.29.1/sdk/node/examples/cloud.ts)
+- [Python cloud machine](https://github.com/smol-machines/smol/blob/v1.29.1/sdk/python/examples/cloud.py)
 
 See [Machine API](/docs/sdk/machine-api) for the released methods and configuration types.

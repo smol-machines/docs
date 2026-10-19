@@ -57,9 +57,7 @@ a workload from learning where something lives.
 `machine create` no longer needs networking for an uncached registry image: the host fetches it on
 the machine's behalf whenever the machine's own network cannot reach the registry, including a
 machine whose allow list does not name it, so `SMOLVM_IMAGE_SEEDS=0` does not stop it, where it
-sends an ephemeral run back to pulling in the guest. An image whose registry serves an older manifest format is the
-case that still fails, at `start` rather than at `create`, with `parse manifest: missing field
-mediaType`. Supply such an image locally with `--image -`, or pass `--net`.
+sends an ephemeral run back to pulling in the guest.
 
 A persistent machine separates creation from execution:
 
@@ -130,6 +128,17 @@ smolvm machine logs --name dev --tail 50
 smolvm machine logs --name dev --follow
 ```
 
+### See a machine's CPU and memory
+
+`machine stats` samples a running machine's CPU and memory; `--json` gives the raw figures:
+
+```text
+$ smolvm machine stats --name dev
+Machine 'dev': running
+  cpu: 0.4% of 400% (4 CPUs)
+  memory: 0.10 GiB of 7.77 GiB used (1%), 7.67 GiB available
+```
+
 ### Machine-readable errors
 
 Every command takes `--error-format json`, which reports a failure on stderr as
@@ -167,7 +176,7 @@ The server inside the machine must listen on `0.0.0.0` (or the machine's own add
 
 ### Publish a Unix socket
 
-`machine create` takes two socket flags, both repeatable. `--expose-socket` makes a socket the
+`machine create` and `machine run` take two socket flags, both repeatable. `--expose-socket` makes a socket the
 guest listens on reachable from the host, and `--mount-socket` puts a host socket inside the
 guest so a guest process can reach a host service:
 
@@ -375,6 +384,24 @@ macOS 15 or later; on Linux it means nested KVM is enabled, through `kvm_intel.n
 Running a Docker daemon in a machine does not need this flag. Containers share the guest kernel,
 so [Docker in a Machine](/docs/guides/docker-in-a-machine) works without it.
 
+### Connect machines on a named network
+
+Machines created with the same `--network NAME` reach each other directly by address; machines on
+different networks cannot:
+
+```bash
+smolvm machine create --name db  --image alpine --network lab
+smolvm machine create --name app --image alpine --network lab
+smolvm machine start --name db && smolvm machine start --name app
+smolvm machine exec --name db -- ip -4 addr show eth0
+```
+
+Each member gets a `100.96.N.2` address when it starts, which can change after a stop and start,
+so read it rather than hardcoding it. Names do not resolve: `app` reaches `db` by its address
+only. Each network leases addresses from its own pool, so two networks can hand out the same one.
+`--network` implies `--net`, needs the virtio-net backend, and cannot be combined with
+`--guest-subnet`.
+
 ### Moving the guest off the default range
 
 A virtio-net guest's link is `100.96.0.0/30` by default: the gateway and resolver take the first
@@ -453,6 +480,8 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--smolfile`, `-s` | Read configuration from a Smolfile |
 | `--block-io` | Host block I/O engine, `sync` or `async` |
 | `--disk-durability` | `full` (the default): a guest `fsync` waits for the host's disk. `deferred`: guest writes reach it on the host's schedule, much faster for fsync-heavy work such as database commits, but a host crash can lose recent writes |
+| `--stop-signal` | On `machine create`: the signal the workload gets when the machine stops, so it can save its state and exit; a name such as `SIGINT` or a number, `SIGTERM` by default |
+| `--stop-timeout` | On `machine create`: seconds the workload gets to exit after that signal before it is killed, 10 by default and at most 300 |
 | `--stop-on-exit` | Stop the machine once its workload exits, whatever the status, flushing storage first |
 | `--seed-digest-ttl` | Reuse an image digest resolved at most this many seconds ago when seeding |
 | `--guest-subnet` | IPv4 subnet for the guest link, such as `10.200.0.0/30` |

@@ -43,7 +43,7 @@ Cloud clients do not need a local hypervisor. A local machine and a cloud machin
 
 ## smol SDK and CLI
 
-The public `smol` project provides the `smolmachines` packages for TypeScript and Python, plus the `smol` orchestration CLI. Its `Machine` API can embed smolvm for local use or connect to smol cloud.
+The public `smol` project provides SDKs for TypeScript, Python, Go and Rust, plus the `smol` orchestration CLI. Its `Machine` API can embed smolvm for local use or connect to smol cloud.
 
 The SDK is a control surface, not a prerequisite. Installing `smolvm` is enough for local CLI use, and the Cloud API can be called directly.
 
@@ -54,4 +54,4 @@ The SDK is a control surface, not a prerequisite. Installing `smolvm` is enough 
 |---|---|---|
 | smolvm | Your computer or infrastructure | `smolvm` CLI and local engine |
 | smol cloud | smol machines infrastructure | Cloud API, SDK, or CLI |
-| smol SDK / CLI | Local engine or smol cloud | TypeScript, Python, or `smol` |
+| smol SDK / CLI | Local engine or smol cloud | TypeScript, Python, Go, Rust, or `smol` |

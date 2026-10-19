@@ -199,7 +199,7 @@ Local only:
 
 ### `endpoint`
 
-Cloud only. Builds authenticated HTTP and WebSocket connection details for a published guest port without making a request:
+Builds HTTP and WebSocket connection details for a published guest port without making a request. On a local machine it resolves to the current `127.0.0.1` host port with no headers; on cloud it uses the authenticated connect route and carries the auth header:
 
 ```ts
 const { httpUrl, wsUrl, headers } = machine.endpoint(8080, "/healthz");

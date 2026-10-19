@@ -35,6 +35,8 @@ Local smolvm guest networking is off by default, and a machine usually does not 
 
 Egress can be restricted with hostname and CIDR allowlists. A platform policy also blocks selected sensitive address ranges. To keep the public internet open while closing everything private, pass `--block-private`: it blocks the LAN, internal and link-local ranges, cloud metadata, carrier-grade NAT and the host's loopback. `--allow-private CIDR` reopens one private range under it, such as an internal registry, and cloud metadata stays blocked whatever it names. In a Smolfile these are `block_private` and `allow_private` under `[network]`. There is no general deny list.
 
+Behind a corporate proxy or a TLS-inspecting firewall, two flags carry the host's setup into a machine. `--use-host-proxy` passes the host's `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` and `NO_PROXY`, or on macOS the system proxy, into the workload, rewriting a proxy on the host's loopback to an address the guest can reach; the run is refused when nothing answers there. `--trust-host-certs` mounts the certificates the host trusts at `/etc/smolvm-host-trust/ca-bundle.pem`, read-only, for image pulls and the workload, and points `SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE` and similar variables at it. Set `SMOLVM_HOST_CA_BUNDLE` to a PEM file when the host's trust store is not the system default.
+
 Published ports and outbound access are separate choices. Grant only the routes and ports a workload needs.
 
 A workload that builds its own network interface, such as a VPN client running
