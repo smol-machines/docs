@@ -1195,7 +1195,8 @@ which names neither the flag nor the precondition. Started with
 source pause. Branchability is decided at start and cannot be turned on afterwards. **The same on
 v1.18.2 on macOS, 2026-09-24**, with the same message. On Linux aarch64 v1.18.2 took the checkpoint
 of a machine started without the flag: `Checkpointed ... (55 MiB written, 1.781s total, 1.242s
-source pause)`.
+source pause)`. From v1.31.1 neither host needs the flag to checkpoint or pause a machine; only
+branching does.
 
 **v1.20.0 lifted it on macOS for a checkpoint file**, measured on 2026-10-03 with a 1024 MiB alpine
 machine started without the flag on each release: v1.19.0 and v1.19.3 failed with the message above,
