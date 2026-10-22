@@ -34,7 +34,7 @@ on Linux aarch64 on v1.22.2 on 2026-10-03.
 - [ ] 2. create-source.sh           a machine with state in RAM and on disk
 - [ ] 3. checkpoint.sh / schedule.sh   captures, with retention
 - [ ] 4. restore.sh                 any generation, into a new machine
-- [ ] 5. pause and resume           the restored machine, or any branchable one
+- [ ] 5. pause and resume           the restored machine, or any running one
 - [ ] 6. branch-point.sh            children plus a checkpoint of where they started
 - [ ] 7. cleanup.sh                 machines, checkpoints, and smolvm's restore cache
 ```
@@ -439,11 +439,15 @@ case "$kernel" in
             emit socket_path_status ok
         fi
         # v1.20.0 lifted the flag for a checkpoint file and for pause; a stored
-        # capture, which is what these scripts take, still needs it on v1.22.2.
-        emit checkpoint_needs_branchable yes
-        if [ -n "${version:-}" ] && [ "$(printf '%s\n%s\n' "$version" 1.20.0 | sort -V | head -1)" = "1.20.0" ]; then
+        # capture, which is what these scripts take, still needed it on v1.22.2
+        # and no longer does on v1.31.1.
+        if [ -n "${version:-}" ] && [ "$(printf '%s\n%s\n' "$version" 1.31.1 | sort -V | head -1)" = "1.31.1" ]; then
+            emit checkpoint_needs_branchable no
+        elif [ -n "${version:-}" ] && [ "$(printf '%s\n%s\n' "$version" 1.20.0 | sort -V | head -1)" = "1.20.0" ]; then
+            emit checkpoint_needs_branchable yes
             note "on macOS machine checkpoint --store refuses a machine that was not started with machine start --branchable, with deferred durable save requires file-backed guest RAM, which names neither. A checkpoint file and a pause do not need it from v1.20.0. The flag cannot be added to a running machine; the scripts here always start with it."
         else
+            emit checkpoint_needs_branchable yes
             note "on macOS machine checkpoint and machine pause refuse a machine that was not started with machine start --branchable, and the error, guest RAM has no file-backed regions, names neither. The flag cannot be added to a running machine; the scripts here always start with it."
         fi
         ;;
@@ -1157,7 +1161,7 @@ fi
 
 Each entry was hit on v1.18.2 on 2026-09-24 unless it says otherwise.
 
-### `--branchable` is decided at start, and macOS needs it for more than branching
+### `--branchable` is decided at start, and older macOS releases needed it for more than branching
 
 `machine branch` against a machine started without it, on either host:
 
@@ -1177,7 +1181,8 @@ snapshot/restore failed: retain COW guest-memory generation: guest RAM has no fi
 
 `pause` prints the same text, because a pause is a checkpoint underneath, and the machine keeps
 running. On Linux aarch64 both succeeded without the flag: a checkpoint of 55 MiB with a 1.242 s
-pause, and a pause and resume. Start every machine you might checkpoint with `--branchable`.
+pause, and a pause and resume. On those releases, start every machine you might checkpoint on macOS
+with `--branchable`.
 
 **From v1.20.0 macOS takes a checkpoint file and a pause without the flag**, measured on v1.20.0,
 v1.20.2, v1.21.1, v1.22.0 and v1.22.2, where v1.19.0 and v1.19.3 still refused. **A stored capture
@@ -1188,6 +1193,11 @@ Error: agent operation failed: checkpoint machine: libkrun save failed: ERR ENOT
 snapshot/restore failed: retain COW guest-memory generation: deferred durable save requires
 file-backed guest RAM
 ```
+
+**On v1.31.1 neither host needs it to save a machine**, measured on macOS and Linux x86_64 on
+2026-10-22: a machine started without `--branchable` took a checkpoint file, a stored capture
+(`--store`, the second one incremental) and a pause and resume, and a process it was running kept
+its PID through each. Only `machine branch` still needs the flag.
 
 ### `--output` must end in `.checkpoint` or `.smolcheckpoint`, even when it is a directory
 
