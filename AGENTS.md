@@ -64,6 +64,7 @@ page.
 | A task-scoped procedure an agent loads to drive the CLI | `guides/skills/` |
 | The hosted platform, REST API, registry | `cloud/` |
 | A concrete end-to-end task | `guides/` |
+| Using smol machines from another tool or framework | `integrations/` |
 
 ### Page map
 
@@ -144,6 +145,13 @@ page.
 | `guides/skills/cloud-usage.md` | What a run cost, reconciled against uptime and the published rate |
 | `guides/skills/sdk-python.md` | Drive cloud machines from Python, install through delete |
 | `guides/skills/sdk-node.md` | Drive cloud machines from Node, install through delete |
+
+**Integrations**: smol machines inside other tools and frameworks.
+
+| Page | Covers |
+|---|---|
+| `integrations.md` | Every integration, where its code lives, and what it runs on |
+| `integrations/testerarmy.md` | TesterArmy's e2e framework with smol machines as the browser provider |
 
 ## Searching
 
