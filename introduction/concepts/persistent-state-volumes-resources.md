@@ -10,7 +10,7 @@ A machine combines managed guest state with resources and optional host integrat
 
 A persistent machine keeps changes to its managed disk across stop and start operations. Package installations, generated files, and other disk writes remain until the machine is deleted or the state is otherwise replaced.
 
-Not every guest path is on that disk. Memory-backed paths such as `/tmp`, `/run`, and `/dev/shm` hold their contents while the machine runs and are empty again after a stop and start. Write files that must outlive a restart to `/workspace` or another path on the machine filesystem. See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking) for the full breakdown.
+Not every guest path survives a restart. Locally, `/tmp` is a directory on the machine's disk that is emptied each time the machine boots, and `/run` and `/dev/shm` are backed by memory; all three hold their contents while the machine runs and are empty again after a stop and start. Write files that must outlive a restart to `/workspace` or another path on the machine filesystem. See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking) for the full breakdown.
 
 An ephemeral run is cleaned up when it exits. Use a persistent machine, a pack, a volume, or external storage when data must outlive that run.
 

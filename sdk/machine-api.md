@@ -178,7 +178,7 @@ data = machine.read_file("/workspace/config.json")
 
 `writeFile()` / `write_file()` accepts an optional numeric file mode.
 
-Write to a path on the machine filesystem, such as `/workspace`, when the file must outlive the current run. `/tmp` is memory-backed: it holds its contents while the machine runs, and is empty again after a stop and start.
+Write to a path on the machine filesystem, such as `/workspace`, when the file must outlive the current run. `/tmp` holds its contents while the machine runs, and is empty again after a stop and start.
 
 ## Images
 

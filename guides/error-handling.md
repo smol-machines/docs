@@ -223,4 +223,4 @@ Do not let a cleanup error hide the original command failure. Log both, then ret
 5. Run `smolvm machine status --name dev` and record the installed `smolvm --version`.
 6. For local REST failures, reproduce against the OpenAPI document emitted by the installed binary.
 7. For cloud REST failures, include the HTTP status and `x-request-id` in a support report. Remove tokens, injected secrets, and sensitive guest output first.
-8. When a file written earlier is missing, check whether its path is memory-backed. `/tmp`, `/run`, and `/dev/shm` are empty after a stop and start, including an automatic idle stop, so a credential or configuration file kept there is gone once the machine restarts.
+8. When a file written earlier is missing, check whether its path is one that empties at each start. `/tmp`, `/run`, and `/dev/shm` are empty after a stop and start, including an automatic idle stop, so a credential or configuration file kept there is gone once the machine restarts.

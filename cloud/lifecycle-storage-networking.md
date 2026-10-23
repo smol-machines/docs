@@ -51,13 +51,14 @@ The machine filesystem persists across exec and stop/start. It is appropriate fo
 
 ### Paths that do not persist
 
-Some guest paths are backed by memory rather than the machine's storage disk. They keep their contents across exec calls while the machine runs, and are empty again after a stop and start — including a stop triggered by `autoStopSeconds`.
+Some guest paths do not survive a restart. They keep their contents across exec calls while the machine runs, and are empty again after a stop and start, including a stop triggered by `autoStopSeconds`.
 
 | Path | Backing | Across exec | Across stop/start |
 |---|---|---|---|
 | `/workspace` | Storage disk | Persists | Persists |
 | Image filesystem (`/root`, `/etc`, `/usr`, and so on) | Storage disk | Persists | Persists |
-| `/tmp`, `/run`, `/dev/shm` | Memory | Persists | Empty |
+| `/tmp` | Emptied at each start | Persists | Empty |
+| `/run`, `/dev/shm` | Memory | Persists | Empty |
 
 Write anything that must survive a restart to `/workspace` or another path on the machine filesystem. Treat `/tmp` as scratch space for a single run.
 
