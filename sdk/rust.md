@@ -25,7 +25,7 @@ to refuse the fetch, which makes a host with no engine fail rather than reach th
 cloud target needs none of this.
 
 For the local target, the supported hosts are macOS on Apple Silicon and Linux x64 or arm64 with
-glibc 2.31 or newer, each with a hypervisor: the Hypervisor framework on macOS, KVM on Linux. The
+glibc 2.34 or newer, each with a hypervisor: the Hypervisor framework on macOS, KVM on Linux. The
 cloud target works anywhere the crate builds.
 
 ## Create a local machine
