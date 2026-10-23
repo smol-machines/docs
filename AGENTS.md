@@ -152,6 +152,7 @@ page.
 |---|---|
 | `integrations.md` | Every integration, where its code lives, and what it runs on |
 | `integrations/testerarmy.md` | TesterArmy's e2e framework with smol machines as the browser provider |
+| `integrations/agentid.md` | Agents signing in to smol cloud with AgentID, AgentMail's sign-in for agents |
 
 ## Searching
 

@@ -39,6 +39,14 @@ Ray's sandbox API is experimental in Ray itself, so its shape can change between
 |---|---|---|---|
 | [MCP server](https://github.com/smol-machines/smol/tree/main/sdk/mcp) | `npx -y smolmachines-mcp` gives any MCP client tools to create a machine with a project copied in, run commands, branch, checkpoint, restore and export | [`smolmachines-mcp`](https://www.npmjs.com/package/smolmachines-mcp), in the smol repository | Local engine, or smol cloud with `SMOL_CLOUD_TOKEN` |
 
+## Sign-in
+
+AgentID does not start machines. It is a way for an agent to sign in to smol cloud with an account of its own.
+
+| Integration | What it does | Code | Runs on |
+|---|---|---|---|
+| [AgentID](/docs/integrations/agentid) by AgentMail | An agent signs in to smol cloud with its own AgentMail inbox, through OpenID Connect, into an account of its own or as a member of your organization | Built into the smol cloud sign-in page | smol cloud |
+
 ## Add an integration
 
 To propose an integration or report one that is missing from this page, open an issue on [smol-machines/docs](https://github.com/smol-machines/docs/issues).
