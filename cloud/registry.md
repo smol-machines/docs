@@ -120,6 +120,18 @@ Creating a cloud machine from a `.smolmachine` reference, where enabled, uses a 
 }
 ```
 
+A bare name such as `debian` or `alpine:3.20` resolves to your own artifact of that name when you have one, otherwise to the official `library/` artifact, and to the Docker Hub image of that name only when the registry answers that neither exists. A hostless `namespace/name` resolves to your own artifact of that name when you have one, otherwise to that Docker Hub image; a reference with a registry host is used as written.
+
 Packed artifacts are architecture-specific. Set optional `arch` to `amd64` or `arm64` when you need an explicit placement constraint. When it is omitted, the control plane attempts to resolve the architecture from the registry manifest and place the machine on a matching node; specify it if manifest resolution is unavailable.
+
+To run a private image from a registry smol cloud does not host, such as `ghcr.io` or Docker Hub, store a pull credential for that host first:
+
+```text
+PUT    /v1/registry/credentials             {"registry": "ghcr.io", "username": "...", "password": "..."}
+GET    /v1/registry/credentials
+DELETE /v1/registry/credentials/{registry}
+```
+
+`docker.io` covers references with no host. The password is sent to the node for each start only and is never returned; the list shows the username. Without a credential the pull fails inside the guest with `401`.
 
 This artifact workflow does not move a running local VM into cloud; `smol machine move` does, as [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) describes.

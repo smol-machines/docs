@@ -144,7 +144,8 @@ For an ephemeral run, `image` plus `init` is baked once into a cached artifact
 and later runs of the same pair start from it. Files init wrote under the
 working directory are captured with it, so a cached run does not start with them
 missing. Pass `--no-init-cache` when init depends on live volume contents and
-cannot safely be reused, or `--rebuild-init-cache` to rebuild it once.
+cannot safely be reused, or `--rebuild-init-cache` to rebuild it once. When an init command fails, the run prints that
+command's output and its exit status.
 
 The same commands can be given on the command line with `--init`, which is
 accepted on `machine run` as well as `machine create`. When a Smolfile also sets
@@ -183,10 +184,13 @@ init-layer cache, and is unaffected.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `allow_hosts` | string array | Hostnames whose resolved IP addresses may be reached. Setting it selects the `virtio-net` backend, because the allow list is enforced by the host-side gateway. |
+| `allow_hosts` | string array | Hostnames, with their subdomains, whose resolved IP addresses may be reached. Setting it selects the `virtio-net` backend, because the allow list is enforced by the host-side gateway. |
 | `allow_cidrs` | string array | Allowed IP addresses or CIDR ranges, such as `"10.0.0.0/8"`. Setting it also selects the `virtio-net` backend, for the same reason. |
 | `block_private` | boolean | Block private, internal and link-local destinations while the public internet stays open. Cloud metadata is blocked either way. |
 | `allow_private` | string array | Private ranges to reopen under `block_private`, which it implies. |
+| `allow_host_patterns` | string array | Exact hostnames, or `*.domain` for subdomains only. |
+| `allow_udp` | string array | UDP destinations as `CIDR[:PORT[-END]]`. |
+| `deny_cidrs` | string array | CIDR ranges refused before any allow is checked, so a deny wins over every allow list. |
 
 ```toml
 net = true
@@ -303,9 +307,10 @@ ssh_agent = true
 [secrets]
 DATABASE_URL = { from_env = "PROD_DATABASE_URL" }
 TLS_KEY = { from_file = "/absolute/path/to/tls.key" }
+NPM_TOKEN = { from_keychain = "npm/ci" }
 ```
 
-`from_env` reads a host environment variable and `from_file` reads an absolute host file path at workload launch. The resolved plaintext is injected into the guest, while the reference is stored in the machine record and packed artifact so it can be resolved again on a trusted local host. See [Isolation, networking, and credentials](/docs/introduction/concepts/isolation-networking-credentials).
+`from_env` reads a host environment variable, `from_file` reads an absolute host file path, and `from_keychain` reads a macOS Keychain or Linux Secret Service item, `SERVICE[/ACCOUNT]`, at workload launch. The resolved plaintext is injected into the guest, while the reference is stored in the machine record and packed artifact so it can be resolved again on a trusted local host. See [Isolation, networking, and credentials](/docs/introduction/concepts/isolation-networking-credentials).
 
 When the workload only needs to *use* a key in request headers, bind it as a credential instead of injecting it. The guest receives a placeholder in the variable; the host substitutes the real value only on HTTPS requests to the listed hosts, read from the `[secrets]` reference of the same variable name or from the host environment.
 

@@ -40,6 +40,7 @@ Current public pricing states that stopped machines have no base, CPU, or memory
 The create request can include:
 
 - `autoStopSeconds`: stop the machine after this many seconds of inactivity. Activity is anything dispatched to the machine — exec, sessions, file transfers, ingress traffic — and an in-flight exec keeps the machine alive even past the timeout. The timer is checked by a sweep that runs every 15 seconds, so expect the stop to land within about 15 seconds after the idle deadline.
+  A machine that publishes a port and sets no `autoStopSeconds` can still be stopped when idle by the platform's default timeout, unless its plan includes always-on. Set `autoStopSeconds` yourself to choose the timeout; a machine with no published port is not stopped this way.
 - `ttlSeconds`: hard lifetime limit — the machine is deleted this many seconds after creation regardless of activity, on the same 15-second sweep.
 - `ephemeral`: the machine is deleted (not kept as stopped) once it stops.
 
@@ -51,13 +52,14 @@ The machine filesystem persists across exec and stop/start. It is appropriate fo
 
 ### Paths that do not persist
 
-Some guest paths are backed by memory rather than the machine's storage disk. They keep their contents across exec calls while the machine runs, and are empty again after a stop and start — including a stop triggered by `autoStopSeconds`.
+Some guest paths do not survive a restart. They keep their contents across exec calls while the machine runs, and are empty again after a stop and start, including a stop triggered by `autoStopSeconds`.
 
 | Path | Backing | Across exec | Across stop/start |
 |---|---|---|---|
 | `/workspace` | Storage disk | Persists | Persists |
 | Image filesystem (`/root`, `/etc`, `/usr`, and so on) | Storage disk | Persists | Persists |
-| `/tmp`, `/run`, `/dev/shm` | Memory | Persists | Empty |
+| `/tmp` | Emptied at each start | Persists | Empty |
+| `/run`, `/dev/shm` | Memory | Persists | Empty |
 
 Write anything that must survive a restart to `/workspace` or another path on the machine filesystem. Treat `/tmp` as scratch space for a single run.
 
@@ -136,6 +138,16 @@ Allow only selected hosts and CIDR ranges:
 
 An allow list must include every registry, package host, API, and redirect target the workload needs. Prefer `blocked` or `allowCidrs` for untrusted workloads.
 
+### Credentials the machine never holds
+
+Store a secret once with `PUT /v1/credentials/github`, giving the variable a machine sees, the hosts the value may go to, and the value:
+
+```json
+{"envVar": "GITHUB_TOKEN", "hosts": ["api.github.com"], "value": "ghp_..."}
+```
+
+A machine created with `"credentials": ["github"]` sees a placeholder in `GITHUB_TOKEN`. Its node replaces the placeholder with the value only on HTTPS requests to the listed hosts, which are exact names: no wildcards or IP addresses. The value is never returned: `GET /v1/credentials` lists names, variables and hosts. Replacing a credential reaches bound machines at their next boot, and after `DELETE /v1/credentials/{name}` a bound machine fails to start until the credential is stored again.
+
 ## Ingress and published ports
 
 Publish a guest port in the create request:
@@ -168,6 +180,12 @@ To change the ports of a machine that already exists, send the whole new list to
 
 A client that cannot send an API key, such as a sandbox framework that calls its tunnel URLs directly, can use port links instead. `POST /v1/machines/{id}/port-links` returns a login-free URL for each published port, `https://p<port>-<token>.<appsDomain>`. Anyone holding a link reaches the port, so treat it as a credential. The machine keeps one token, so asking again returns the same links and a port published later is reached with the same token; `DELETE /v1/machines/{id}/port-links` revokes every link at once.
 
+### Custom domains
+
+To serve a machine or group on a domain you own, claim it with `POST /v1/custom-domains`, giving `domain`, `targetKind` (`machine` or `group`) and `targetId`, or from [Domains](/console/domains) in the console. The response lists the DNS records to create: a TXT record at `_smolmachines-challenge.<domain>` holding a token, and a CNAME target for a subdomain (an apex domain gets an A record target where one is offered). Then call `POST /v1/custom-domains/{domain}/verify`; the first account to pass the TXT check owns the name, and other claims on it are dropped. `DELETE /v1/custom-domains/{domain}` removes it.
+
+Traffic on a verified domain is public, with no smol cloud login. An account holds at most 10 unverified claims and sends at most 30 claims an hour, and an unverified claim lapses after 7 days.
+
 Verify port and ingress fields in the API Explorer for the deployment you use.
 
 ## Running a command as a chosen user
@@ -194,7 +212,7 @@ Seeing that means the deployment is behind, not that the flag is wrong.
 
 ## Branches and checkpoints
 
-Checkpoints are how you save a cloud machine and get back to a known-good state. A checkpoint captures a running machine, guest RAM and processes included, into durable cloud storage, and can be pulled down as a `.smolcheckpoint` artifact. As locally, the machine has to be branchable before it can be captured: deploy it with `smol cloud deploy --branchable`, or create it with `"branchable": true`.
+Checkpoints are how you save a cloud machine and get back to a known-good state. A checkpoint captures a running machine, guest RAM and processes included, into durable cloud storage, and can be pulled down as a `.smolcheckpoint` artifact. Any running machine can be captured; only branching needs a machine created branchable.
 
 ```bash
 smol cloud checkpoint create myapp

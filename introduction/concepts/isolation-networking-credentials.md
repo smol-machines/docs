@@ -33,9 +33,11 @@ An explicitly set variable always wins, so `SMOLVM_SECCOMP=off` remains the esca
 
 Local smolvm guest networking is off by default, and a machine usually does not need it for its image: `machine create` fetches a registry image on the host, and an ephemeral run starts from a shared seed unless seeding is turned off, as the [CLI reference](/docs/local/machine-lifecycle-cli-reference) describes. Beyond the image, enable guest networking only when the workload must resolve DNS, call an external service, or accept published traffic. A networked machine resolves names through the host's own resolver, so a VPN or corporate network that only answers DNS from its own resolver works without extra configuration; pass `--dns <IP>` to point the guest somewhere else, and `--dns-option` to add resolver options such as `timeout:1`. A cloud machine created without a `network` block gets open outbound access by default; set `network` explicitly when egress policy matters.
 
-Egress can be restricted with hostname and CIDR allowlists. A platform policy also blocks selected sensitive address ranges. To keep the public internet open while closing everything private, pass `--block-private`: it blocks the LAN, internal and link-local ranges, cloud metadata, carrier-grade NAT and the host's loopback. `--allow-private CIDR` reopens one private range under it, such as an internal registry, and cloud metadata stays blocked whatever it names. In a Smolfile these are `block_private` and `allow_private` under `[network]`. There is no general deny list.
+Egress can be restricted with hostname and CIDR allowlists. A platform policy also blocks selected sensitive address ranges. To keep the public internet open while closing everything private, pass `--block-private`: it blocks the LAN, internal and link-local ranges, cloud metadata, carrier-grade NAT and the host's loopback. `--allow-private CIDR` reopens one private range under it, such as an internal registry, and cloud metadata stays blocked whatever it names. In a Smolfile these are `block_private` and `allow_private` under `[network]`. To refuse a range outright, pass `--deny-cidr CIDR` (Smolfile `deny_cidrs` under `[network]`): a deny is checked before any allow, so it wins over every allow list, and it implies `--net`.
 
 Behind a corporate proxy or a TLS-inspecting firewall, two flags carry the host's setup into a machine. `--use-host-proxy` passes the host's `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` and `NO_PROXY`, or on macOS the system proxy, into the workload, rewriting a proxy on the host's loopback to an address the guest can reach; the run is refused when nothing answers there. `--trust-host-certs` mounts the certificates the host trusts at `/etc/smolvm-host-trust/ca-bundle.pem`, read-only, for image pulls and the workload, and points `SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE` and similar variables at it. Set `SMOLVM_HOST_CA_BUNDLE` to a PEM file when the host's trust store is not the system default.
+
+The image pull inside the machine uses `--proxy` and `--no-proxy`, or else the host's `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` and `NO_PROXY`. A proxy on the host's loopback is rewritten to the host's outbound address, so it must listen beyond loopback; when it does not, the pull is refused up front with what to change.
 
 Published ports and outbound access are separate choices. Grant only the routes and ports a workload needs.
 
@@ -48,7 +50,7 @@ client and `--unprivileged` are mutually exclusive.
 
 ## Secrets and SSH keys
 
-Secret injection resolves a host environment variable or file and places the value inside the guest. The value is plaintext from the guest's perspective. Code running in the machine can read it.
+Secret injection resolves a host environment variable, file, or keychain item and places the value inside the guest. `--secret-keychain GUEST_VAR=SERVICE[/ACCOUNT]` reads a macOS Keychain generic password, or a Linux Secret Service item, at each launch and never stores it. The value is plaintext from the guest's perspective. Code running in the machine can read it.
 
 SSH-agent forwarding follows a different model. Private keys remain in the host agent, and the guest receives access to an agent socket. The guest can request signatures for as long as that socket is available, so forwarding still grants the ability to use the corresponding key.
 
@@ -68,7 +70,7 @@ The first line of output is `SMOL_PLACEHOLDER_NOTION_...`, which is all the gues
 
 The value is read on the host for every request, from a `[secrets]` reference of the same variable name or, failing that, from the host environment variable of that name. Rotating it needs no restart. Each binding lists exact hosts or a wildcard such as `*.example.com`, which matches every subdomain but not `example.com` itself and needs a parent of at least two labels. When the machine also has `allow_hosts` every credential host must fall under it, a wildcard by its whole subtree, so widening the network never widens a credential. An OAuth refresh grant carries its token in the body: end the binding with `:body` and the placeholder is also substituted in an `application/x-www-form-urlencoded` body to the bound hosts. Branched machines inherit placeholders and keep working; each branch is resolved under its own name, so one branch can be cut off without touching the others.
 
-Clients that honor `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `GIT_SSL_CAINFO`, `NODE_EXTRA_CA_CERTS` or `DENO_CERT` work unmodified; the guest is given a bundle of the image's own roots plus a per-machine CA at `/run/smolvm/ca-bundle.pem`. Substitution covers HTTPS on port 443 and needs the default `virtio-net` backend.
+Clients that honor `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `GIT_SSL_CAINFO`, `NODE_EXTRA_CA_CERTS` or `DENO_CERT` work unmodified; the guest is given a bundle of the image's own roots plus a per-machine CA at `/run/smolvm/ca-bundle.pem`. Substitution covers HTTPS on port 443 and a credential selects the `virtio-net` backend on its own.
 
 ## Practical boundary
 

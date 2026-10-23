@@ -25,7 +25,7 @@ to refuse the fetch, which makes a host with no engine fail rather than reach th
 cloud target needs none of this.
 
 For the local target, the supported hosts are macOS on Apple Silicon and Linux x64 or arm64 with
-glibc 2.31 or newer, each with a hypervisor: the Hypervisor framework on macOS, KVM on Linux. The
+glibc 2.34 or newer, each with a hypervisor: the Hypervisor framework on macOS, KVM on Linux. The
 cloud target works anywhere the crate builds.
 
 ## Create a local machine
@@ -93,10 +93,11 @@ path it does not need a separate `start()`.
 | Rust | `smolmachines` on crates.io | this page |
 | TypeScript or JavaScript | `smolmachines` on npm | [SDK Quick Start](/docs/sdk) |
 | Python | `smolmachines` on PyPI | [SDK Quick Start](/docs/sdk) |
+| Go | `github.com/smol-machines/smol/sdk/go` | [SDK Quick Start](/docs/sdk#go) |
 
-All three drive the same engine and the same cloud API. The Node and Python packages embed it
-through NAPI and pyo3; the Rust crate drives the engine as a child process and fetches it when the
-host has none.
+All four drive the same engine and the same cloud API. The Node and Python packages embed it
+through NAPI and pyo3, and the Go module loads it without cgo; the Rust crate drives the engine as a
+child process and fetches it when the host has none.
 
 See [Machine API](/docs/sdk/machine-api) for the method surface the three share, and
 [Use SDK on Cloud](/docs/sdk/with-cloud) for the cloud target's configuration fields.

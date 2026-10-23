@@ -29,14 +29,24 @@ Prefer JavaScript? `smol new tracker --template node`.
 
 ## 2. Run it on your machine
 
+`smol file up` mounts the project folder read-only unless the Smolfile says otherwise, and the
+tracker keeps its database in that folder, so make the mount writable first. In the Smolfile,
+change `volumes = [".:/app"]` to:
+
+```toml
+volumes = [".:/app:rw"]
+```
+
+Then start it:
+
 ```bash
 smol file up
 ```
 
-Open [http://localhost:8000](http://localhost:8000). The app runs inside its
-own microVM — an isolated machine with its own filesystem and its own network.
-Nothing is installed on your laptop, and deleting the machine removes every
-trace of it.
+The first run lists the host folders the machine will see and asks you to approve them; pass
+`--yes` to approve without a terminal. Open [http://localhost:8000](http://localhost:8000). The
+app runs inside its own microVM, an isolated machine with its own filesystem and its own network.
+Nothing is installed on your laptop; the app's database, `tracker.db` (or `tracker.json` with the node template), lands in the project folder.
 
 Edit the code, refresh the page. When you're done for the day, `smol file down`.
 

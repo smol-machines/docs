@@ -91,6 +91,8 @@ The microVM remains the isolation boundary either way. Both conditions are
 open in smolvm.
 :::
 
+A volume reaches a smolvm pod as a copy taken when its container starts, so writes inside the pod do not reach the volume: a `PersistentVolumeClaim` does not keep a pod's data yet. Each node also needs `tc` and `nsenter` on its path and the kernel's `cls_matchall` and `act_mirred` modules, which attach the VM to the pod network.
+
 Treat this as an integration to evaluate in a test cluster before production.
 
 ## Cluster in one machine

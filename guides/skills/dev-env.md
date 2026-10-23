@@ -128,11 +128,11 @@ Observed, not inferred:
 | pip `--user` packages | yes | under `$HOME`, on the overlay |
 | `$HOME/...` files | yes | overlay |
 | files written at `/` | yes | overlay |
-| `/tmp` | **no** | `tmpfs` |
+| `/tmp` | **no** | emptied at each start, like a `tmpfs` |
 | `/storage/...` | yes | the ext4 disk itself |
 
 The root filesystem is an overlay whose upper layer lives on the machine's ext4 disk, which is why
-writes to `/` persist while `tmpfs` mounts do not.
+writes to `/` persist while `tmpfs` mounts and `/tmp` do not.
 
 ## Traps
 
@@ -637,7 +637,7 @@ check package_version "$after" "$before"
 check home_file    "$(exec_in sh -c 'cat "$HOME/keep.txt" 2>/dev/null')" SURVIVES
 check storage_file "$(exec_in cat /storage/keep/disk.txt)" SURVIVES
 
-# /tmp is tmpfs and is wiped by a stop. Anything a provisioning step leaves
+# /tmp is emptied by a stop. Anything a provisioning step leaves
 # there is gone on the next start, while the same step's writes to $HOME or /
 # persist. This is the asymmetry that surprises people.
 check tmp_file "$(exec_in sh -c 'cat /tmp/scratch.txt 2>/dev/null || echo WIPED')" WIPED
@@ -939,7 +939,7 @@ root. `user` also takes a numeric `uid[:gid]`, which `machine create --help` giv
 match the owner of a mounted host directory: on v1.22.2 on macOS arm64, `machine run -v
 "$PWD/src:/app" --user "$(id -u):$(id -g)"` wrote `/app/w` and the file appeared on the host.
 
-### `/tmp` is tmpfs and is wiped by a stop
+### `/tmp` is wiped by a stop
 
 Anything a provisioning step leaves in `/tmp` is gone on the next start, while the same step's
 writes to `$HOME` or `/` persist. What survives, verified by writing one file per filesystem and
@@ -950,7 +950,7 @@ restarting:
 | pip `--user` packages | yes | under `$HOME`, on the overlay |
 | `$HOME/...` files | yes | overlay |
 | files written at `/` | yes | overlay |
-| `/tmp` | **no** | `tmpfs` |
+| `/tmp` | **no** | emptied at each start, like a `tmpfs` |
 | `/storage/...` | yes | the ext4 disk itself |
 
 Read from inside the guest, the mechanism is an overlay whose upper layer lives on the machine's

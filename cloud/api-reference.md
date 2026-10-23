@@ -48,6 +48,10 @@ Machine creation accepts an OCI image or a `.smolmachine` registry reference as 
 
 When `resources` is omitted, a machine currently defaults to 4 vCPUs and 8192 MB of memory. When `network` is omitted, outbound access defaults to **open** — set `network.mode` explicitly (`blocked` or `allowCidrs`) when egress policy matters. Note a `blocked` machine also cannot pull its image, which runs in-guest, unless the image is already cached on its node. Larger machines cost more, so pass `resources` explicitly (for example `{"cpus": 1, "memoryMb": 256}`) rather than relying on the default. Disks can be configured up to 16 TiB where capacity is available. Check the OpenAPI document for the current request limits.
 
+Machine and session responses list `env` with every value replaced by `[REDACTED]`. Values reach the machine but are never read back, so do not copy a response's `env` into a new create.
+
+`nestedVirt: true` exposes the host's virtualization extensions so the guest can run its own hypervisor. It is included with the Startup and Enterprise plans; on any other plan the create is refused with `422` `nested_virt_unavailable`, naming the plan. It is also refused with the same code when no node offers it.
+
 ### Commands and sessions
 
 Run a command with:
@@ -177,7 +181,7 @@ The API supports file upload and download for a machine. Use the current OpenAPI
 
 Request bodies are capped: 1 MiB on the JSON API, 100 MiB on a file upload to `/v1/machines/{id}/files/...`, and 10 MiB per request through the connect route. A larger body is refused.
 
-Upload targets follow the machine's filesystem layout. Write to `/workspace` or another path on the storage disk when the file must survive a stop and start; `/tmp` is memory-backed and is empty after the machine restarts. An upload whose target resolves through a symlink into a memory-backed path fails instead of writing the file. See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking).
+Upload targets follow the machine's filesystem layout. Write to `/workspace` or another path on the storage disk when the file must survive a stop and start; `/tmp` is empty after the machine restarts. An upload whose target resolves through a symlink into a memory-backed path fails instead of writing the file. See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking).
 
 ### Operational endpoints
 
@@ -215,6 +219,8 @@ Metering semantics to build billing on:
 - `DELETE /v1/machines/{id}?includeUsage=true` returns `200` with the settled usage and cost in the response body — the recommended pattern for short-lived machines (create, run a job, delete, bill from the DELETE response). Without the flag, DELETE returns `204` as before.
 - `GET /v1/machines/{id}/usage` keeps working for 30 days after a machine is deleted.
 
+When the prepaid balance runs out, running work continues for 48 hours, with an email at the start and before the end. Then running machines are stopped, and requests that start or create work are refused with `402` (`payment_required`, detail "balance exhausted"). Reads, stop and delete still work. A plan with a monthly budget, or the egress budget, refuses the same way when reached. `PATCH /v1/account` with `lowBalanceThresholdMicros` sets the low-balance email (`0` turns it off), and auto-recharge, set from [billing](/console/billing), charges the card on file a chosen amount when the balance falls to a threshold.
+
 The [cloud-usage](/docs/guides/skills/cloud-usage) skill packet reads these totals and reconciles one machine's bill against its uptime and the published rate.
 
 ### API keys
@@ -232,6 +238,8 @@ cannot carry: a key may hold only `machine:`, `volume:`, `usage:read` and `group
 keys are managed from the [console](/console), and a call with an API key gets a `403` naming the
 missing scope. The plaintext value of a newly created key is shown once.
 
+Shared accounts, their members and invitations, and sub-organizations have routes under `/v1/org`, described on [Organizations](/docs/cloud/organizations).
+
 ## Readiness and lifecycle
 
 Do not treat `state: "started"` as application readiness. Poll `GET /v1/machines/{id}` until `ready` is `true` before executing dependent work or connecting to a published service. `ready` flips once the machine answers a probe — its published port accepts connections, or, for machines with no published port, its guest agent responds — normally within a few seconds of start; `readyAt` records when. Exec does not require readiness: it auto-starts a stopped machine and waits for the agent itself.
@@ -245,24 +253,30 @@ Stopping a machine preserves its stored state. Deleting it removes the machine. 
 Three ceilings apply to every tenant, and all three come from the plan the
 account is on rather than from the platform:
 
-- **How many machines you may hold** — counted across every state, not just
+- **How many machines you may hold**: counted across every state, not just
   running ones, so a stopped machine still occupies a slot until it is deleted.
-- **How many may run at once** — counted over `started` and `creating`.
-- **How large one machine may be** — vCPU, memory, and disk, applied per
+- **How many may run at once**: counted over `started`, `creating` and `pausing`,
+  leaving out a source frozen as a branch base.
+- **How large one machine may be**: vCPU, memory, and disk, applied per
   machine at create time.
 
 Read your own ceilings rather than assuming them. `GET /v1/account` returns
-`effectiveMaxMachines` alongside the plan it came from, and the plan object
-carries `maxConcurrentMachines`, `maxCpus`, `maxMemoryMb`, and `maxDiskGb`:
+the ones that apply to you now as `effectiveMaxMachines`, `effectiveMaxCpus`,
+`effectiveMaxMemoryMb` and `effectiveMaxDiskGb`. The plan object beside them
+carries the plan's own `maxConcurrentMachines`, `maxCpus`, `maxMemoryMb` and
+`maxDiskGb`. On the free plan an account without a card is held to 4 vCPU per
+machine, which `effectiveMaxCpus` shows, and to 4 running machines, which no
+field reports:
 
 ```bash
 curl -fsSL https://api.smolmachines.com/v1/account \
-  -H "Authorization: Bearer $SMOL_API_KEY"
+  -H "Authorization: Bearer $SMOL_CLOUD_TOKEN"
 ```
 
 The published plans and their ceilings are listed on the
-[pricing page](/pricing). Limits differ between plans; the per-unit rates do
-not, so moving up a plan buys headroom rather than a different price.
+[pricing page](/pricing). Limits differ between plans; the published per-unit
+rates do not, so moving up a published plan buys headroom rather than a
+different price. An Enterprise contract may carry its own rates.
 
 Exceeding a ceiling is refused at create time with `422` and a body naming the
 plan, the limit, and where to change it — nothing is started, so nothing is
@@ -291,7 +305,7 @@ a stopped machine still holds its slot.
 
 ## Errors and request IDs
 
-Use the HTTP status code first. Error bodies are RFC 9457 `application/problem+json`: a stable `code`, a `detail` sentence, and `retryable`, which is true for `408`, `429`, `502`, `503` and `504`; those also carry `Retry-After` in seconds. An exec whose machine stopped under it returns `503` with code `machine_interrupted`: the command may have partly run, and a retry runs it again. For guest exit codes and SDK error patterns, see [Error handling](/docs/guides/error-handling).
+Use the HTTP status code first. Error bodies are RFC 9457 `application/problem+json`: a stable `code`, a `detail` sentence, and `retryable`, which is true for `408`, `429`, `502`, `503` and `504`; those also carry `Retry-After` in seconds. An exec whose machine stopped under it returns `503` with code `machine_interrupted`: the command may have partly run, and a retry runs it again. Two other refusals are worth retrying after a wait: a branch answers `409` "branches of this source made no progress ...; retry" while it waits behind its siblings, and a create answers `422` "no ready <arch> node" while no node of that architecture is up. For guest exit codes and SDK error patterns, see [Error handling](/docs/guides/error-handling).
 
 Common statuses include:
 
@@ -310,6 +324,6 @@ Every response includes `x-request-id`. A safe client-provided ID is echoed; oth
 
 ## Checkpoints and branches
 
-Checkpoints capture a running branchable machine, guest RAM and processes included, into durable storage: `POST /v1/machines/{id}/checkpoints` captures one, `GET /v1/machines/{id}/checkpoints` lists them, and `POST /v1/checkpoints/{id}/restore` starts a new machine from one. See [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) for the lifecycle and the CLI equivalents.
+Checkpoints capture any running machine, guest RAM and processes included, into durable storage: `POST /v1/machines/{id}/checkpoints` captures one, `GET /v1/machines/{id}/checkpoints` lists them, and `POST /v1/checkpoints/{id}/restore` starts a new machine from one. See [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) for the lifecycle and the CLI equivalents.
 
 Branch routes are specialized cloud operations. They do not move a running local VM into cloud or provide a portable cross-architecture restore format. `POST /v1/machines/{id}/snapshot` is not implemented and returns `501`; use a checkpoint to capture a running machine, or export a stopped machine's disk to a `.smolmachine` artifact (`POST /v1/machines/{id}/export`, or `smol cloud export`).

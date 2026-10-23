@@ -6,6 +6,9 @@ title: "Pack: ship a prepared machine as one file"
 
 Turns an image, or a machine already provisioned, into a single self-contained artifact that runs on another compatible host. Use when shipping a prepared environment as one file, when a packed artifact runs but the state installed into it is missing, when pack create fails because the VM it boots to pull or export could not start, when an older release refuses to export a branched machine, or when deciding whether to pack from an image or from a machine. Do not use it to keep a machine you re-enter, which is the dev-env packet, or to run untrusted code, which is the throwaway-machine packet.
 
+For macOS first-import performance, storage seed behavior and a file-heavy
+reproduction, see [macOS storage seeds](https://github.com/smol-machines/smolvm/blob/main/docs/pack/references/macos-storage-seeds.md).
+
 Verified on **smolvm v1.29.0** on macOS arm64, 2026-10-15, and on **v1.14.6** on Linux aarch64,
 2026-09-11; the Linux host could not run the packing steps on v1.18.2 or v1.22.2, for the reason in
 "Platform arms". Done means the artifact runs a command in a real VM and, for a machine pack, **the state you installed is still

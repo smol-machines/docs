@@ -48,7 +48,7 @@ started with.
 |---|---|
 | `--cache-disk-dir DIR` | Directory of cache disk bases the API may attach, named by file name in `cacheDisk` on create and never by path. `POST /api/v1/machines/:name/cache-disk/publish` writes a stopped machine's cache, base and writes together, into it as a new base under a new name. Unset, the API refuses cache disks |
 | `--allow-nested-virt` | Permit machines created with `nestedVirt`. Off by default, because it exposes the host kernel's nested virtualization to the guest; turning it off again also stops existing nested machines from starting |
-| `--egress-watchlist PATH` | Record guest traffic to destinations named in a file of `<label> dns-sha256:<hex>` or `<label> ip-sha256:<hex>` lines, and block it on a line that ends in `block`: a matching lookup is answered as nonexistent and a matching connection is dropped. Matches come back as `egressSignals` on the machine, the file is re-read when it changes, and it applies to virtio-net machines |
+| `--egress-watchlist PATH` | Record guest traffic to destinations named in a file of `<label> dns-sha256:<hex>` or `<label> ip-sha256:<hex>` lines, and block it on a line that ends in `block`: a matching lookup is answered as nonexistent and a matching connection is dropped. Matches come back as `egressSignals` on the machine, the file is re-read when it changes, and it applies to virtio-net machines. A TLS server name is matched like a DNS name, and a stratum login is recorded as the signal `stratum` |
 | `--shutdown-grace SECS` | Seconds in-flight requests get once the server stops accepting connections, five by default and capped at 3600. Connections are refused for the whole grace, so to restart without cutting off a long `exec`, wait for `GET /inflight` on the loopback door to report nothing in flight |
 | `--mtls-client-cn CN` | Require this subject CN on the mTLS client certificate. Only applies when serve TLS is configured; unset, every certificate the client CA signed is accepted for every route |
 | `--mtls-allow-peer-blobs` | With `--mtls-client-cn`, also accept other certificates the client CA signed, but only on the peer blob routes under `/p2p/`, for sibling hosts that fetch cached layers from this one |
@@ -72,7 +72,7 @@ started with.
 | `PUT` | `/api/v1/machines/:name/ports` | Replace a machine's published ports, live while it runs; a taken host port answers `409` `PORT_IN_USE` |
 | `POST` | `/api/v1/machines/:name/exec` | Execute a command |
 | `POST` | `/api/v1/machines/:name/exec/stream` | Stream execution over SSE |
-| `PUT` | `/api/v1/machines/:name/files/*path` | Upload a file |
+| `PUT` | `/api/v1/machines/:name/files/*path` | Upload a file: up to 1 GiB with a `Content-Length`, 100 MiB without, `413` beyond. `?uid=`, `?gid=` and `?mode=` (octal) set its owner and permissions; with no owner it belongs to the workload's user |
 | `GET` | `/api/v1/machines/:name/files/*path` | Download a file |
 | `GET` | `/api/v1/machines/:name/logs` | Stream logs over SSE |
 | `POST` | `/api/v1/machines/:name/images/pull` | Pull an OCI image |
@@ -86,6 +86,8 @@ started with.
 A warm pool keeps `desiredReady` workers branched from a source machine and ready to hand out. The source must be started `branchable` and its workload must reach its branch point by running under `smolvm-branch-ready`; until it does, the pool stays provisioning. A lease takes an `idempotencyKey`: repeating a request with the same key and the same body returns the same lease, and the same key with a different body is refused with `409`. A lease expires unless heartbeated, 300 seconds by default, and completing it retires the worker while the pool branches a fresh one.
 
 The HTTP API covers common lifecycle, execution, file, image, volume, export, and branch operations. It does not have complete parity with every CLI command or interactive CLI behavior. Use the generated OpenAPI document as the wire-level reference for your installed release.
+
+A branch request waits for the source up to 60 seconds plus 20 seconds per GiB of its memory, at most 540 seconds, then answers a retryable `503`.
 
 A start takes `branchable`, `branchPoolSize` and `cudaVramLimitMib` in its JSON body or its query string; when both carry one, the query string wins.
 

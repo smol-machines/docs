@@ -100,6 +100,7 @@ page.
 |---|---|
 | `local.md` | Install `smolvm` and run a machine |
 | `local/machine-lifecycle-cli-reference.md` | Every command, and the machine states behind them |
+| `local/smol-cli-reference.md` | Install the `smol` CLI; its commands for local and cloud machines |
 | `local/pack-and-smolmachine-cli.md` | Pack a machine into a portable artifact |
 | `local/local-api-smolvm-serve.md` | Serve the local runtime over HTTP |
 | `local/self-hosting.md` | Run smolvm on your own servers |
@@ -112,6 +113,7 @@ page.
 | `cloud.md` | Deploy and manage machines on smol cloud |
 | `cloud/api-reference.md` | REST API |
 | `cloud/registry.md` | Official and custom registries: publish, discover, pull |
+| `cloud/organizations.md` | Shared accounts, roles, invitations and sub-organizations |
 | `cloud/lifecycle-storage-networking.md` | How cloud machines start, persist, and are reached |
 | `cloud/examples.md` | Worked examples against the hosted platform |
 

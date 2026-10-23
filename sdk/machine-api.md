@@ -36,7 +36,7 @@ const machine = await Machine.connect(id, connection?);
 machine = Machine.connect(machine_id, conn=None)
 ```
 
-For local, pass the name of a persisted machine, a paused one included. For cloud, pass the `mach-...` machine ID. `connect()` does not wait for readiness; call `waitUntilReady()` or `wait_until_ready()` before use.
+For local, pass the name of a persisted machine, a paused one included. For cloud, pass the `mach-...` machine ID. On cloud `connect()` does not wait for readiness; call `waitUntilReady()` or `wait_until_ready()` before use. Locally it starts a stopped machine and returns once it is ready.
 
 `Machine.probe(connection?)` (`Machine.probe(conn)` in Python) checks a cloud connection before any machine exists: it throws unless the key is accepted and the base URL answers with a machine list.
 
@@ -45,7 +45,7 @@ For local, pass the name of a persisted machine, a paused one included. For clou
 | TypeScript | Python | Result |
 |---|---|---|
 | `machine.name` | `machine.name` | Machine name or identifier |
-| `await machine.state()` | `machine.state()` | `"created"`, `"started"`, `"running"`, or `"stopped"` |
+| `await machine.state()` | `machine.state()` | `"created"`, `"started"`, `"running"`, `"pausing"`, `"paused"`, or `"stopped"` |
 | `await machine.ready()` | `machine.ready()` | Whether the machine can accept work |
 | `await machine.readyAt()` | `machine.ready_at()` | RFC 3339 ready timestamp, or null |
 | `await machine.waitUntilReady(options?)` | `machine.wait_until_ready(timeout_s=120, interval_s=1)` | Wait until ready or raise |
@@ -90,7 +90,7 @@ result = machine.exec(
 )
 ```
 
-On cloud, `background: true` (`ExecOptions(background=True)`) starts the command detached and returns at once with its `pid`, leaving it running after the call ends.
+`background: true` (`ExecOptions(background=True)`) starts the command detached, on either target, and returns at once with its `pid`, leaving it running after the call ends.
 
 ### `run`
 
@@ -178,7 +178,7 @@ data = machine.read_file("/workspace/config.json")
 
 `writeFile()` / `write_file()` accepts an optional numeric file mode.
 
-Write to a path on the machine filesystem, such as `/workspace`, when the file must outlive the current run. `/tmp` is memory-backed: it holds its contents while the machine runs, and is empty again after a stop and start.
+Write to a path on the machine filesystem, such as `/workspace`, when the file must outlive the current run. `/tmp` holds its contents while the machine runs, and is empty again after a stop and start.
 
 ## Images
 
@@ -246,6 +246,10 @@ Cloud only. `portLinks()` (`port_links()`) returns a login-free URL for each pub
 | `await machine.resume(options?)` | `machine.resume()` | Resumes the saved execution |
 | `await machine.delete()` | `machine.delete()` | Stops the machine and permanently deletes its storage |
 
+Locally, `stop()` and `delete()` cut off commands and file transfers still running, which fail with `SmolError` code `INTERRUPTED`. Pass `{ drainSecs: 30 }` (`drain_secs=30`) to let them finish for up to that long first; `timeoutSecs` (`timeout_secs`) sets how long the workload gets to exit after its stop signal.
+
+A local machine belongs to the process that started it. Node and Go stop that process's machines on `SIGINT` or `SIGTERM` and then re-raise the signal, and Python stops them when the interpreter exits. When your framework owns shutdown, set `handleSignals: false` in `ConnectOptions` (Go: `NoSignalHandling`) and stop or delete the machines yourself; create with `detach` to keep a machine running after the process ends.
+
 `start()` and `resume()` wait for readiness; pass `{ waitUntilReady: false }`, or `wait_until_ready=False` in Python, to return as soon as the request is accepted.
 
 Three more are cloud only: `info()` returns the machine's full cloud record, `logs(tail)` the last lines of its console log (100 by default), and `exportArtifact()` (`export_artifact()`) exports the stopped machine as a `.smolmachine` in your registry namespace. `Machine.deleteCheckpoint(id)` (`Machine.delete_checkpoint(id)`) deletes a durable cloud checkpoint, or a local checkpoint file by path; a cloud checkpoint a machine was restored from, or that holds a paused machine's saved execution, is refused until that machine is gone.
@@ -283,7 +287,7 @@ const clone = await source.branch("clone-1");
 clone = source.branch("clone-1")
 ```
 
-Pass optional port mappings when a clone needs pinned host ports:
+Pass optional port mappings when a clone needs pinned host ports. Locally the clone gets the host port you name; on smol cloud the guest port is kept and the host port is chosen for you.
 
 ```ts
 const clone = await source.branch("clone-1", [{ host: 18080, guest: 8080 }]);
@@ -304,10 +308,9 @@ Cloud branches are node-local and require a branchable source machine. They do n
 
 Local branching runs through the embedded engine, so it needs no CLI: a local source created
 `branchable` branches with the same call, and the child reads what the source wrote. `resize()`
-grows a local machine in place, and `branchBatch()` / `branch_batch()` makes several children at
-once. `checkpoint()` is exposed on both targets, but for a checkpoint of a local machine use the
-`smolvm` CLI: through the embedded engine it currently fails with
-`read CPU features: No such file or directory`.
+grows a machine in place (on smol cloud, `cpus`, `memoryMb` and `storageGb`, the machine's one disk; memory and disk only grow), and `branchBatch()` / `branch_batch()` makes several children at
+once. `checkpoint()` works on both targets; locally it takes the output path of the
+`.checkpoint` file to write.
 
 `Machine.list()` returns the machines on a target, each with its name, state and labels. Labels are
 set at create time and come back on the summary, which is how a caller finds its own machines
@@ -347,8 +350,11 @@ Cloud authentication also reads `SMOL_CLOUD_TOKEN`. The base URL override is `SM
 | `autoStopSeconds` | `auto_stop_seconds` | Cloud | Stop after an idle period |
 | `ttlSeconds` | `ttl_seconds` | Cloud | Delete after a fixed period |
 | `branchable` | `branchable` | Both | Prepare as a live branch source |
-| `env` | `env` | Cloud | Workload environment at creation |
-| `workdir` | `workdir` | Cloud | Workload working directory at creation |
+| `env` | `env` | Both | Workload environment at creation |
+| `workdir` | `workdir` | Both | Workload working directory at creation |
+| `credentials` | `credentials` | Both | Secrets the workload uses without seeing them |
+
+Each `credentials` entry names a guest variable (`envVar`, `env_var` in Python) that holds a placeholder and the exact `hosts` the real value may be sent to; the value is substituted only in requests to those hosts. Locally the `value` stays in this process's memory, or is read from this process's own variable of that name at each start when omitted. On smol cloud it is stored sealed under the entry's `name`, and an entry without a `value` uses the one already stored. `methods` limits a local binding to the listed HTTP methods.
 
 ### `ResourceSpec`
 

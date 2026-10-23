@@ -11,12 +11,14 @@ The local target runs a microVM through the engine embedded in the `smolmachines
 The prebuilt local SDK supports:
 
 - macOS 11 or later on Apple Silicon
-- Linux x86_64 or arm64 with glibc 2.31 or later
+- Linux x86_64 or arm64 with glibc 2.34 or later
 - Linux kernel 5.4 or later, with access to `/dev/kvm`
 
-Common supported Linux distributions include Ubuntu 20.04+, Debian 11+, RHEL 9, and Amazon Linux 2023.
+Common supported Linux distributions include Ubuntu 22.04+, Debian 12+, RHEL 9, and Amazon Linux 2023.
 
-The local SDK is not currently prebuilt for Intel Macs, native Windows, or Linux systems using glibc earlier than 2.31. Use the [cloud target](/docs/sdk/with-cloud) from those hosts.
+The local SDK is not currently prebuilt for Intel Macs, native Windows, or Linux systems using glibc earlier than 2.34. Use the [cloud target](/docs/sdk/with-cloud) from those hosts.
+
+`Machine.localAvailability()` (`smol.local_availability()` in Python, `smol.CheckLocal()` in Go) says whether this host can run local machines without booting one, and returns the error code a failing `create()` would give.
 
 Check Linux KVM access with:
 
