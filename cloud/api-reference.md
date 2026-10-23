@@ -48,6 +48,8 @@ Machine creation accepts an OCI image or a `.smolmachine` registry reference as 
 
 When `resources` is omitted, a machine currently defaults to 4 vCPUs and 8192 MB of memory. When `network` is omitted, outbound access defaults to **open** — set `network.mode` explicitly (`blocked` or `allowCidrs`) when egress policy matters. Note a `blocked` machine also cannot pull its image, which runs in-guest, unless the image is already cached on its node. Larger machines cost more, so pass `resources` explicitly (for example `{"cpus": 1, "memoryMb": 256}`) rather than relying on the default. Disks can be configured up to 16 TiB where capacity is available. Check the OpenAPI document for the current request limits.
 
+Machine and session responses list `env` with every value replaced by `[REDACTED]`. Values reach the machine but are never read back, so do not copy a response's `env` into a new create.
+
 `nestedVirt: true` exposes the host's virtualization extensions so the guest can run its own hypervisor. It is included with the Startup and Enterprise plans; on any other plan the create is refused with `422` `nested_virt_unavailable`, naming the plan. It is also refused with the same code when no node offers it.
 
 ### Commands and sessions
@@ -216,6 +218,8 @@ Metering semantics to build billing on:
 - Stop and delete take a synchronous final metering sample, so usage is fully settled the moment a machine ends.
 - `DELETE /v1/machines/{id}?includeUsage=true` returns `200` with the settled usage and cost in the response body — the recommended pattern for short-lived machines (create, run a job, delete, bill from the DELETE response). Without the flag, DELETE returns `204` as before.
 - `GET /v1/machines/{id}/usage` keeps working for 30 days after a machine is deleted.
+
+When the prepaid balance runs out, running work continues for 48 hours, with an email at the start and before the end. Then running machines are stopped, and requests that start or create work are refused with `402` (`payment_required`, detail "balance exhausted"). Reads, stop and delete still work. A plan with a monthly budget, or the egress budget, refuses the same way when reached. `PATCH /v1/account` with `lowBalanceThresholdMicros` sets the low-balance email (`0` turns it off), and auto-recharge, set from [billing](/console/billing), charges the card on file a chosen amount when the balance falls to a threshold.
 
 The [cloud-usage](/docs/guides/skills/cloud-usage) skill packet reads these totals and reconciles one machine's bill against its uptime and the published rate.
 

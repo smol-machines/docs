@@ -137,6 +137,16 @@ Allow only selected hosts and CIDR ranges:
 
 An allow list must include every registry, package host, API, and redirect target the workload needs. Prefer `blocked` or `allowCidrs` for untrusted workloads.
 
+### Credentials the machine never holds
+
+Store a secret once with `PUT /v1/credentials/github`, giving the variable a machine sees, the hosts the value may go to, and the value:
+
+```json
+{"envVar": "GITHUB_TOKEN", "hosts": ["api.github.com"], "value": "ghp_..."}
+```
+
+A machine created with `"credentials": ["github"]` sees a placeholder in `GITHUB_TOKEN`. Its node replaces the placeholder with the value only on HTTPS requests to the listed hosts, which are exact names: no wildcards or IP addresses. The value is never returned: `GET /v1/credentials` lists names, variables and hosts. Replacing a credential reaches bound machines at their next boot, and after `DELETE /v1/credentials/{name}` a bound machine fails to start until the credential is stored again.
+
 ## Ingress and published ports
 
 Publish a guest port in the create request:
@@ -168,6 +178,12 @@ Set `public: true` only when the service should be reachable without the caller'
 To change the ports of a machine that already exists, send the whole new list to `PUT /v1/machines/{id}/ports`. A started machine serves new ports at once and stops serving removed ones, without a restart; a stopped machine takes them at its next start. A port kept from before keeps its host port.
 
 A client that cannot send an API key, such as a sandbox framework that calls its tunnel URLs directly, can use port links instead. `POST /v1/machines/{id}/port-links` returns a login-free URL for each published port, `https://p<port>-<token>.<appsDomain>`. Anyone holding a link reaches the port, so treat it as a credential. The machine keeps one token, so asking again returns the same links and a port published later is reached with the same token; `DELETE /v1/machines/{id}/port-links` revokes every link at once.
+
+### Custom domains
+
+To serve a machine or group on a domain you own, claim it with `POST /v1/custom-domains`, giving `domain`, `targetKind` (`machine` or `group`) and `targetId`, or from [Domains](/console/domains) in the console. The response lists the DNS records to create: a TXT record at `_smolmachines-challenge.<domain>` holding a token, and a CNAME target for a subdomain (an apex domain gets an A record target where one is offered). Then call `POST /v1/custom-domains/{domain}/verify`; the first account to pass the TXT check owns the name, and other claims on it are dropped. `DELETE /v1/custom-domains/{domain}` removes it.
+
+Traffic on a verified domain is public, with no smol cloud login. An account holds at most 10 unverified claims and sends at most 30 claims an hour, and an unverified claim lapses after 7 days.
 
 Verify port and ingress fields in the API Explorer for the deployment you use.
 
