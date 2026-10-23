@@ -65,6 +65,8 @@ smolvm machine create --name docker --net --image docker:dind -p 8080:8080 \
 
 A container can listen on guest port 8080, and smolvm forwards host port 8080 to it. Dynamic ports chosen later by Docker Compose or Testcontainers are not automatically published through the outer VM boundary. Pin the ports the host must reach.
 
+smolvm itself does not read Compose files. To run a Compose project, start this machine and run `docker compose up` inside it, with the project mounted or copied in.
+
 ## Avoid an unauthenticated Docker TCP endpoint
 
 The vsock-backed Unix socket is the preferred host endpoint. If a client requires TCP, bind the host side to loopback and add TLS or another authentication layer. An unauthenticated Docker API exposed on `0.0.0.0` gives remote callers control of the daemon.
