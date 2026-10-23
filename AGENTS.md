@@ -100,6 +100,7 @@ page.
 |---|---|
 | `local.md` | Install `smolvm` and run a machine |
 | `local/machine-lifecycle-cli-reference.md` | Every command, and the machine states behind them |
+| `local/smol-cli-reference.md` | Install the `smol` CLI; its commands for local and cloud machines |
 | `local/pack-and-smolmachine-cli.md` | Pack a machine into a portable artifact |
 | `local/local-api-smolvm-serve.md` | Serve the local runtime over HTTP |
 | `local/self-hosting.md` | Run smolvm on your own servers |

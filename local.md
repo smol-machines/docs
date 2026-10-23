@@ -21,6 +21,9 @@ the apt, yum and pacman repositories at
 for each, and can be built from source with
 `nix profile install github:smol-machines/smolvm/v1.31.4`.
 
+The `smol` CLI drives the same engine and smol cloud from one command line; see the
+[smol CLI Reference](/docs/local/smol-cli-reference) for its install line.
+
 On macOS, the supported release path is Apple Silicon with macOS 11 or later. On Linux, the host architecture can be x86_64 or aarch64 and must expose KVM at `/dev/kvm`.
 
 ### Windows
