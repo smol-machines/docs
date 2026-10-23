@@ -65,7 +65,7 @@ smolvm machine run --net --oci-cache \
   npm ping --registry=https://registry.npmjs.org
 ```
 
-Hostname and CIDR allow lists reduce the network authority of compromised dependencies or prompt-injected agents. A first-class deny-list is not currently available; if a job needs broad internet access, apply host or fleet network controls as well.
+Hostname and CIDR allow lists reduce the network authority of compromised dependencies or prompt-injected agents. `--deny-cidr` refuses a range even when an allow covers it; hostnames have no deny list, so if a job needs broad internet access, apply host or fleet network controls as well.
 
 ## Use a persistent machine for debugging
 

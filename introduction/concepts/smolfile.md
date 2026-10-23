@@ -187,6 +187,7 @@ init-layer cache, and is unaffected.
 | `allow_cidrs` | string array | Allowed IP addresses or CIDR ranges, such as `"10.0.0.0/8"`. Setting it also selects the `virtio-net` backend, for the same reason. |
 | `block_private` | boolean | Block private, internal and link-local destinations while the public internet stays open. Cloud metadata is blocked either way. |
 | `allow_private` | string array | Private ranges to reopen under `block_private`, which it implies. |
+| `deny_cidrs` | string array | CIDR ranges refused before any allow is checked, so a deny wins over every allow list. |
 
 ```toml
 net = true
