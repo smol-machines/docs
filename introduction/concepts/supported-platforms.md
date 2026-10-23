@@ -28,8 +28,9 @@ WSL2 can use the Linux/KVM path on Windows 11 when nested virtualization and KVM
 
 Native Windows branches and checkpoints machines, with two differences from the other hosts: a
 live branch needs `--freeze-source`, and the incremental checkpoint store, `machine checkpoint
---store`, is refused. It still lacks Vulkan GPU acceleration. A packed `.smolmachine` artifact is
-created there but does not run.
+--store`, is refused. It still lacks Vulkan GPU acceleration. Packing works there too: `pack
+create` uses the two `.ext4` templates shipped beside `smolvm.exe`, so keep them in the same
+folder.
 
 ## Cloud clients
 
