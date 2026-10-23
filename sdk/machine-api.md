@@ -36,7 +36,7 @@ const machine = await Machine.connect(id, connection?);
 machine = Machine.connect(machine_id, conn=None)
 ```
 
-For local, pass the name of a persisted machine, a paused one included. For cloud, pass the `mach-...` machine ID. `connect()` does not wait for readiness; call `waitUntilReady()` or `wait_until_ready()` before use.
+For local, pass the name of a persisted machine, a paused one included. For cloud, pass the `mach-...` machine ID. On cloud `connect()` does not wait for readiness; call `waitUntilReady()` or `wait_until_ready()` before use. Locally it starts a stopped machine and returns once it is ready.
 
 `Machine.probe(connection?)` (`Machine.probe(conn)` in Python) checks a cloud connection before any machine exists: it throws unless the key is accepted and the base URL answers with a machine list.
 
@@ -45,7 +45,7 @@ For local, pass the name of a persisted machine, a paused one included. For clou
 | TypeScript | Python | Result |
 |---|---|---|
 | `machine.name` | `machine.name` | Machine name or identifier |
-| `await machine.state()` | `machine.state()` | `"created"`, `"started"`, `"running"`, or `"stopped"` |
+| `await machine.state()` | `machine.state()` | `"created"`, `"started"`, `"running"`, `"pausing"`, `"paused"`, or `"stopped"` |
 | `await machine.ready()` | `machine.ready()` | Whether the machine can accept work |
 | `await machine.readyAt()` | `machine.ready_at()` | RFC 3339 ready timestamp, or null |
 | `await machine.waitUntilReady(options?)` | `machine.wait_until_ready(timeout_s=120, interval_s=1)` | Wait until ready or raise |
@@ -283,7 +283,7 @@ const clone = await source.branch("clone-1");
 clone = source.branch("clone-1")
 ```
 
-Pass optional port mappings when a clone needs pinned host ports:
+Pass optional port mappings when a clone needs pinned host ports. Locally the clone gets the host port you name; on smol cloud the guest port is kept and the host port is chosen for you.
 
 ```ts
 const clone = await source.branch("clone-1", [{ host: 18080, guest: 8080 }]);
@@ -347,8 +347,8 @@ Cloud authentication also reads `SMOL_CLOUD_TOKEN`. The base URL override is `SM
 | `autoStopSeconds` | `auto_stop_seconds` | Cloud | Stop after an idle period |
 | `ttlSeconds` | `ttl_seconds` | Cloud | Delete after a fixed period |
 | `branchable` | `branchable` | Both | Prepare as a live branch source |
-| `env` | `env` | Cloud | Workload environment at creation |
-| `workdir` | `workdir` | Cloud | Workload working directory at creation |
+| `env` | `env` | Both | Workload environment at creation |
+| `workdir` | `workdir` | Both | Workload working directory at creation |
 
 ### `ResourceSpec`
 
