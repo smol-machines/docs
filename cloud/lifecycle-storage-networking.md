@@ -194,7 +194,7 @@ Seeing that means the deployment is behind, not that the flag is wrong.
 
 ## Branches and checkpoints
 
-Checkpoints are how you save a cloud machine and get back to a known-good state. A checkpoint captures a running machine, guest RAM and processes included, into durable cloud storage, and can be pulled down as a `.smolcheckpoint` artifact. As locally, the machine has to be branchable before it can be captured: deploy it with `smol cloud deploy --branchable`, or create it with `"branchable": true`.
+Checkpoints are how you save a cloud machine and get back to a known-good state. A checkpoint captures a running machine, guest RAM and processes included, into durable cloud storage, and can be pulled down as a `.smolcheckpoint` artifact. Any running machine can be captured; only branching needs a machine created branchable.
 
 ```bash
 smol cloud checkpoint create myapp
