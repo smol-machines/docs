@@ -112,6 +112,7 @@ page.
 | `cloud.md` | Deploy and manage machines on smol cloud |
 | `cloud/api-reference.md` | REST API |
 | `cloud/registry.md` | Official and custom registries: publish, discover, pull |
+| `cloud/organizations.md` | Shared accounts, roles, invitations and sub-organizations |
 | `cloud/lifecycle-storage-networking.md` | How cloud machines start, persist, and are reached |
 | `cloud/examples.md` | Worked examples against the hosted platform |
 

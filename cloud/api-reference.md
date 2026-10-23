@@ -234,6 +234,8 @@ cannot carry: a key may hold only `machine:`, `volume:`, `usage:read` and `group
 keys are managed from the [console](/console), and a call with an API key gets a `403` naming the
 missing scope. The plaintext value of a newly created key is shown once.
 
+Shared accounts, their members and invitations, and sub-organizations have routes under `/v1/org`, described on [Organizations](/docs/cloud/organizations).
+
 ## Readiness and lifecycle
 
 Do not treat `state: "started"` as application readiness. Poll `GET /v1/machines/{id}` until `ready` is `true` before executing dependent work or connecting to a published service. `ready` flips once the machine answers a probe — its published port accepts connections, or, for machines with no published port, its guest agent responds — normally within a few seconds of start; `readyAt` records when. Exec does not require readiness: it auto-starts a stopped machine and waits for the agent itself.
