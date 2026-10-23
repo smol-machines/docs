@@ -10,7 +10,7 @@ Create a persistent cloud machine, run a command, and clean it up through the RE
 
 Sign in at [smolmachines.com/console](/console), open [API Keys](/console/keys), and create a key. Copy it when it is shown.
 
-New accounts currently include $10 monthly free usage, no card required. See [pricing](/pricing) for current limits and rates.
+New accounts get a one-time sign-up credit, no card needed to start. Without a card an account can run up to 4 machines at once of up to 4 vCPU each; adding a card in [billing](/console/billing) lifts it to your plan's limits. If many accounts sign up from the same email domain or network on one day, later ones receive the credit once they add a card. See [pricing](/pricing) for current limits and rates.
 
 Export the key. The SDK and the `smol` CLI read the same two variables:
 

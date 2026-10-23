@@ -273,6 +273,15 @@ machine count quota exceeded: your Standard plan allows 20 machines; upgrade at 
 concurrency limit reached: your Standard plan allows 20 machines running at once; upgrade at https://smolmachines.com/pricing
 ```
 
+An account without a card on file runs up to 4 machines at once of up to
+4 vCPU each, and its refusals say so; adding a card lifts both to the plan's
+limits:
+
+```text
+concurrency limit reached: an account without a card can run 4 machines at once; add a card at https://smolmachines.com/console/billing to run up to your plan's limit
+machine size exceeds what an account without a card can run, up to 4 vCPU, 16 GB memory and 50 GB disk per machine (requested 8 vCPU, 8 GB); add a card at https://smolmachines.com/console/billing to use your plan's full limit
+```
+
 ::: tip
 A count refusal usually means machines were left behind rather than that the
 ceiling is genuinely too low. Ephemeral work should delete its machine when it
