@@ -58,7 +58,7 @@ scripts/create-source.sh smolskill-src                 # for checkpoints and res
 scripts/create-source.sh smolskill-bp --branch-ready   # for a batch branch
 ```
 
-The workload writes a counter into `/tmp` every second, which is tmpfs and so RAM, and a marker to
+The workload writes a counter into `/dev/shm` every second, which is tmpfs and so RAM, and a marker to
 `/root/setup.txt` on disk. A restore that brings the counter back proves memory came back, not only
 the disk. `--branch-ready` makes the workload park in `smolvm-branch-ready` after its setup, which a
 batch branch waits for.
@@ -530,7 +530,7 @@ if [ "$blocked" -eq 0 ]; then emit result ready; else emit result blocked; fi
 #   --branch-ready  the workload does its setup and then parks in smolvm-branch-ready,
 #                   which a batch branch (branch-point.sh --count) needs
 #
-# The workload keeps a counter in /tmp, which is tmpfs and therefore RAM: a
+# The workload keeps a counter in /dev/shm, which is tmpfs and therefore RAM: a
 # restore or a resume that brings the counter back proves memory came back, not
 # only the disk. /root/setup.txt is the disk marker. The machine is started
 # --branchable because on macOS a checkpoint is refused without it and the flag
@@ -559,12 +559,12 @@ case "$NAME" in
     *) printf 'name must start with smolskill- so cleanup.sh will delete it\n' >&2; exit 2 ;;
 esac
 
-counter='i=0; while true; do i=$((i+1)); echo $i > /tmp/ram_counter; sleep 1; done'
+counter='i=0; while true; do i=$((i+1)); echo $i > /dev/shm/ram_counter; sleep 1; done'
 if [ "$READY" -eq 1 ]; then
     # setup, then park; each child continues into the program after --
-    workload="echo SETUP_DONE > /root/setup.txt; echo \$RANDOM > /tmp/ram_token; exec smolvm-branch-ready -- sh -c 'echo CHILD=\$SMOLVM_BRANCH_NAME > /root/child.txt; $counter'"
+    workload="echo SETUP_DONE > /root/setup.txt; echo \$RANDOM > /dev/shm/ram_token; exec smolvm-branch-ready -- sh -c 'echo CHILD=\$SMOLVM_BRANCH_NAME > /root/child.txt; $counter'"
 else
-    workload="echo SETUP_DONE > /root/setup.txt; echo \$RANDOM > /tmp/ram_token; $counter"
+    workload="echo SETUP_DONE > /root/setup.txt; echo \$RANDOM > /dev/shm/ram_token; $counter"
 fi
 
 "$SMOLVM" machine create --name "$NAME" --net --mem 1024 --image alpine -- sh -c "$workload" 2>&1 | sed 's/^/  /'
@@ -576,7 +576,7 @@ for i in $(seq 1 60); do
     v="$("$SMOLVM" machine exec --name "$NAME" -- cat /root/setup.txt 2>/dev/null)"
     if [ "$v" = "SETUP_DONE" ]; then
         printf 'workload_ready_after_s=%s\n' "$i"
-        printf 'ram_token=%s\n' "$("$SMOLVM" machine exec --name "$NAME" -- cat /tmp/ram_token 2>/dev/null)"
+        printf 'ram_token=%s\n' "$("$SMOLVM" machine exec --name "$NAME" -- cat /dev/shm/ram_token 2>/dev/null)"
         printf 'result=up\n'
         exit 0
     fi
