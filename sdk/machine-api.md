@@ -90,7 +90,7 @@ result = machine.exec(
 )
 ```
 
-On cloud, `background: true` (`ExecOptions(background=True)`) starts the command detached and returns at once with its `pid`, leaving it running after the call ends.
+`background: true` (`ExecOptions(background=True)`) starts the command detached, on either target, and returns at once with its `pid`, leaving it running after the call ends.
 
 ### `run`
 
@@ -305,9 +305,8 @@ Cloud branches are node-local and require a branchable source machine. They do n
 Local branching runs through the embedded engine, so it needs no CLI: a local source created
 `branchable` branches with the same call, and the child reads what the source wrote. `resize()`
 grows a local machine in place, and `branchBatch()` / `branch_batch()` makes several children at
-once. `checkpoint()` is exposed on both targets, but for a checkpoint of a local machine use the
-`smolvm` CLI: through the embedded engine it currently fails with
-`read CPU features: No such file or directory`.
+once. `checkpoint()` works on both targets; locally it takes the output path of the
+`.checkpoint` file to write.
 
 `Machine.list()` returns the machines on a target, each with its name, state and labels. Labels are
 set at create time and come back on the summary, which is how a caller finds its own machines
