@@ -37,6 +37,8 @@ Egress can be restricted with hostname and CIDR allowlists. A platform policy al
 
 Behind a corporate proxy or a TLS-inspecting firewall, two flags carry the host's setup into a machine. `--use-host-proxy` passes the host's `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` and `NO_PROXY`, or on macOS the system proxy, into the workload, rewriting a proxy on the host's loopback to an address the guest can reach; the run is refused when nothing answers there. `--trust-host-certs` mounts the certificates the host trusts at `/etc/smolvm-host-trust/ca-bundle.pem`, read-only, for image pulls and the workload, and points `SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE` and similar variables at it. Set `SMOLVM_HOST_CA_BUNDLE` to a PEM file when the host's trust store is not the system default.
 
+The image pull inside the machine uses `--proxy` and `--no-proxy`, or else the host's `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` and `NO_PROXY`. A proxy on the host's loopback is rewritten to the host's outbound address, so it must listen beyond loopback; when it does not, the pull is refused up front with what to change.
+
 Published ports and outbound access are separate choices. Grant only the routes and ports a workload needs.
 
 A workload that builds its own network interface, such as a VPN client running
@@ -48,7 +50,7 @@ client and `--unprivileged` are mutually exclusive.
 
 ## Secrets and SSH keys
 
-Secret injection resolves a host environment variable or file and places the value inside the guest. The value is plaintext from the guest's perspective. Code running in the machine can read it.
+Secret injection resolves a host environment variable, file, or keychain item and places the value inside the guest. `--secret-keychain GUEST_VAR=SERVICE[/ACCOUNT]` reads a macOS Keychain generic password, or a Linux Secret Service item, at each launch and never stores it. The value is plaintext from the guest's perspective. Code running in the machine can read it.
 
 SSH-agent forwarding follows a different model. Private keys remain in the host agent, and the guest receives access to an agent socket. The guest can request signatures for as long as that socket is available, so forwarding still grants the ability to use the corresponding key.
 

@@ -32,6 +32,11 @@ live branch needs `--freeze-source`, and the incremental checkpoint store, `mach
 create` uses the two `.ext4` templates shipped beside `smolvm.exe`, so keep them in the same
 folder.
 
+The first run on Windows has to create symbolic links, so it needs Developer Mode (Settings,
+Privacy & security, For developers) or one run from an elevated shell. A host directory mounted
+into a machine there shows as owned by `root` with mode `0755`, so only a workload running as root
+can write to it.
+
 ## Cloud clients
 
 Using the Cloud API does not require a local hypervisor. A client can create smol cloud machines from any environment that can authenticate and reach the API, subject to the SDK or HTTP client's own platform support.

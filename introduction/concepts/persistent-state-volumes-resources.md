@@ -12,13 +12,15 @@ A persistent machine keeps changes to its managed disk across stop and start ope
 
 Not every guest path survives a restart. Locally, `/tmp` is a directory on the machine's disk that is emptied each time the machine boots, and `/run` and `/dev/shm` are backed by memory; all three hold their contents while the machine runs and are empty again after a stop and start. Write files that must outlive a restart to `/workspace` or another path on the machine filesystem. See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking) for the full breakdown.
 
+Locally, `/dev/shm` is half the guest memory unless `--shm-size` sets it (`512m`, `2g`, `25%`). The guest's inotify limits are raised to 655360 watches and 1280 instances, and `vm.max_map_count` to 262144.
+
 An ephemeral run is cleaned up when it exits. Use a persistent machine, a pack, a volume, or external storage when data must outlive that run.
 
 ## Volumes and mounts
 
 A volume maps storage into the guest. It can come from three places.
 
-A host-directory mount shares a selected host path with the machine and therefore crosses the VM isolation boundary.
+A host-directory mount shares a selected host path with the machine and therefore crosses the VM isolation boundary. Edits made on the host wake file watchers in the guest, so Vite, webpack and nodemon reload without polling; a `:staged` mount does not, and `SMOL_NO_HOT_RELOAD=1` in the host process turns it off.
 
 A remote volume mounts S3-compatible object storage instead, using the same flag with an `s3://` source. The bucket is mounted inside the guest by the machine's agent, which speaks the S3 API and FUSE directly, so the image needs nothing installed: no rclone, no fuse3, not even a shell. A bucket can therefore be mounted into a distroless or scratch image. The mount is in place before the workload's first instruction runs, and it is re-established on every start.
 
@@ -104,7 +106,7 @@ CPU and memory are assigned when the machine is configured. The local CLI defaul
 
 `--cpus` and `--mem` on the command line beat a Smolfile or a packed artifact's baked values, including when the value given equals the default. Passing `--cpus 4` to a machine whose Smolfile asks for 8 gets 4, not 8.
 
-Memory uses virtio ballooning. The configured amount is the guest-visible capacity; the host can reclaim unused guest memory. A high configured limit does not mean the host permanently commits that full amount.
+Memory uses virtio ballooning. The configured amount is the guest-visible capacity; the host can reclaim unused guest memory. A high configured limit does not mean the host permanently commits that full amount. Once a machine that is not a branch source has used under about 1% of a core for 10 minutes, the balloon is pulsed once so the guest hands its page cache back to the host. `SMOLVM_IDLE_RECLAIM` sets the minutes, and `0` or `off` turns it off.
 
 Available cloud sizes and limits are service-specific. Do not infer hosted limits from local defaults.
 
