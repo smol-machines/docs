@@ -53,7 +53,7 @@ Restoring one creates a machine that resumes from the captured instant rather th
 
 A checkpoint is portable between hosts, within limits the runtime checks before it restores:
 
-- The host operating system and architecture must match the ones that captured it. A checkpoint taken on macOS on Apple Silicon restores on macOS on Apple Silicon.
+- The host operating system and architecture must match the ones that captured it, with one exception: a checkpoint taken on an Apple Silicon Mac also restores on arm64 Linux when it was captured by a current smolvm; the restore names any check that fails. A Linux checkpoint does not restore on a Mac, and none crosses architectures.
 - On Arm hosts, the host must also provide the CPU features the captured guest was given. A restore onto a host missing any of them fails and names the ones that are absent, rather than resuming a guest whose instructions the host cannot execute.
 - The checkpoint format and runtime interface are versioned. A file written by an incompatible runtime is refused with the version it needs.
 

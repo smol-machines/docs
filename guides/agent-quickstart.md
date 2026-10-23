@@ -116,8 +116,10 @@ the independent artifact. Treat it as sensitive: it contains guest memory and
 disk contents, including any credentials in them.
 
 Restore requires a compatible runtime, the same host OS and architecture, and
-compatible CPU features. Do not assume a macOS checkpoint restores on Linux,
-or that GPU state, external connections, and host mounts are portable. See
+compatible CPU features. The one exception: a checkpoint from an Apple Silicon
+Mac also restores on arm64 Linux when a current smolvm captured it, but not the
+other way round. Do not assume GPU state, external connections, and host
+mounts are portable. See
 [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots).
 
 ## Use it from code or in the cloud
