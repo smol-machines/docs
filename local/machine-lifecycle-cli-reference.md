@@ -43,7 +43,7 @@ smolvm machine run \
   -- wget -q -O /dev/null https://registry.npmjs.org
 ```
 
-`--allow-host` limits egress to the named host. Add multiple flags when the workload needs multiple hosts.
+`--allow-host` limits egress to the named host and its subdomains: `--allow-host github.com` also reaches `api.github.com`. Add multiple flags when the workload needs multiple hosts. `--allow-host-pattern` is the narrower form, an exact name or `*.domain` only: `github.com` does not reach `api.github.com`, and `*.github.com` does not reach `github.com` itself.
 
 What a policy filters depends on which kind you give it. A hostname list filters name resolution
 too: a name that is not on it fails to resolve, and `machine egress-events` records the refusal as
@@ -313,8 +313,8 @@ and it says so rather than guessing: on a running machine the command fails with
 expected stopped, got Running`. The allow list is the one exception.
 
 It also edits the egress policy, which is otherwise fixed at create time. `--allow-host`,
-`--allow-host-pattern`, `--allow-cidr` and `--outbound-localhost-only` add to the policy, and
-`--remove-allow-host` and `--remove-allow-cidr` take entries back out; `--net` and `--no-net` turn
+`--allow-host-pattern`, `--allow-cidr`, `--allow-udp` and `--outbound-localhost-only` add to the
+policy, and `--remove-allow-host`, `--remove-allow-cidr` and `--remove-allow-udp` take entries back out; `--net` and `--no-net` turn
 networking on and off. On a stopped machine the new policy applies from the next start, and only
 the named destinations answer afterwards:
 
@@ -463,8 +463,10 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--image`, `-I` | OCI image, local image archive, stdin archive (`-`), or unpacked rootfs. A reference may carry a tag and a digest together, `alpine:3.20@sha256:...`, which pins the bytes while keeping the tag readable |
 | `--name`, `-n` | Machine name |
 | `--net` | Enable networking |
-| `--allow-host` | Allow egress to a hostname |
+| `--allow-host` | Allow egress to a hostname and its subdomains |
+| `--allow-host-pattern` | Allow egress to an exact hostname, or to the subdomains of `*.domain`; any other pattern is refused |
 | `--allow-cidr` | Allow egress to a CIDR |
+| `--allow-udp` | Allow UDP to a CIDR, optionally on one port or a range, as `CIDR[:PORT[-END]]`; a `--deny-cidr` still wins; implies `--net` |
 | `--block-private` | Keep the public internet open and block private, internal and link-local destinations, cloud metadata and the host's loopback; implies `--net` |
 | `--allow-private` | Reopen one private CIDR under `--block-private`, which it implies; cloud metadata stays blocked |
 | `--deny-cidr` | Refuse egress to a CIDR before any allow is checked, so it wins over every allow list; on `machine run` and `machine create`, not `update`; implies `--net` |

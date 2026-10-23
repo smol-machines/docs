@@ -183,10 +183,12 @@ init-layer cache, and is unaffected.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `allow_hosts` | string array | Hostnames whose resolved IP addresses may be reached. Setting it selects the `virtio-net` backend, because the allow list is enforced by the host-side gateway. |
+| `allow_hosts` | string array | Hostnames, with their subdomains, whose resolved IP addresses may be reached. Setting it selects the `virtio-net` backend, because the allow list is enforced by the host-side gateway. |
 | `allow_cidrs` | string array | Allowed IP addresses or CIDR ranges, such as `"10.0.0.0/8"`. Setting it also selects the `virtio-net` backend, for the same reason. |
 | `block_private` | boolean | Block private, internal and link-local destinations while the public internet stays open. Cloud metadata is blocked either way. |
 | `allow_private` | string array | Private ranges to reopen under `block_private`, which it implies. |
+| `allow_host_patterns` | string array | Exact hostnames, or `*.domain` for subdomains only. |
+| `allow_udp` | string array | UDP destinations as `CIDR[:PORT[-END]]`. |
 | `deny_cidrs` | string array | CIDR ranges refused before any allow is checked, so a deny wins over every allow list. |
 
 ```toml
