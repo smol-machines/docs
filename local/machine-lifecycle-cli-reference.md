@@ -88,7 +88,9 @@ Package installs, file writes, and configuration changes made through `machine e
 | List machine names only | `smolvm machine ls --quiet` |
 | Checkpoint a running machine | `smolvm machine checkpoint --name NAME -o PATH` |
 
-If `--name` is omitted on commands that accept it, the default machine name is `default`.
+If `--name` is omitted, `SMOLVM_MACHINE_NAME` names the machine when it is set; `machine run` does not read it. Without either,
+`machine create` generates a name such as `vm-60d4e0ec`, commands that act on an existing machine
+fall back to `default`, and `delete`, `pause`, `resume`, `update`, `branch-release`, `data-dir`, `images` and `prune` refuse to run.
 
 ## Selected management commands
 
@@ -329,8 +331,8 @@ addresses `machine create` resolved it to; take those out with `--remove-allow-c
 the whole list with `--reset-allow-list` and the entries to keep, which leaves exactly those. `machine
 status --json` and `machine ls --json` show the list as `allowed_hosts` and `allowed_cidrs`.
 
-Published TCP ports change the same way: on a running virtio-net machine, `-p` and `--remove-port`
-apply at once and the command reports `running; applies now`. A removed port stops accepting while
+Published TCP ports change the same way: on any running machine, including one on the default
+backend or with no networking, `-p` and `--remove-port` apply at once and the command reports `running; applies now`. A removed port stops accepting while
 connections it already accepted carry on. A UDP port, or an update that mixes ports with other
 settings, still needs the machine stopped.
 
@@ -420,13 +422,14 @@ at create time: `machine update` has no equivalent, so changing it means a new m
 
 ### What moves a machine to virtio-net
 
-Four things select `virtio-net` when you have not named a backend, because each one needs
-something `tsi` cannot provide:
+These select `virtio-net` when you have not named a backend, because each one needs something
+`tsi` cannot provide:
 
 | You passed | Why virtio-net |
 |---|---|
 | `--port` / `-p` | only virtio-net serves inbound connections |
-| `--allow-host`, `--allow-cidr`, `--outbound-localhost-only`, `--block-private` | the egress policy is enforced by the host-side gateway |
+| `--allow-host`, `--allow-cidr`, `--outbound-localhost-only`, `--block-private`, `--deny-cidr`, `--allow-udp` | the egress policy is enforced by the host-side gateway |
+| `--credential` | the host substitutes credentials in that gateway |
 | `--network` | a named inter-VM network is fabric routing in that gateway |
 | `--guest-subnet` | a custom guest link shapes the virtio-net interface |
 

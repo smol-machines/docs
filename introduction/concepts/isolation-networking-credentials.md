@@ -68,7 +68,7 @@ The first line of output is `SMOL_PLACEHOLDER_NOTION_...`, which is all the gues
 
 The value is read on the host for every request, from a `[secrets]` reference of the same variable name or, failing that, from the host environment variable of that name. Rotating it needs no restart. Each binding lists exact hosts or a wildcard such as `*.example.com`, which matches every subdomain but not `example.com` itself and needs a parent of at least two labels. When the machine also has `allow_hosts` every credential host must fall under it, a wildcard by its whole subtree, so widening the network never widens a credential. An OAuth refresh grant carries its token in the body: end the binding with `:body` and the placeholder is also substituted in an `application/x-www-form-urlencoded` body to the bound hosts. Branched machines inherit placeholders and keep working; each branch is resolved under its own name, so one branch can be cut off without touching the others.
 
-Clients that honor `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `GIT_SSL_CAINFO`, `NODE_EXTRA_CA_CERTS` or `DENO_CERT` work unmodified; the guest is given a bundle of the image's own roots plus a per-machine CA at `/run/smolvm/ca-bundle.pem`. Substitution covers HTTPS on port 443 and needs the default `virtio-net` backend.
+Clients that honor `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `GIT_SSL_CAINFO`, `NODE_EXTRA_CA_CERTS` or `DENO_CERT` work unmodified; the guest is given a bundle of the image's own roots plus a per-machine CA at `/run/smolvm/ca-bundle.pem`. Substitution covers HTTPS on port 443 and a credential selects the `virtio-net` backend on its own.
 
 ## Practical boundary
 
