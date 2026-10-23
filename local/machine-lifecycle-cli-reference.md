@@ -271,12 +271,10 @@ filesystem as `DIR`, sharing unchanged chunks with the generations it keeps so h
 the differences:
 
 ```bash
-smolvm machine start --name dev --branchable
 smolvm machine checkpoint --name dev --store ./store -o ./store/dev.checkpoint
 ```
 
-The machine has to have been started `--branchable` for this, unlike a single-file checkpoint:
-without it the capture is refused with `deferred durable save requires file-backed guest RAM`.
+Like a single-file checkpoint, a stored one does not need the machine started `--branchable`.
 `machine checkpoint-log PATH` shows the generations a store holds and the command to restore any
 of them, and `machine checkpoint-prune` removes what nothing references. `machine checkpoint-warm
 --from PATH` prepares a store so a later restore clones a kept copy rather than rebuilding its

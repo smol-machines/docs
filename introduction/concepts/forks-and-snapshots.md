@@ -47,7 +47,7 @@ need a file to retain or transfer independently of the live machine lifecycle.
 
 ## Checkpoints
 
-A checkpoint captures a running machine, including guest RAM and processes, into a single `.checkpoint` file. The machine must have been started branchable, with `--branchable` on `machine start`. A machine started without it can be stopped and started again with the flag. Unlike a branch it is an independent artifact: the source machine keeps running, and the file can be kept, copied, and restored later.
+A checkpoint captures a running machine, including guest RAM and processes, into a single `.checkpoint` file. Any running machine can be checkpointed; starting it `--branchable` only makes the pause shorter. Unlike a branch it is an independent artifact: the source machine keeps running, and the file can be kept, copied, and restored later.
 
 Restoring one creates a machine that resumes from the captured instant rather than booting. That is the difference from a pack, which captures disk state only and starts the machine from the beginning.
 
@@ -68,7 +68,7 @@ be restored. The initial profile refuses a machine with any of:
 - published sockets
 - remote volumes
 - host secret references
-- host-backed image layers, which includes a machine created from a pack
+- image layers found only under a host path the image names; a machine created from a pack, or from an image the host fetched for it, is captured with its source
 - custom DNS
 - named inter-VM networking
 - Vulkan GPU state, CUDA state, or Rosetta

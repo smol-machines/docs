@@ -85,9 +85,8 @@ smolvm machine delete --name failed-job
 ```
 
 Stopping preserves disk state but loses RAM. To retain RAM and process state,
-start the machine with `--branchable` before running the job and use
-`machine checkpoint` while it is still running; capture eligibility depends on
-the host and attachments. See the [checkpoint reference](/docs/introduction/concepts/forks-and-snapshots).
+use `machine checkpoint` while it is still running; capture eligibility depends
+on the host and attachments. See the [checkpoint reference](/docs/introduction/concepts/forks-and-snapshots).
 
 ## Prebuild repeated environments
 
