@@ -253,10 +253,11 @@ Stopping a machine preserves its stored state. Deleting it removes the machine. 
 Three ceilings apply to every tenant, and all three come from the plan the
 account is on rather than from the platform:
 
-- **How many machines you may hold** — counted across every state, not just
+- **How many machines you may hold**: counted across every state, not just
   running ones, so a stopped machine still occupies a slot until it is deleted.
-- **How many may run at once** — counted over `started` and `creating`.
-- **How large one machine may be** — vCPU, memory, and disk, applied per
+- **How many may run at once**: counted over `started`, `creating` and `pausing`,
+  leaving out a source frozen as a branch base.
+- **How large one machine may be**: vCPU, memory, and disk, applied per
   machine at create time.
 
 Read your own ceilings rather than assuming them. `GET /v1/account` returns
@@ -273,8 +274,9 @@ curl -fsSL https://api.smolmachines.com/v1/account \
 ```
 
 The published plans and their ceilings are listed on the
-[pricing page](/pricing). Limits differ between plans; the per-unit rates do
-not, so moving up a plan buys headroom rather than a different price.
+[pricing page](/pricing). Limits differ between plans; the published per-unit
+rates do not, so moving up a published plan buys headroom rather than a
+different price. An Enterprise contract may carry its own rates.
 
 Exceeding a ceiling is refused at create time with `422` and a body naming the
 plan, the limit, and where to change it — nothing is started, so nothing is
@@ -303,7 +305,7 @@ a stopped machine still holds its slot.
 
 ## Errors and request IDs
 
-Use the HTTP status code first. Error bodies are RFC 9457 `application/problem+json`: a stable `code`, a `detail` sentence, and `retryable`, which is true for `408`, `429`, `502`, `503` and `504`; those also carry `Retry-After` in seconds. An exec whose machine stopped under it returns `503` with code `machine_interrupted`: the command may have partly run, and a retry runs it again. For guest exit codes and SDK error patterns, see [Error handling](/docs/guides/error-handling).
+Use the HTTP status code first. Error bodies are RFC 9457 `application/problem+json`: a stable `code`, a `detail` sentence, and `retryable`, which is true for `408`, `429`, `502`, `503` and `504`; those also carry `Retry-After` in seconds. An exec whose machine stopped under it returns `503` with code `machine_interrupted`: the command may have partly run, and a retry runs it again. Two other refusals are worth retrying after a wait: a branch answers `409` "branches of this source made no progress ...; retry" while it waits behind its siblings, and a create answers `422` "no ready <arch> node" while no node of that architecture is up. For guest exit codes and SDK error patterns, see [Error handling](/docs/guides/error-handling).
 
 Common statuses include:
 
