@@ -87,7 +87,7 @@ try {
 }
 ```
 
-Do not parse error message text when a type or code is available. Common SDK codes include `COMMAND_FAILED`, `INVALID_CONFIG`, `NOT_SUPPORTED`, `NOT_FOUND`, `UNAUTHORIZED`, `CONNECTION`, `TIMEOUT`, and `MACHINE_INTERRUPTED`.
+Do not parse error message text when a type or code is available. Common SDK codes include `COMMAND_FAILED`, `INVALID_CONFIG`, `NOT_SUPPORTED`, `NOT_FOUND`, `UNAUTHORIZED`, `CONNECTION`, `TIMEOUT`, `MACHINE_INTERRUPTED`, and `INTERRUPTED`, which a local `stop()` or `delete()` gives a command or transfer it cut off.
 
 ### Retries
 

@@ -246,6 +246,10 @@ Cloud only. `portLinks()` (`port_links()`) returns a login-free URL for each pub
 | `await machine.resume(options?)` | `machine.resume()` | Resumes the saved execution |
 | `await machine.delete()` | `machine.delete()` | Stops the machine and permanently deletes its storage |
 
+Locally, `stop()` and `delete()` cut off commands and file transfers still running, which fail with `SmolError` code `INTERRUPTED`. Pass `{ drainSecs: 30 }` (`drain_secs=30`) to let them finish for up to that long first; `timeoutSecs` (`timeout_secs`) sets how long the workload gets to exit after its stop signal.
+
+A local machine belongs to the process that started it. Node and Go stop that process's machines on `SIGINT` or `SIGTERM` and then re-raise the signal, and Python stops them when the interpreter exits. When your framework owns shutdown, set `handleSignals: false` in `ConnectOptions` (Go: `NoSignalHandling`) and stop or delete the machines yourself; create with `detach` to keep a machine running after the process ends.
+
 `start()` and `resume()` wait for readiness; pass `{ waitUntilReady: false }`, or `wait_until_ready=False` in Python, to return as soon as the request is accepted.
 
 Three more are cloud only: `info()` returns the machine's full cloud record, `logs(tail)` the last lines of its console log (100 by default), and `exportArtifact()` (`export_artifact()`) exports the stopped machine as a `.smolmachine` in your registry namespace. `Machine.deleteCheckpoint(id)` (`Machine.delete_checkpoint(id)`) deletes a durable cloud checkpoint, or a local checkpoint file by path; a cloud checkpoint a machine was restored from, or that holds a paused machine's saved execution, is refused until that machine is gone.
@@ -304,7 +308,7 @@ Cloud branches are node-local and require a branchable source machine. They do n
 
 Local branching runs through the embedded engine, so it needs no CLI: a local source created
 `branchable` branches with the same call, and the child reads what the source wrote. `resize()`
-grows a local machine in place, and `branchBatch()` / `branch_batch()` makes several children at
+grows a machine in place (on smol cloud, `cpus`, `memoryMb` and `storageGb`, the machine's one disk; memory and disk only grow), and `branchBatch()` / `branch_batch()` makes several children at
 once. `checkpoint()` works on both targets; locally it takes the output path of the
 `.checkpoint` file to write.
 
@@ -348,6 +352,9 @@ Cloud authentication also reads `SMOL_CLOUD_TOKEN`. The base URL override is `SM
 | `branchable` | `branchable` | Both | Prepare as a live branch source |
 | `env` | `env` | Both | Workload environment at creation |
 | `workdir` | `workdir` | Both | Workload working directory at creation |
+| `credentials` | `credentials` | Both | Secrets the workload uses without seeing them |
+
+Each `credentials` entry names a guest variable (`envVar`, `env_var` in Python) that holds a placeholder and the exact `hosts` the real value may be sent to; the value is substituted only in requests to those hosts. Locally the `value` stays in this process's memory, or is read from this process's own variable of that name at each start when omitted. On smol cloud it is stored sealed under the entry's `name`, and an entry without a `value` uses the one already stored. `methods` limits a local binding to the listed HTTP methods.
 
 ### `ResourceSpec`
 
