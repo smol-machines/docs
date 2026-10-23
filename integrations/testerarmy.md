@@ -83,7 +83,7 @@ With `app`, set the target's `app.url` to `http://localhost:<port>`, declare no 
 
 - `hostPorts` is not an allowlist. The machine can reach any loopback port on your computer through `host.smolvm.internal`, and it has open outbound network access. See [Isolation, networking and credentials](/docs/introduction/concepts/isolation-networking-credentials).
 - The browser's back/forward cache is off, so going back reloads the page.
-- A killed runner, such as a cancelled CI job, can leave worker-scope machines behind, stopped, with names that start with `e2e-`. List them with `smol machine ls --local` and delete each with `smol machine rm --force <name>`, using the [`smol` CLI](https://github.com/smol-machines/smol).
+- A killed runner, such as a cancelled CI job, can leave worker-scope machines behind, stopped, with names that start with `e2e-`. List them with `smol machine ls --local` and delete each with `smol machine rm --name <name> --yes`, using the [`smol` CLI](https://github.com/smol-machines/smol).
 
 ## Links
 
