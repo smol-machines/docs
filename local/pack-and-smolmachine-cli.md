@@ -22,6 +22,8 @@ smolvm pack create --image python:3.12-alpine -o ./python312
 
 The direct launcher run is ephemeral. Each run starts from the packed state and is cleaned up on exit.
 
+`--cpus` and `--mem` on `pack create` cap what machines made from the pack may use, 4 vCPUs and 8192 MiB unless a Smolfile or the source machine says otherwise; memory is committed only as the guest touches it.
+
 `--image` also takes a local source: a `docker save` archive, `-` to read one from stdin, or an
 unpacked root filesystem directory:
 
@@ -65,6 +67,8 @@ smolvm machine stop --name app-dev
 ```
 
 This path gives the artifact a normal named-machine lifecycle. Changes made through `machine exec` persist across stop/start cycles.
+
+A pack does not carry `--credential` bindings, so pass them again on `machine create`; `pack create` warns when the source machine has some. A `machine checkpoint` carries them.
 
 ## One prepared base, one machine per working directory
 

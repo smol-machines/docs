@@ -91,6 +91,8 @@ Package installs, file writes, and configuration changes made through `machine e
 If `--name` is omitted, `SMOLVM_MACHINE_NAME` names the machine when it is set; `machine run` does not read it. Without either,
 `machine create` generates a name such as `vm-60d4e0ec`, commands that act on an existing machine
 fall back to `default`, and `delete`, `pause`, `resume`, `update`, `branch-release`, `data-dir`, `images` and `prune` refuse to run.
+A name is at most 128 letters, digits, `-` and `_`, starts with a letter or digit, and has no
+trailing or doubled hyphen.
 
 ## Selected management commands
 
@@ -140,6 +142,10 @@ Machine 'dev': running
   cpu: 0.4% of 400% (4 CPUs)
   memory: 0.10 GiB of 7.77 GiB used (1%), 7.67 GiB available
 ```
+
+When `smolvm serve` or an embedding SDK reaped a machine's VM, `machine status` also shows
+`last exit`, naming an out-of-memory or seccomp kill (`last_exit` in `--json`). A machine started
+from the CLI leaves no such record.
 
 ### Machine-readable errors
 
@@ -238,6 +244,8 @@ smolvm machine cp dev:/workspace/result.json ./result.json
 
 `/workspace` persists across `exec` sessions and stop/start cycles. For files larger than the copy limit, mount a directory with `--volume`.
 
+On an upload, `--uid`, `--gid` and `--mode` (octal) set the file's owner and permissions; a download refuses them. With no owner given, the file belongs to the user the workload runs as, which is root for most images.
+
 ### Checkpoint and restore a running machine
 
 `machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.checkpoint` file; the earlier `.smolcheckpoint` name is still accepted. The machine keeps running.
@@ -278,7 +286,8 @@ smolvm machine checkpoint --name dev --store ./store -o ./store/dev.checkpoint
 
 Like a single-file checkpoint, a stored one does not need the machine started `--branchable`.
 `machine checkpoint-log PATH` shows the generations a store holds and the command to restore any
-of them, and `machine checkpoint-prune` removes what nothing references. `machine checkpoint-warm
+of them, `machine create --from PATH --at '~N'` restores the one N generations back (quote it in
+zsh), and `machine checkpoint-prune` removes what nothing references. `machine checkpoint-warm
 --from PATH` prepares a store so a later restore clones a kept copy rather than rebuilding its
 RAM; `--restore-cache-entries` sets how many checkpoints stay ready, three by default, and
 `--restore-cache-gib` caps what they may hold together, 16 GiB by default. Both flags are also
@@ -315,7 +324,9 @@ expected stopped, got Running`. The allow list is the one exception.
 It also edits the egress policy, which is otherwise fixed at create time. `--allow-host`,
 `--allow-host-pattern`, `--allow-cidr`, `--allow-udp` and `--outbound-localhost-only` add to the
 policy, and `--remove-allow-host`, `--remove-allow-cidr` and `--remove-allow-udp` take entries back out; `--net` and `--no-net` turn
-networking on and off. On a stopped machine the new policy applies from the next start, and only
+networking on and off. `--dns-option` and `--clear-dns-options` change the resolver options for the
+next start; a checkpoint resumes with the options it was captured with, and `machine create --from`
+a checkpoint with a different set is refused. On a stopped machine the new policy applies from the next start, and only
 the named destinations answer afterwards:
 
 ```bash
@@ -472,9 +483,10 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--deny-cidr` | Refuse egress to a CIDR before any allow is checked, so it wins over every allow list; on `machine run` and `machine create`, not `update`; implies `--net` |
 | `--dns` | Resolve guest names through this resolver IP instead of the host's own; implies `--net` |
 | `--dns-option` | Add a resolver option to the guest's `resolv.conf`, such as `timeout:1`; repeatable, written in order as one `options` line. musl images such as Alpine honor only `ndots`, `timeout` and `attempts` |
-| `--credential` | Bind a credential as `NAME=ENV_VAR@HOST[,HOST...][:body]`: the guest gets a placeholder in `ENV_VAR`; the host substitutes the real value only on HTTPS requests to the listed hosts, which may be wildcards such as `*.example.com`. `:body` also substitutes it in a form-encoded request body, for OAuth tokens |
+| `--credential` | Bind a credential as `NAME=ENV_VAR@HOST[,HOST...][:body][:set-header=HEADER]`: the guest gets a placeholder in `ENV_VAR`; the host substitutes the real value only on HTTPS requests to the listed hosts, which may be wildcards such as `*.example.com`. `:body` also substitutes it in a form-encoded request body, for OAuth tokens, and `:set-header` sets that header to the whole value, in either order. Refused on an ephemeral run of a `.smolmachine`; create a machine from it instead |
 | `--cpus` | vCPU count |
 | `--mem` | Guest memory in MiB |
+| `--shm-size` | Size of `/dev/shm`, such as `512m`, `2g` or `25%`; half the guest memory by default. Also on `machine update` |
 | `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]`. A guest path alone, such as `-v /var/lib/docker`, is a directory on the machine's own disk that persists across stop and start |
 | `--cache-disk` | Mount a shared cache disk as `BASE:/guest/path`. `BASE` is a raw or qcow2 image that stays read-only and can back many machines; this machine writes only to its own layer, which its branches copy. A blank `BASE` gets an ext4 filesystem |
 | `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT`, with `/udp` appended for a UDP port |
