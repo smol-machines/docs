@@ -48,6 +48,8 @@ Machine creation accepts an OCI image or a `.smolmachine` registry reference as 
 
 When `resources` is omitted, a machine currently defaults to 4 vCPUs and 8192 MB of memory. When `network` is omitted, outbound access defaults to **open** — set `network.mode` explicitly (`blocked` or `allowCidrs`) when egress policy matters. Note a `blocked` machine also cannot pull its image, which runs in-guest, unless the image is already cached on its node. Larger machines cost more, so pass `resources` explicitly (for example `{"cpus": 1, "memoryMb": 256}`) rather than relying on the default. Disks can be configured up to 16 TiB where capacity is available. Check the OpenAPI document for the current request limits.
 
+`nestedVirt: true` exposes the host's virtualization extensions so the guest can run its own hypervisor. It is included with the Startup and Enterprise plans; on any other plan the create is refused with `422` `nested_virt_unavailable`, naming the plan. It is also refused with the same code when no node offers it.
+
 ### Commands and sessions
 
 Run a command with:
