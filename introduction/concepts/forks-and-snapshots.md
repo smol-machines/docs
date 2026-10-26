@@ -12,6 +12,12 @@ Prepare a branchable machine as a source environment, start the workload, and br
 
 Copy-on-write avoids duplicating all memory and disk data at branch time. The source and children remain separate machines after the branch.
 
+`smolvm machine branch --from SOURCE --count N --name-prefix PREFIX` makes `PREFIX-0` to
+`PREFIX-(N-1)` from one checkpoint of the source, booting `--parallel` of them at a time (four by
+default). A batch waits until the source's workload runs `smolvm-branch-ready`, its declared branch
+point. A workload that never declares one, such as a CI runner or a server, needs
+`--no-wait-ready`, which checkpoints the source where it is.
+
 Branch support is host and feature dependent. Native Windows branches a machine only with
 `--freeze-source`, which pauses the source for the clone instead of branching it live.
 
