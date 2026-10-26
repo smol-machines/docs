@@ -11,11 +11,11 @@ title: smol CLI Reference
 On macOS (Apple Silicon) and Linux:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/smol-machines/smol/v1.31.0/scripts/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/smol-machines/smol/v1.32.2/scripts/install.sh | bash
 smol --version
 ```
 
-The script downloads the release bundle, checks its checksum, unpacks it under `~/.smol` and links `smol` into `~/.local/bin`. It installs the latest release; `SMOL_VERSION=v1.31.0` pins one, and `PREFIX` and `BIN_DIR` change those places. `smol --version` prints the CLI version and the engine version it carries, for example `smol 1.31.0 (engine smolvm 1.31.0)`.
+The script downloads the release bundle, checks its checksum, unpacks it under `~/.smol` and links `smol` into `~/.local/bin`. It installs the latest release; `SMOL_VERSION=v1.32.2` pins one, and `PREFIX` and `BIN_DIR` change those places. `smol --version` prints the CLI version and the engine version it carries, for example `smol 1.32.2 (engine smolvm 1.32.2)`.
 
 Sign in to reach smol cloud:
 

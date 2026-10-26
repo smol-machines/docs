@@ -19,7 +19,7 @@ The same release is also published as `brew install smol-machines/tap/smolvm` on
 the apt, yum and pacman repositories at
 [smol-machines.github.io/smolvm](https://smol-machines.github.io/smolvm/), which list the commands
 for each, and can be built from source with
-`nix profile install github:smol-machines/smolvm/v1.31.4`.
+`nix profile install github:smol-machines/smolvm/v1.32.3`.
 
 The `smol` CLI drives the same engine and smol cloud from one command line; see the
 [smol CLI Reference](/docs/local/smol-cli-reference) for its install line.
