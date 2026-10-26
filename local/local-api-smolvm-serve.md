@@ -47,6 +47,7 @@ started with.
 | Flag | What it does |
 |---|---|
 | `--cache-disk-dir DIR` | Directory of cache disk bases the API may attach, named by file name in `cacheDisk` on create and never by path. `POST /api/v1/machines/:name/cache-disk/publish` writes a stopped machine's cache, base and writes together, into it as a new base under a new name. Unset, the API refuses cache disks |
+| `--cache-disk-max-gb GiB` | Most the bases in `--cache-disk-dir`, which it requires, may hold: past it the least recently used unattached bases are removed and fetched again when needed. Half that directory's filesystem by default, and a tenth of the filesystem is always kept free |
 | `--allow-nested-virt` | Permit machines created with `nestedVirt`. Off by default, because it exposes the host kernel's nested virtualization to the guest; turning it off again also stops existing nested machines from starting |
 | `--egress-watchlist PATH` | Record guest traffic to destinations named in a file of `<label> dns-sha256:<hex>` or `<label> ip-sha256:<hex>` lines, and block it on a line that ends in `block`: a matching lookup is answered as nonexistent and a matching connection is dropped. Matches come back as `egressSignals` on the machine, the file is re-read when it changes, and it applies to virtio-net machines. A TLS server name is matched like a DNS name, and a stratum login is recorded as the signal `stratum` |
 | `--shutdown-grace SECS` | Seconds in-flight requests get once the server stops accepting connections, five by default and capped at 3600. Connections are refused for the whole grace, so to restart without cutting off a long `exec`, wait for `GET /inflight` on the loopback door to report nothing in flight |
@@ -70,6 +71,7 @@ started with.
 | `POST` | `/api/v1/machines/:name/stop` | Stop a machine |
 | `DELETE` | `/api/v1/machines/:name` | Delete a machine |
 | `PUT` | `/api/v1/machines/:name/ports` | Replace a machine's published ports, live while it runs; a taken host port answers `409` `PORT_IN_USE` |
+| `GET`, `POST`, `DELETE` | `/api/v1/machines/:name/mounts` | List, add or remove host directories mounted into a running machine; `POST` takes `source`, `target` and `readonly`, `DELETE` takes `?target=`, and a stopped machine answers `409` |
 | `POST` | `/api/v1/machines/:name/exec` | Execute a command |
 | `POST` | `/api/v1/machines/:name/exec/stream` | Stream execution over SSE |
 | `PUT` | `/api/v1/machines/:name/files/*path` | Upload a file: up to 1 GiB with a `Content-Length`, 100 MiB without, `413` beyond. `?uid=`, `?gid=` and `?mode=` (octal) set its owner and permissions; with no owner it belongs to the workload's user |

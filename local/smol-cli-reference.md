@@ -11,11 +11,11 @@ title: smol CLI Reference
 On macOS (Apple Silicon) and Linux:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/smol-machines/smol/v1.31.0/scripts/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/smol-machines/smol/v1.32.2/scripts/install.sh | bash
 smol --version
 ```
 
-The script downloads the release bundle, checks its checksum, unpacks it under `~/.smol` and links `smol` into `~/.local/bin`. It installs the latest release; `SMOL_VERSION=v1.31.0` pins one, and `PREFIX` and `BIN_DIR` change those places. `smol --version` prints the CLI version and the engine version it carries, for example `smol 1.31.0 (engine smolvm 1.31.0)`.
+The script downloads the release bundle, checks its checksum, unpacks it under `~/.smol` and links `smol` into `~/.local/bin`. It installs the latest release; `SMOL_VERSION=v1.32.2` pins one, and `PREFIX` and `BIN_DIR` change those places. `smol --version` prints the CLI version and the engine version it carries, for example `smol 1.32.2 (engine smolvm 1.32.2)`.
 
 Sign in to reach smol cloud:
 
@@ -28,6 +28,8 @@ One login covers the cloud API and the registry. Without it, commands work on lo
 ## Local or cloud
 
 `smol machine` commands find a machine wherever it lives, so `smol machine ls` lists both sides. To pick one, pass `--local` or `--cloud`, or prefix the name with `local/` or `cloud/`. A machine id that starts with `mach-` is always a cloud machine. `create`, `update`, `resize`, `images`, `prune`, `monitor` and `data-dir` act on local machines only; `smol cloud deploy` creates a cloud one.
+
+`--disk-durability deferred` on `smol machine create`, `smol run` and `smol cloud deploy` lets guest writes reach the disk on the host's schedule, faster for fsync-heavy work such as database commits; `full`, the default, makes a guest `fsync` wait for the disk.
 
 Run `smol <command> --help` for every flag of a command.
 

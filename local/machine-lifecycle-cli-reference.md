@@ -319,7 +319,8 @@ smolvm machine start --name dev
 
 `machine update` changes configuration for the next start, so the machine must be stopped first,
 and it says so rather than guessing: on a running machine the command fails with `invalid vm state:
-expected stopped, got Running`. The allow list is the one exception.
+expected stopped, got Running`. The allow list is the one exception, and a host directory can be
+mounted into a running machine with `machine mount add`, below.
 
 It also edits the egress policy, which is otherwise fixed at create time. `--allow-host`,
 `--allow-host-pattern`, `--allow-cidr`, `--allow-udp` and `--outbound-localhost-only` add to the
@@ -357,6 +358,23 @@ smolvm machine run \
 ```
 
 A mounted host directory is deliberately visible to the guest. Do not mount sensitive host paths into untrusted workloads.
+
+`machine mount add` mounts a host directory into a running machine without a restart, and
+`machine mount rm --target GUEST` takes it out again:
+
+```bash
+smolvm machine mount add --name dev -v "$PWD/data:/data"
+smolvm machine mount add --name dev -v "$PWD/ref:/ref:ro"
+smolvm machine mount ls --name dev
+smolvm machine mount rm --name dev --target /data
+```
+
+The directory appears at once, `:ro` makes it read-only in the guest, and `mount ls --json` lists
+what was added. Such a mount lasts until the machine stops; to keep one across restarts, add it
+with `machine update -v` while the machine is stopped. A branch of the machine starts with the
+same mounts. `mount add` refuses a stopped machine, a `:staged` mount, and a guest path that
+already has a mount, whether added this way or from the machine's configuration; `mount rm` only
+removes what `mount add` added.
 
 ### Mount an S3 bucket
 
@@ -480,6 +498,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--allow-udp` | Allow UDP to a CIDR, optionally on one port or a range, as `CIDR[:PORT[-END]]`; a `--deny-cidr` still wins; implies `--net` |
 | `--block-private` | Keep the public internet open and block private, internal and link-local destinations, cloud metadata and the host's loopback; implies `--net` |
 | `--allow-private` | Reopen one private CIDR under `--block-private`, which it implies; cloud metadata stays blocked |
+| `--allow-host-loopback` | On `machine run` only: let the guest reach services on the host's own `127.0.0.1` and `::1`, which are closed by default; cloud metadata stays blocked; implies `--net` |
 | `--deny-cidr` | Refuse egress to a CIDR before any allow is checked, so it wins over every allow list; on `machine run` and `machine create`, not `update`; implies `--net` |
 | `--dns` | Resolve guest names through this resolver IP instead of the host's own; implies `--net` |
 | `--dns-option` | Add a resolver option to the guest's `resolv.conf`, such as `timeout:1`; repeatable, written in order as one `options` line. musl images such as Alpine honor only `ndots`, `timeout` and `attempts` |
@@ -491,11 +510,12 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--cache-disk` | Mount a shared cache disk as `BASE:/guest/path`. `BASE` is a raw or qcow2 image that stays read-only and can back many machines; this machine writes only to its own layer, which its branches copy. A blank `BASE` gets an ext4 filesystem |
 | `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT`, with `/udp` appended for a UDP port |
 | `--user`, `-u` | Run the workload as a name or `uid[:gid]` |
+| `--workdir`, `-w` | The workload's working directory; also on `machine update` |
 | `--interactive`, `-i` | Keep stdin open |
 | `--tty`, `-t` | Allocate a TTY |
 | `--smolfile`, `-s` | Read configuration from a Smolfile |
 | `--block-io` | Host block I/O engine, `sync` or `async` |
-| `--disk-durability` | `full` (the default): a guest `fsync` waits for the host's disk. `deferred`: guest writes reach it on the host's schedule, much faster for fsync-heavy work such as database commits, but a host crash can lose recent writes |
+| `--disk-durability` | `full` (the default): a guest `fsync` waits for the host's disk. `deferred`: guest writes reach it on the host's schedule, much faster for fsync-heavy work such as database commits, but a host crash can lose recent writes. Also on `machine update`, for the next start |
 | `--stop-signal` | On `machine create`: the signal the workload gets when the machine stops, so it can save its state and exit; a name such as `SIGINT` or a number, `SIGTERM` by default |
 | `--stop-timeout` | On `machine create`: seconds the workload gets to exit after that signal before it is killed, 10 by default and at most 300 |
 | `--stop-on-exit` | Stop the machine once its workload exits, whatever the status, flushing storage first |

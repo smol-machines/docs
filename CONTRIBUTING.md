@@ -283,8 +283,9 @@ Keep installation links current without hardcoding a latest version in prose:
 
 | File | What is pinned |
 |---|---|
-| `local.md` | the latest smolvm release page, for the Windows zip |
+| `local.md` | the latest smolvm release page, for the Windows zip, and the `nix profile install` line at the smolvm tag |
 | `sdk.md` | three example links into the `smol` repository, at that repo's tag |
+| `local/smol-cli-reference.md` | the `smol` install script URL, the `SMOL_VERSION` example and the `smol --version` output, at the `smol` tag |
 
 On a release, check the installation links and SDK example links: the smolvm release has to
 carry a Windows asset, and the `smol` repository has to have a matching tag of

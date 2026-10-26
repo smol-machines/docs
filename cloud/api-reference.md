@@ -48,6 +48,8 @@ Machine creation accepts an OCI image or a `.smolmachine` registry reference as 
 
 When `resources` is omitted, a machine currently defaults to 4 vCPUs and 8192 MB of memory. When `network` is omitted, outbound access defaults to **open** — set `network.mode` explicitly (`blocked` or `allowCidrs`) when egress policy matters. Note a `blocked` machine also cannot pull its image, which runs in-guest, unless the image is already cached on its node. Larger machines cost more, so pass `resources` explicitly (for example `{"cpus": 1, "memoryMb": 256}`) rather than relying on the default. Disks can be configured up to 16 TiB where capacity is available. Check the OpenAPI document for the current request limits.
 
+`resources.diskDurability` is `full` (the default), where a guest `fsync` waits for the node's disk, or `deferred`, which is faster for fsync-heavy work and can lose recent writes if the node crashes; a branch keeps its source's.
+
 Machine and session responses list `env` with every value replaced by `[REDACTED]`. Values reach the machine but are never read back, so do not copy a response's `env` into a new create.
 
 `nestedVirt: true` exposes the host's virtualization extensions so the guest can run its own hypervisor. It is included with the Startup and Enterprise plans; on any other plan the create is refused with `422` `nested_virt_unavailable`, naming the plan. It is also refused with the same code when no node offers it.
@@ -327,3 +329,5 @@ Every response includes `x-request-id`. A safe client-provided ID is echoed; oth
 Checkpoints capture any running machine, guest RAM and processes included, into durable storage: `POST /v1/machines/{id}/checkpoints` captures one, `GET /v1/machines/{id}/checkpoints` lists them, and `POST /v1/checkpoints/{id}/restore` starts a new machine from one. See [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) for the lifecycle and the CLI equivalents.
 
 Branch routes are specialized cloud operations. They do not move a running local VM into cloud or provide a portable cross-architecture restore format. `POST /v1/machines/{id}/snapshot` is not implemented and returns `501`; use a checkpoint to capture a running machine, or export a stopped machine's disk to a `.smolmachine` artifact (`POST /v1/machines/{id}/export`, or `smol cloud export`).
+
+`GET /v1/capacity` (`machine:read`) sizes a fan-out before it starts: it returns how many machines you have and how many are started, the memory configured across started machines, and, for each running branchable machine, its memory and its node's branch headroom (`nodeHeadroomMib`). A branch its source's node cannot hold is refused with a retryable `503` `insufficient_capacity`, whose body carries `node.requiredMib`, `node.headroomMib` and `retryAfterSeconds`.
