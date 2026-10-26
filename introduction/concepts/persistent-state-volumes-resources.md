@@ -20,7 +20,7 @@ An ephemeral run is cleaned up when it exits. Use a persistent machine, a pack, 
 
 A volume maps storage into the guest. It can come from three places.
 
-A host-directory mount shares a selected host path with the machine and therefore crosses the VM isolation boundary. Edits made on the host wake file watchers in the guest, so Vite, webpack and nodemon reload without polling; a `:staged` mount does not, and `SMOL_NO_HOT_RELOAD=1` in the host process turns it off.
+A host-directory mount shares a selected host path with the machine and therefore crosses the VM isolation boundary. Edits made on the host wake file watchers in the guest, so Vite, webpack and nodemon reload without polling; a `:staged` mount does not, and `SMOL_NO_HOT_RELOAD=1` in the host process turns it off. Locally, a host directory can also be mounted into a running machine until it stops, with `machine mount add`; see [Mount a host directory](/docs/local/machine-lifecycle-cli-reference#mount-a-host-directory).
 
 A remote volume mounts S3-compatible object storage instead, using the same flag with an `s3://` source. The bucket is mounted inside the guest by the machine's agent, which speaks the S3 API and FUSE directly, so the image needs nothing installed: no rclone, no fuse3, not even a shell. A bucket can therefore be mounted into a distroless or scratch image. The mount is in place before the workload's first instruction runs, and it is re-established on every start.
 

@@ -319,7 +319,8 @@ smolvm machine start --name dev
 
 `machine update` changes configuration for the next start, so the machine must be stopped first,
 and it says so rather than guessing: on a running machine the command fails with `invalid vm state:
-expected stopped, got Running`. The allow list is the one exception.
+expected stopped, got Running`. The allow list is the one exception, and a host directory can be
+mounted into a running machine with `machine mount add`, below.
 
 It also edits the egress policy, which is otherwise fixed at create time. `--allow-host`,
 `--allow-host-pattern`, `--allow-cidr`, `--allow-udp` and `--outbound-localhost-only` add to the
@@ -357,6 +358,23 @@ smolvm machine run \
 ```
 
 A mounted host directory is deliberately visible to the guest. Do not mount sensitive host paths into untrusted workloads.
+
+`machine mount add` mounts a host directory into a running machine without a restart, and
+`machine mount rm --target GUEST` takes it out again:
+
+```bash
+smolvm machine mount add --name dev -v "$PWD/data:/data"
+smolvm machine mount add --name dev -v "$PWD/ref:/ref:ro"
+smolvm machine mount ls --name dev
+smolvm machine mount rm --name dev --target /data
+```
+
+The directory appears at once, `:ro` makes it read-only in the guest, and `mount ls --json` lists
+what was added. Such a mount lasts until the machine stops; to keep one across restarts, add it
+with `machine update -v` while the machine is stopped. A branch of the machine starts with the
+same mounts. `mount add` refuses a stopped machine, a `:staged` mount, and a guest path that
+already has a mount, whether added this way or from the machine's configuration; `mount rm` only
+removes what `mount add` added.
 
 ### Mount an S3 bucket
 

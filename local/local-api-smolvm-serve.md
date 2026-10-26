@@ -70,6 +70,7 @@ started with.
 | `POST` | `/api/v1/machines/:name/stop` | Stop a machine |
 | `DELETE` | `/api/v1/machines/:name` | Delete a machine |
 | `PUT` | `/api/v1/machines/:name/ports` | Replace a machine's published ports, live while it runs; a taken host port answers `409` `PORT_IN_USE` |
+| `GET`, `POST`, `DELETE` | `/api/v1/machines/:name/mounts` | List, add or remove host directories mounted into a running machine; `POST` takes `source`, `target` and `readonly`, `DELETE` takes `?target=`, and a stopped machine answers `409` |
 | `POST` | `/api/v1/machines/:name/exec` | Execute a command |
 | `POST` | `/api/v1/machines/:name/exec/stream` | Stream execution over SSE |
 | `PUT` | `/api/v1/machines/:name/files/*path` | Upload a file: up to 1 GiB with a `Content-Length`, 100 MiB without, `413` beyond. `?uid=`, `?gid=` and `?mode=` (octal) set its owner and permissions; with no owner it belongs to the workload's user |
