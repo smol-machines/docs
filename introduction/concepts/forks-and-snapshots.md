@@ -15,6 +15,10 @@ Copy-on-write avoids duplicating all memory and disk data at branch time. The so
 Branch support is host and feature dependent. Native Windows branches a machine only with
 `--freeze-source`, which pauses the source for the clone instead of branching it live.
 
+On Linux, a source still running under an older smolvm engine is not branched after an upgrade:
+the branch is refused with `409` and a message to restart the source (stop, then start), which
+puts it on the new engine.
+
 ### The older fork names
 
 `fork` is the earlier name for this operation and still works everywhere, so existing scripts and Smolfiles keep running:
