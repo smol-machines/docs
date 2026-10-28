@@ -154,6 +154,8 @@ page.
 |---|---|
 | `integrations.md` | Every integration, where its code lives, and what it runs on |
 | `integrations/testerarmy.md` | TesterArmy's e2e framework with smol machines as the browser provider |
+| `integrations/pydantic-ai-harness.md` | Pydantic AI Harness's `SmolSandbox`, an agent's shell and file tools in a local machine |
+| `integrations/sweeper.md` | The Paper Compute Company's sweeper with its smol backend, lint-fixing agents in a local machine |
 | `integrations/agentid.md` | Agents signing in to smol cloud with AgentID, AgentMail's sign-in for agents |
 
 ## Searching

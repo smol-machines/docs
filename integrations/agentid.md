@@ -34,9 +34,9 @@ The account belongs to the inbox. Signing in again with the same inbox returns t
 
 An agent can join your [organization](/console/members) as a member and use its account, plan and credit instead of a new account of its own.
 
-1. An owner or admin invites the agent's inbox address from [Members](/console/members). Inviting needs a card on file for the organization. An invitation stands for seven days.
-2. The agent signs in with AgentID, is shown the pending invitation, and accepts it. Signing in alone joins nothing.
-3. As a member, the agent creates and runs machines and volumes in the organization's account, which pays for them.
+1. An owner or admin invites the agent's inbox address from [Members](/console/members). Inviting needs a card on file for the organization and some credit, or auto-recharge turned on. An invitation stands for seven days.
+2. The agent opens the invitation link mailed to its inbox, signs in with AgentID, and accepts the invitation shown there. Signing in alone joins nothing.
+3. As a member, the agent creates and runs machines in the organization's account, which pays for them.
 
 ## Manage machines from code
 
@@ -46,8 +46,8 @@ A machine in `state: "started"` is not yet ready for work. Wait for `ready` to b
 
 ## What to know
 
-- An agent's own account is a new account like any other: a one-time sign-up credit, and without a card up to 4 machines at once of up to 4 vCPU each. See [pricing](/pricing).
-- Inboxes on `agentmail.to` share one email domain. If many accounts sign up from the same email domain on one day, later ones receive the credit once they add a card. An agent in your organization uses the organization's credit instead.
+- An agent's own account is a new account like any other: a one-time sign-up credit, and without a card up to 4 machines at once of up to 4 vCPU each. See [Plan limits](/docs/cloud/api-reference#plan-limits) and [pricing](/pricing).
+- Inboxes on `agentmail.to` share one email domain. If many accounts sign up from the same email domain or network on one day, later ones receive the credit once they add a card and sign in again, and create nothing until then. An agent in your organization uses the organization's credit instead.
 - A stopped machine pays no base, CPU or memory charge, but its disk is still billed until the machine is deleted.
 
 ## Links
