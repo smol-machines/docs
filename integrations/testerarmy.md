@@ -25,7 +25,7 @@ Each worker slot boots one warm Chromium machine. By default every test attempt 
 ## Requirements
 
 - macOS on Apple Silicon, or Linux with KVM (`/dev/kvm`). See [Supported platforms](/docs/introduction/concepts/supported-platforms).
-- Node.js and an e2e project with a web target.
+- Node.js 22.22.3 or a later 22 release, or 24.8 or later, and an e2e project with a web target.
 
 The first boot pulls the Playwright Ubuntu image, so it takes longer than later runs.
 
@@ -83,7 +83,7 @@ With `app`, set the target's `app.url` to `http://localhost:<port>`, declare no 
 
 - `hostPorts` is not an allowlist. The machine can reach any loopback port on your computer through `host.smolvm.internal`, and it has open outbound network access. See [Isolation, networking and credentials](/docs/introduction/concepts/isolation-networking-credentials).
 - The browser's back/forward cache is off, so going back reloads the page.
-- A killed runner, such as a cancelled CI job, can leave worker-scope machines behind, stopped, with names that start with `e2e-`. List them with `smol machine ls --local` and delete each with `smol machine rm --name <name> --yes`, using the [`smol` CLI](https://github.com/smol-machines/smol).
+- A killed runner, such as a cancelled CI job, can leave worker-scope machines behind, stopped, with names that start with `e2e-`. List them with `smol machine ls --local --json`, which prints each full name (the table shortens names longer than 18 characters), and delete each with `smol machine rm --name <name> --yes`, using the [`smol` CLI](https://github.com/smol-machines/smol).
 
 ## Links
 
