@@ -41,8 +41,12 @@ GET    /v1/machines
 GET    /v1/machines/{id}
 POST   /v1/machines/{id}/start
 POST   /v1/machines/{id}/stop
+POST   /v1/machines/{id}/pause
+POST   /v1/machines/{id}/resume
 DELETE /v1/machines/{id}
 ```
+
+`pause` saves the machine's memory and disks durably, then stops it; `resume` starts it again from that point, under the same id. Both need `machine:create`, and each answers `409` when the machine is in no state to do it: not pausable, or no saved execution ready.
 
 Machine creation accepts an OCI image or a `.smolmachine` registry reference as its source. Specify CPU, memory, network policy, environment, working directory, lifecycle limits, and other supported fields in the create request.
 
@@ -326,7 +330,7 @@ Every response includes `x-request-id`. A safe client-provided ID is echoed; oth
 
 ## Checkpoints and branches
 
-Checkpoints capture any running machine, guest RAM and processes included, into durable storage: `POST /v1/machines/{id}/checkpoints` captures one, `GET /v1/machines/{id}/checkpoints` lists them, and `POST /v1/checkpoints/{id}/restore` starts a new machine from one. See [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) for the lifecycle and the CLI equivalents.
+Checkpoints capture any running machine, guest RAM and processes included, into durable storage: `POST /v1/machines/{id}/checkpoints` captures one, `GET /v1/machines/{id}/checkpoints` lists them, `POST /v1/checkpoints/{id}/restore` starts a new machine from one, and `DELETE /v1/checkpoints/{id}` (`machine:delete`) deletes one, answering `409` while a machine still references it. See [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) for the lifecycle and the CLI equivalents.
 
 Branch routes are specialized cloud operations. They do not move a running local VM into cloud or provide a portable cross-architecture restore format. `POST /v1/machines/{id}/snapshot` is not implemented and returns `501`; use a checkpoint to capture a running machine, or export a stopped machine's disk to a `.smolmachine` artifact (`POST /v1/machines/{id}/export`, or `smol cloud export`).
 
