@@ -21,6 +21,9 @@ point. A workload that never declares one, such as a CI runner or a server, need
 Branch support is host and feature dependent. Native Windows branches a machine only with
 `--freeze-source`, which pauses the source for the clone instead of branching it live.
 
+A frozen source can be stopped once none of its branches is running, and cannot be started again
+while any branch of it still exists, because the branches' disks are layered on its own.
+
 On Linux, a source still running under an older smolvm engine is not branched after an upgrade:
 the branch is refused with `409` and a message to restart the source (stop, then start), which
 puts it on the new engine.
