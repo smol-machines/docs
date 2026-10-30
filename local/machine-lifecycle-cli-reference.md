@@ -511,6 +511,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT`, with `/udp` appended for a UDP port |
 | `--user`, `-u` | Run the workload as a name or `uid[:gid]` |
 | `--oci-platform` | On `machine run` and `pack create`: the platform to pull from a multi-platform image, such as `linux/amd64`; a platform the image does not have is refused |
+| `--disk` | Attach a host disk image or block device as `/dev/vdc`, `/dev/vdd` and so on, in order; `:ro` makes it read-only. smolvm never formats or mounts it, and a missing path is refused |
 | `--workdir`, `-w` | The workload's working directory; also on `machine update` |
 | `--interactive`, `-i` | Keep stdin open |
 | `--tty`, `-t` | Allocate a TTY |
