@@ -12,6 +12,7 @@ Most of these live in another project's repository. The **Code** column says whe
 
 | Integration | What it does | Code | Runs on |
 |---|---|---|---|
+| [Crabbox](https://github.com/openclaw/crabbox) by OpenClaw | `--provider smolvm` runs Crabbox's warm-a-box, sync-the-diff, run-the-suite loop in a smol cloud machine, with the working tree uploaded through the files API. Needs a smol cloud API key in `SMOLMACHINES_API_KEY` | [`internal/providers/smolvm`](https://github.com/openclaw/crabbox/tree/main/internal/providers/smolvm), in Crabbox's repository | smol cloud |
 | [e2e by TesterArmy](/docs/integrations/testerarmy) | Runs each web test attempt in its own branch of a warm Chromium machine, signed in once by `prepare` | [`@e2e-dev/smol`](https://github.com/tester-army/e2e/tree/main/packages/smol), in TesterArmy's repository, written by smol machines | Local engine |
 
 ## Agent evaluation and RL
