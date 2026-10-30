@@ -48,6 +48,8 @@ DELETE /v1/machines/{id}
 
 `pause` saves the machine's memory and disks durably, then stops it; `resume` starts it again from that point, under the same id. Both need `machine:create`, and each answers `409` when the machine is in no state to do it: not pausable, or no saved execution ready.
 
+`POST /v1/machines` creates the machine stopped: the response has `state: "stopped"` and `ready: false`. Start it with `POST /v1/machines/{id}/start`, or send an exec, which starts a stopped machine itself. A machine that nothing has started never becomes ready, so do not poll it for `ready` before starting it. The SDKs' `Machine.create` creates, starts and waits for readiness in one call.
+
 Machine creation accepts an OCI image or a `.smolmachine` registry reference as its source. Specify CPU, memory, network policy, environment, working directory, lifecycle limits, and other supported fields in the create request.
 
 When `resources` is omitted, a machine currently defaults to 4 vCPUs and 8192 MB of memory. When `network` is omitted, outbound access defaults to **open** — set `network.mode` explicitly (`blocked` or `allowCidrs`) when egress policy matters. Note a `blocked` machine also cannot pull its image, which runs in-guest, unless the image is already cached on its node. Larger machines cost more, so pass `resources` explicitly (for example `{"cpus": 1, "memoryMb": 256}`) rather than relying on the default. Disks can be configured up to 16 TiB where capacity is available. Check the OpenAPI document for the current request limits.
@@ -248,7 +250,7 @@ Shared accounts, their members and invitations, and sub-organizations have route
 
 ## Readiness and lifecycle
 
-Do not treat `state: "started"` as application readiness. Poll `GET /v1/machines/{id}` until `ready` is `true` before executing dependent work or connecting to a published service. `ready` flips once the machine answers a probe — its published port accepts connections, or, for machines with no published port, its guest agent responds — normally within a few seconds of start; `readyAt` records when. Exec does not require readiness: it auto-starts a stopped machine and waits for the agent itself.
+Do not treat `state: "started"` as application readiness. After starting a machine, poll `GET /v1/machines/{id}` until `ready` is `true` before executing dependent work or connecting to a published service. `ready` flips once the machine answers a probe — its published port accepts connections, or, for machines with no published port, its guest agent responds — normally within a few seconds of start; `readyAt` records when. Exec does not require readiness: it auto-starts a stopped machine and waits for the agent itself.
 
 Starting a machine blocks until the boot completes, which normally takes a few seconds. Pass `?detach=true` to return `202 Accepted` immediately and boot in the background, then poll `GET /v1/machines/{id}` until the state is `started` or `error`. Under a burst this keeps a client's own request timeout from cancelling a start that is still queued. `exec` has the same option under a different name: `background` in the request body.
 
