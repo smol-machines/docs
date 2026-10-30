@@ -18,7 +18,7 @@ smolvm runs Linux guests through the host's native virtualization interface. Hos
 
 ## Apple Silicon and x86_64 programs
 
-Rosetta 2 integration can run supported x86_64 Linux binaries inside an arm64 guest on Apple Silicon. It does not change the guest architecture or make an x86_64 `.smolmachine` artifact compatible with an arm64 host.
+Rosetta 2 integration can run supported x86_64 Linux binaries inside an arm64 guest on Apple Silicon. It does not change the guest architecture or make an x86_64 `.smolmachine` artifact compatible with an arm64 host. Turn it on with `--rosetta` on `machine run` (Smolfile `rosetta = true`), which then pulls the image as `linux/amd64` unless `--oci-platform` names another platform. Without it, an x86_64 image fails with `Exec format error`.
 
 ## Windows and WSL
 
