@@ -510,6 +510,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--cache-disk` | Mount a shared cache disk as `BASE:/guest/path`. `BASE` is a raw or qcow2 image that stays read-only and can back many machines; this machine writes only to its own layer, which its branches copy. A blank `BASE` gets an ext4 filesystem |
 | `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT`, with `/udp` appended for a UDP port |
 | `--user`, `-u` | Run the workload as a name or `uid[:gid]` |
+| `--oci-platform` | On `machine run` and `pack create`: the platform to pull from a multi-platform image, such as `linux/amd64`; a platform the image does not have is refused |
 | `--workdir`, `-w` | The workload's working directory; also on `machine update` |
 | `--interactive`, `-i` | Keep stdin open |
 | `--tty`, `-t` | Allocate a TTY |
