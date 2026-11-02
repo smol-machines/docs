@@ -72,6 +72,8 @@ A checkpoint is portable between hosts, within limits the runtime checks before 
 
 Restoring keeps the captured machine's shape. The CPU, memory, disk, and device topology come from the checkpoint, so they cannot be changed on the way in.
 
+A checkpoint, and a pause, also carries the agent rootfs the guest booted with, and `machine ls --json` shows its digest as `agent_rootfs_digest`. A restore or resume boots that rootfs, not one a later smolvm installed, so the captured processes keep the userland they had mapped. A cold `machine stop` and `start` is what moves a machine onto an upgraded rootfs.
+
 Capture is the fussier side. A checkpoint has to be able to resume every device it captured, so a
 machine holding host-bound state is refused rather than captured into an artifact that could not
 be restored. The initial profile refuses a machine with any of:
