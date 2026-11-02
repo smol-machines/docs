@@ -268,11 +268,13 @@ account is on rather than from the platform:
 
 Read your own ceilings rather than assuming them. `GET /v1/account` returns
 the ones that apply to you now as `effectiveMaxMachines`, `effectiveMaxCpus`,
-`effectiveMaxMemoryMb` and `effectiveMaxDiskGb`. The plan object beside them
-carries the plan's own `maxConcurrentMachines`, `maxCpus`, `maxMemoryMb` and
-`maxDiskGb`. On the free plan an account without a card is held to 4 vCPU per
-machine, which `effectiveMaxCpus` shows, and to 4 running machines, which no
-field reports:
+`effectiveMaxMemoryMb`, `effectiveMaxDiskGb` and `effectiveMaxConcurrentMachines`,
+with `runningMachines` counted the way that limit counts them: starting,
+running or pausing machines across the organization tree, not stopped or
+frozen ones. The plan object beside them carries the plan's own
+`maxConcurrentMachines`, `maxCpus`, `maxMemoryMb` and `maxDiskGb`. On the free
+plan an account without a card is held to 4 vCPU per machine and 4 running
+machines, which `effectiveMaxCpus` and `effectiveMaxConcurrentMachines` show:
 
 ```bash
 curl -fsSL https://api.smolmachines.com/v1/account \

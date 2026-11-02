@@ -69,6 +69,7 @@ started with.
 | `GET` | `/api/v1/machines/:name` | Get one machine |
 | `POST` | `/api/v1/machines/:name/start` | Start a machine |
 | `POST` | `/api/v1/machines/:name/stop` | Stop a machine |
+| `PUT` | `/api/v1/machines/:name/cpu-limit` | Cap the host CPU a running machine's VMM may use, as `{"millicpus": N}` across all its vCPUs (`200` is a fifth of one CPU), or `null` to clear it; the guest still sees every vCPU, and the limit holds for later launches until cleared. It needs the VMM in a cgroup smolvm controls, so on macOS the request is refused with `400` |
 | `DELETE` | `/api/v1/machines/:name` | Delete a machine |
 | `PUT` | `/api/v1/machines/:name/ports` | Replace a machine's published ports, live while it runs; a taken host port answers `409` `PORT_IN_USE` |
 | `GET`, `POST`, `DELETE` | `/api/v1/machines/:name/mounts` | List, add or remove host directories mounted into a running machine; `POST` takes `source`, `target` and `readonly`, `DELETE` takes `?target=`, and a stopped machine answers `409` |
@@ -96,6 +97,11 @@ A start takes `branchable`, `branchPoolSize` and `cudaVramLimitMib` in its JSON 
 A create body is validated strictly: an unknown field is refused with `422` and a message naming
 the field and listing the ones it accepts, and so is a known field of the wrong type. A field this
 release does not have is refused rather than dropped in silence.
+
+A create body's `diskVolumes` lists guest paths kept on the machine's storage disk instead of its
+overlay root, the API form of `-v /var/lib/docker`. A running machine's record carries
+`cpuLimitMillicpus` while a CPU limit is set and, on a virtio-net machine, `egressFlows`: its open
+TCP flows, how many distinct peers they reach and the oldest one, refreshed about every 15 seconds.
 
 ## Choose an integration
 
