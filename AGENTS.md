@@ -126,6 +126,7 @@ page.
 | `guides/nodejs.md` | Run Node.js in a machine |
 | `guides/kubernetes-in-a-microvm.md` | VM-per-pod and cluster-in-a-machine topologies |
 | `guides/docker-in-a-machine.md` | Run a Docker daemon inside a machine |
+| `guides/android-emulator.md` | Run the Android emulator headless inside a machine, on x86_64 Linux hosts |
 | `guides/headless-browser-computer-use.md` | Drive a browser or desktop inside a machine |
 | `guides/agent-sandboxes-ci.md` | Isolate agent-generated code and CI jobs |
 | `guides/error-handling.md` | Error codes and how to handle them |
