@@ -33,7 +33,7 @@ Guest and artifact architecture must match the host architecture.
 ## Install and verify a node
 
 ```bash
-curl -sSL https://smolmachines.com/install.sh | bash
+curl -fsSL https://smolmachines.com/install.sh | bash
 smolvm --version
 smolvm machine run --net --image alpine -- uname -a
 ```

@@ -11,7 +11,7 @@ Use the `smolvm` CLI to run Linux workloads in local microVMs. Each workload get
 ### macOS and Linux
 
 ```bash
-curl -sSL https://smolmachines.com/install.sh | bash
+curl -fsSL https://smolmachines.com/install.sh | bash
 smolvm --help
 ```
 

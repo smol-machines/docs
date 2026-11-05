@@ -410,6 +410,8 @@ VM boots rather than failing inside the guest. On Apple silicon that means an M3
 macOS 15 or later; on Linux it means nested KVM is enabled, through `kvm_intel.nested=1` or
 `kvm_amd nested=1`. A host that cannot returns an error naming the check result.
 
+[Android Emulator in a Machine](/docs/guides/android-emulator) runs a guest hypervisor end to end.
+
 Running a Docker daemon in a machine does not need this flag. Containers share the guest kernel,
 so [Docker in a Machine](/docs/guides/docker-in-a-machine) works without it.
 

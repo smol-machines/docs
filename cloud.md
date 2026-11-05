@@ -155,6 +155,6 @@ curl --fail-with-body -X DELETE \
   -H "Authorization: Bearer $SMOL_CLOUD_TOKEN"
 ```
 
-See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking) before using ingress or restricted egress.
+See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking) before using ingress or restricted egress, and [Cloud Examples](/docs/cloud/examples) for worked examples.
 
 The [cloud-auth](/docs/guides/skills/cloud-auth) and [cloud-machine](/docs/guides/skills/cloud-machine) skill packets are these steps as procedures, with a preflight before the first call and a cleanup that takes the settled bill from the delete.

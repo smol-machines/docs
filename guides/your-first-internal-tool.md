@@ -11,6 +11,8 @@ a deployed tool your teammates can use.
 
 ## 1. Scaffold a working app
 
+This uses the `smol` CLI; [install it](/docs/local/smol-cli-reference#install).
+
 ```bash
 smol new tracker
 cd tracker

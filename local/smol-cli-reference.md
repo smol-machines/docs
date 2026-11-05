@@ -4,14 +4,14 @@ title: smol CLI Reference
 
 # smol CLI Reference
 
-`smol` is one command line for machines on this computer and on smol cloud. It carries its own copy of the smolvm engine, so it needs no separate `smolvm` install, and it reaches smol cloud once you sign in. `smolvm` remains the runtime's own CLI, described in the [Machine Lifecycle CLI Reference](/docs/local/machine-lifecycle-cli-reference).
+`smol` is one command line for machines on this computer and on smol cloud. It carries its own copy of the smolvm engine, so it needs no separate `smolvm` install, and it reaches smol cloud once you sign in. `smolvm` remains the runtime's own CLI, described in the [Machine Lifecycle and CLI Reference](/docs/local/machine-lifecycle-cli-reference).
 
 ## Install
 
 On macOS (Apple Silicon) and Linux:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/smol-machines/smol/v1.32.4/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/smol-machines/smol/v1.32.4/scripts/install.sh | bash
 smol --version
 ```
 

@@ -140,7 +140,7 @@ Typical meanings:
 - `402`: tenant billing or budget restriction
 - `404`: machine or other resource does not exist
 - `409`: lifecycle conflict or duplicate name
-- `422`: the body parsed but did not satisfy the schema, or the request was refused by a quota. A quota refusal names the plan and the ceiling it hit, so the body is worth surfacing to whoever triggered the call — see [plan limits](/docs/cloud/api-reference)
+- `422`: the body parsed but did not satisfy the schema, or the request was refused by a quota. A quota refusal names the plan and the ceiling it hit, so the body is worth surfacing to whoever triggered the call. See [plan limits](/docs/cloud/api-reference#plan-limits)
 - `429`: rate limited; wait `Retry-After` seconds, then resend. The request never ran
 - `503` with code `machine_interrupted`: the machine stopped or became unreachable while an exec ran. Wait `Retry-After`; resend only a command that is safe to run twice
 - `502`, `503`, `504`: briefly unavailable; wait `Retry-After`, then resend requests that are safe to repeat
