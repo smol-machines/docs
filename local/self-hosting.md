@@ -52,7 +52,7 @@ Start the local API on loopback:
 smolvm serve start --listen 127.0.0.1:8080
 ```
 
-The API has no authentication. Keep it on loopback or a protected Unix socket. If a remote controller must connect, add authenticated TLS, strict network policy, and host-level access controls in front of it.
+The API has no authentication by default. Keep it on loopback or a protected Unix socket. If a remote controller must connect, add authenticated TLS, strict network policy, and host-level access controls in front of it.
 
 See [Local API and smolvm serve](/docs/local/local-api-smolvm-serve) for the endpoint summary.
 

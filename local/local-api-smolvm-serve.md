@@ -69,7 +69,7 @@ started with.
 | `GET` | `/api/v1/machines/:name` | Get one machine |
 | `POST` | `/api/v1/machines/:name/start` | Start a machine |
 | `POST` | `/api/v1/machines/:name/stop` | Stop a machine |
-| `PUT` | `/api/v1/machines/:name/cpu-limit` | Cap the host CPU a running machine's VMM may use, as `{"millicpus": N}` across all its vCPUs (`200` is a fifth of one CPU), or `{"millicpus": null}` to clear it; the guest still sees every vCPU, and the limit holds across restarts until cleared. A stopped machine answers `409`. It needs the VMM in a cgroup smolvm controls, so the request is refused with `400` on macOS, and on Linux unless `serve` runs as root on systemd or with a delegated cgroup, such as a systemd unit with `Delegate=yes` |
+| `PUT` | `/api/v1/machines/:name/cpu-limit` | Cap the host CPU a running machine's VMM may use, as `{"millicpus": N}` across all its vCPUs (`200` is a fifth of one CPU), or `{"millicpus": null}` to clear it; the guest still sees every vCPU, and the limit holds across restarts until cleared. A stopped machine answers `409`. It needs the VMM in a cgroup smolvm controls, so the request is refused with `400` on macOS, and on Linux unless `serve` runs as root on systemd or can write its own cgroup, as in a systemd unit with `Delegate=yes` |
 | `DELETE` | `/api/v1/machines/:name` | Delete a machine |
 | `PUT` | `/api/v1/machines/:name/ports` | Replace a machine's published ports, live while it runs; a taken host port answers `409` `PORT_IN_USE` |
 | `GET`, `POST`, `DELETE` | `/api/v1/machines/:name/mounts` | List, add or remove host directories mounted into a running machine; `POST` takes `source`, `target` and `readonly`, `DELETE` takes `?target=`, and a stopped machine answers `409` |
@@ -135,7 +135,7 @@ Do not confuse the package names:
 
 ## Security and deployment boundary
 
-The local server does not provide authentication. Bind it to loopback or a protected Unix socket. Do not expose port 8080 to an untrusted network.
+Without mutual TLS (`SMOLVM_SERVE_TLS_CERT`, `_KEY`, `_CLIENT_CA`) the local server has no authentication. Bind it to loopback or a protected Unix socket. Do not expose port 8080 to an untrusted network.
 
 If another host or user must reach the API, place it behind an authenticated, encrypted proxy and enforce host-level account isolation. Anyone who can call the API can ask the runtime to create machines and execute workloads with the capabilities granted to the server process.
 

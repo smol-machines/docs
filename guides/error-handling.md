@@ -158,7 +158,7 @@ The local `smolvm serve` API uses `/api/v1`. Generate the OpenAPI document for t
 smolvm serve openapi
 ```
 
-`smolvm serve` is a local control surface and does not currently enforce authentication. Bind it to loopback or a protected Unix socket, not an untrusted network.
+`smolvm serve` is a local control surface and does not enforce authentication by default. Bind it to loopback or a protected Unix socket, not an untrusted network.
 
 ## CLI exit codes
 
