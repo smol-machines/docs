@@ -66,13 +66,13 @@ Write anything that must survive a restart to `/workspace` or another path on th
 
 Credentials and configuration are a common case. A configuration path that is a symlink into `/tmp` is emptied whenever the machine stops, so a long-running agent that re-reads it after an idle stop finds nothing there. Keep those files on the machine filesystem instead.
 
-Stopping is not a backup. Delete removes the machine, and infrastructure failures can still affect machine-local state. Keep important source data and outputs in an external system of record.
+Stopping is not a backup. Delete removes the machine, and a recovery point only brings a machine back after its node is lost, so keep important source data and outputs in an external system of record.
 
 ### Recovery points
 
 A stop through the API or the idle timeout exports the machine's filesystem as a recovery point, at no charge. If its node is lost, the next start creates the machine from its latest point, so it comes back with its files as of that stop. A machine running when its node died loses its memory and what it wrote since that point.
 
-`GET /v1/machines/{id}` shows the point as `recovery` (`reference`, `at`, `sizeBytes`), and a failed or skipped export as `recoveryError`; an earlier point still stands. Ephemeral machines, branches and branch bases take none, and the label `smol.recovery: off` opts a machine out. An account's points are capped in total: past the cap a stop takes no new point, and `recoveryError` says so.
+`GET /v1/machines/{id}` shows the point as `recovery` (`reference`, `at`, `sizeBytes`), and a failed or skipped export as `recoveryError`; an earlier point still stands. Ephemeral machines, branches and branch bases take none, and the label `smol.recovery: off` (`labels` on the create request) opts a machine out. An account's points are capped in total: past the cap a stop takes no new point, and `recoveryError` says so.
 
 ## Cache disks
 
