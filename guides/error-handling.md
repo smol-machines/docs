@@ -138,7 +138,7 @@ Typical meanings:
 - `400`: the body was not JSON, or a well-formed body broke a rule the schema cannot express
 - `401` or `403`: missing, invalid, or insufficient credentials
 - `402`: tenant billing or budget restriction
-- `404`: machine or other resource does not exist
+- `404`: machine or other resource does not exist, or is not yours
 - `409`: lifecycle conflict or duplicate name
 - `422`: the body parsed but did not satisfy the schema, or the request was refused by a quota. A quota refusal names the plan and the ceiling it hit, so the body is worth surfacing to whoever triggered the call. See [plan limits](/docs/cloud/api-reference#plan-limits)
 - `429`: rate limited; wait `Retry-After` seconds, then resend. The request never ran
