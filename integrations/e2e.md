@@ -24,7 +24,7 @@ Each worker slot boots one warm Chromium machine. By default every test attempt 
 
 ## Requirements
 
-- macOS on Apple Silicon, or Linux with KVM (`/dev/kvm`). See [Supported platforms](/docs/introduction/concepts/supported-platforms).
+- macOS on Apple Silicon, or Linux on x86_64 or aarch64 with glibc 2.34 or newer and read and write access to `/dev/kvm`. See [Supported platforms](/docs/introduction/concepts/supported-platforms).
 - Node.js 22.22.3 or a later 22 release, or 24.8 or later, and an e2e project with a web target.
 
 The first boot pulls the Playwright Ubuntu image, so it takes longer than later runs.

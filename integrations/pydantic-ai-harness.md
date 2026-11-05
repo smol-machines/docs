@@ -34,7 +34,7 @@ Pydantic wrote the capability and ships it in the Harness. Its full reference is
 Install the Harness with the `smol` extra and your model provider's extra:
 
 ```bash
-pip install "pydantic-ai-harness[smol,anthropic]"
+pip install "pydantic-ai-harness[coder,smol,anthropic]"
 ```
 
 The `smol` extra installs the `smolmachines` SDK, which bundles the local engine, so there is no separate `smolvm` install.

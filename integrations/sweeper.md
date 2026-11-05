@@ -25,7 +25,7 @@ With the smol backend, sweeper creates one machine for the run from an OCI image
 
 - macOS on Apple Silicon, or Linux with KVM (`/dev/kvm`). See [Supported platforms](/docs/introduction/concepts/supported-platforms).
 - The `smolvm` CLI on `PATH`. See [Local](/docs/local) to install it.
-- Go, to build sweeper.
+- Go 1.25.7 or later, to build sweeper.
 - `ANTHROPIC_API_KEY` set on the host. sweeper refuses to boot the machine without it.
 
 The default image is `node:22-bookworm-slim`, and the machine installs Claude Code when it starts if the image does not have it. Pass `--vm-image` with an image that has Claude Code installed to skip that step.
