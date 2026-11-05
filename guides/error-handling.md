@@ -112,7 +112,7 @@ try {
 
 ## REST API errors
 
-Check the HTTP status before decoding a success response. Every error body is RFC 9457 `application/problem+json` with a stable `code`, a `detail` sentence, and `retryable`. Keep the body and `x-request-id` for debugging:
+Check the HTTP status before decoding a success response. An `exec` whose command failed still answers `200`; read `exitCode`. Every error body is RFC 9457 `application/problem+json` with a stable `code`, a `detail` sentence, and `retryable`. Keep the body and `x-request-id` for debugging:
 
 ```bash
 body=$(mktemp)

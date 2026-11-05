@@ -133,7 +133,7 @@ for _ in $(seq 1 60); do
   if jq -e '(has("ready") | not) and .state == "started"' \
     >/dev/null <<<"$record" &&
     curl --fail --silent \
-      "$SMOL_CLOUD_URL/v1/machines/$WEB_MACHINE_ID/connect/8000/" \
+      "$SMOL_CLOUD_URL/v1/machines/$WEB_MACHINE_ID/connect/8000" \
       -H "Authorization: Bearer $SMOL_CLOUD_TOKEN" >/dev/null; then
     ready=true
     break
@@ -154,7 +154,7 @@ Connect through the authenticated bridge:
 
 ```bash
 curl --fail \
-  "$SMOL_CLOUD_URL/v1/machines/$WEB_MACHINE_ID/connect/8000/" \
+  "$SMOL_CLOUD_URL/v1/machines/$WEB_MACHINE_ID/connect/8000" \
   -H "Authorization: Bearer $SMOL_CLOUD_TOKEN"
 ```
 

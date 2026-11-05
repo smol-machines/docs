@@ -21,7 +21,7 @@ The command examples assume `SMOL_CLOUD_TOKEN` and `SMOL_CLOUD_URL` are set as s
 Starting and ready are separate conditions:
 
 - `state: "started"` means the VM process launched
-- `ready: true` means the guest agent is reachable and every published port is accepting connections
+- `ready: true` means its published port is accepting connections, or, with no published port, that the guest agent answers. With several published ports only the first is probed
 
 Poll the machine until `ready` is true before sending dependent work. Probe the application's own health endpoint separately when accepting a connection is not enough to establish application health.
 
@@ -39,10 +39,10 @@ Current public pricing states that stopped machines have no base, CPU, or memory
 
 The create request can include:
 
-- `autoStopSeconds`: stop the machine after this many seconds of inactivity. Activity is anything dispatched to the machine — exec, sessions, file transfers, ingress traffic — and an in-flight exec keeps the machine alive even past the timeout. The timer is checked by a sweep that runs every 15 seconds, so expect the stop to land within about 15 seconds after the idle deadline.
+- `autoStopSeconds`: stop the machine after this many seconds of inactivity. Activity is anything dispatched to the machine (exec, sessions, file transfers, ingress traffic), and an in-flight exec keeps the machine alive even past the timeout. The timer is checked by a sweep that runs every 15 seconds, and each machine's deadline carries a fixed offset of up to a quarter of the timeout, at most 60 seconds, so expect the stop up to about 75 seconds after the idle deadline.
   A machine that publishes a port and sets no `autoStopSeconds` can still be stopped when idle by the platform's default timeout, unless its plan includes always-on. Set `autoStopSeconds` yourself to choose the timeout; a machine with no published port is not stopped this way.
   `0` means never auto-stop.
-- `ttlSeconds`: hard lifetime limit — the machine is deleted this many seconds after creation regardless of activity, on the same 15-second sweep.
+- `ttlSeconds`: hard lifetime limit: the machine is deleted this many seconds after creation regardless of activity, on the same sweep and offset.
 - `ephemeral`: the machine is deleted (not kept as stopped) once it stops.
 
 Both timers take a final metering sample before acting, so an auto-stopped or expired machine's last window of CPU and memory is still billed and visible in `/usage`.
@@ -143,7 +143,7 @@ Allow only selected hosts and CIDR ranges:
 }
 ```
 
-An allow list must include every registry, package host, API, and redirect target the workload needs. Prefer `blocked` or `allowCidrs` for untrusted workloads.
+An allow list must include every package host, API, and redirect target the workload needs at runtime. The image's own registry is folded in for the pull; see [Cloud Examples](/docs/cloud/examples). Prefer `blocked` or `allowCidrs` for untrusted workloads.
 
 ### Credentials the machine never holds
 
@@ -175,7 +175,7 @@ With `public: false`, use the authenticated connect route where it is enabled:
 
 ```bash
 curl --fail \
-  "$SMOL_CLOUD_URL/v1/machines/$MACHINE_ID/connect/80/" \
+  "$SMOL_CLOUD_URL/v1/machines/$MACHINE_ID/connect/80" \
   -H "Authorization: Bearer $SMOL_CLOUD_TOKEN"
 ```
 

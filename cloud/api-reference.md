@@ -50,7 +50,7 @@ DELETE /v1/machines/{id}
 
 Machine creation accepts an OCI image or a `.smolmachine` registry reference as its source. Specify CPU, memory, network policy, environment, working directory, lifecycle limits, and other supported fields in the create request.
 
-When `resources` is omitted, a machine currently defaults to 4 vCPUs and 8192 MB of memory. When `network` is omitted, outbound access defaults to **open** — set `network.mode` explicitly (`blocked` or `allowCidrs`) when egress policy matters. Note a `blocked` machine also cannot pull its image, which runs in-guest, unless the image is already cached on its node. Larger machines cost more, so pass `resources` explicitly (for example `{"cpus": 1, "memoryMb": 256}`) rather than relying on the default. Disks can be configured up to 16 TiB where capacity is available. Check the OpenAPI document for the current request limits.
+When `resources` is omitted, a machine currently defaults to 4 vCPUs and 8192 MB of memory. When `network` is omitted, outbound access defaults to **open**, so set `network.mode` explicitly (`blocked` or `allowCidrs`) when egress policy matters. Note a `blocked` machine also cannot pull its image, which runs in-guest, unless the image is already cached on its node. Larger machines cost more, so pass `resources` explicitly (for example `{"cpus": 1, "memoryMb": 256}`) rather than relying on the default. Disk per machine is capped by the plan, which `effectiveMaxDiskGb` shows; 16 TiB is the most any request can ask for. Check the OpenAPI document for the current request limits.
 
 `resources.diskDurability` is `full` (the default), where a guest `fsync` waits for the node's disk, or `deferred`, which is faster for fsync-heavy work and can lose recent writes if the node crashes; a branch keeps its source's.
 
@@ -192,7 +192,7 @@ The API supports file upload and download for a machine. Use the current OpenAPI
 
 Request bodies are capped: 1 MiB on the JSON API, 100 MiB on a file upload to `/v1/machines/{id}/files/...`, and 10 MiB per request through the connect route. A larger body is refused.
 
-Upload targets follow the machine's filesystem layout. Write to `/workspace` or another path on the storage disk when the file must survive a stop and start; `/tmp` is empty after the machine restarts. An upload whose target resolves through a symlink into a memory-backed path fails instead of writing the file. See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking).
+Upload targets follow the machine's filesystem layout. Write to `/workspace` or another path on the storage disk when the file must survive a stop and start; `/tmp` is empty after the machine restarts. An upload whose target resolves through a symlink into a memory-backed path succeeds, and the file is gone after a restart. See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking).
 
 ### Operational endpoints
 
@@ -230,7 +230,7 @@ Metering semantics to build billing on:
 - `DELETE /v1/machines/{id}?includeUsage=true` returns `200` with the settled usage and cost in the response body — the recommended pattern for short-lived machines (create, run a job, delete, bill from the DELETE response). Without the flag, DELETE returns `204` as before.
 - `GET /v1/machines/{id}/usage` keeps working for 30 days after a machine is deleted.
 
-When the prepaid balance runs out, running work continues for 48 hours, with an email at the start and before the end. Then running machines are stopped, and requests that start or create work are refused with `402` (`payment_required`, detail "balance exhausted"). Reads, stop and delete still work. A plan with a monthly budget, or the egress budget, refuses the same way when reached. `PATCH /v1/account` with `lowBalanceThresholdMicros` sets the low-balance email (`0` turns it off), and auto-recharge, set from [billing](/console/billing), charges the card on file a chosen amount when the balance falls to a threshold.
+When the prepaid balance runs out, running work continues for 48 hours, with an email at the start and before the end. Then running machines are stopped, and requests that start or create work are refused with `402` (`payment_required`, detail "balance exhausted"). Reads, stop and delete still work. A plan with a monthly budget, or the egress budget, refuses the same way when reached. `PATCH /v1/account` from a signed-in session, with `lowBalanceThresholdMicros`, sets the low-balance email (`0` turns it off), and auto-recharge, set from [billing](/console/billing), charges the card on file a chosen amount when the balance falls to a threshold.
 
 The [cloud-usage](/docs/guides/skills/cloud-usage) skill packet reads these totals and reconciles one machine's bill against its uptime and the published rate.
 
@@ -255,7 +255,7 @@ Shared accounts, their members and invitations, and sub-organizations have route
 
 Do not treat `state: "started"` as application readiness. Poll `GET /v1/machines/{id}` until `ready` is `true` before executing dependent work or connecting to a published service. `ready` flips once the machine answers a probe — its published port accepts connections, or, for machines with no published port, its guest agent responds — normally within a few seconds of start; `readyAt` records when. Exec does not require readiness: it auto-starts a stopped machine and waits for the agent itself.
 
-Starting a machine blocks until the boot completes, which normally takes a few seconds. Pass `?detach=true` to return `202 Accepted` immediately and boot in the background, then poll `GET /v1/machines/{id}` until the state is `started` or `error`. Under a burst this keeps a client's own request timeout from cancelling a start that is still queued. `exec` has the same option under a different name: `background` in the request body.
+Starting a machine blocks until the boot completes, which normally takes a few seconds. Pass `?detach=true` to return `202 Accepted` immediately and boot in the background, then poll `GET /v1/machines/{id}` until the state is `started` or `error`. Under a burst this keeps a client's own request timeout from cancelling a start that is still queued.
 
 Stopping a machine preserves its stored state. Deleting it removes the machine. See the lifecycle page for billing and storage details.
 
@@ -291,9 +291,9 @@ The published plans and their ceilings are listed on the
 rates do not, so moving up a published plan buys headroom rather than a
 different price. An Enterprise contract may carry its own rates.
 
-Exceeding a ceiling is refused at create time with `422` and a body naming the
-plan, the limit, and where to change it — nothing is started, so nothing is
-charged:
+Exceeding the machine count or size ceiling is refused at create with `422`, and
+the running ceiling when a machine starts, also with `422`, with a body naming the
+plan, the limit, and where to change it. Nothing is started, so nothing is charged:
 
 ```text
 machine count quota exceeded: your Standard plan allows 20 machines; upgrade at https://smolmachines.com/pricing
@@ -325,7 +325,7 @@ a stopped machine still holds its slot.
 
 ## Errors and request IDs
 
-Use the HTTP status code first. Error bodies are RFC 9457 `application/problem+json`: a stable `code`, a `detail` sentence, and `retryable`, which is true for `408`, `429`, `502`, `503` and `504`; those also carry `Retry-After` in seconds. An exec whose machine stopped under it returns `503` with code `machine_interrupted`: the command may have partly run, and a retry runs it again. Two other refusals are worth retrying after a wait: a branch answers `409` "branches of this source made no progress ...; retry" while it waits behind its siblings, and a create answers `422` "no ready <arch> node" while no node of that architecture is up. For guest exit codes and SDK error patterns, see [Error handling](/docs/guides/error-handling).
+Use the HTTP status code first. An `exec` whose command failed still answers `200`; read `exitCode`. Error bodies are RFC 9457 `application/problem+json`: a stable `code`, a `detail` sentence, and `retryable`, which is true for `408`, `429`, `502`, `503` and `504`; those also carry `Retry-After` in seconds. An exec whose machine stopped under it returns `503` with code `machine_interrupted`: the command may have partly run, and a retry runs it again. Two other refusals are worth retrying after a wait: a branch answers `409` "branches of this source made no progress ...; retry" while it waits behind its siblings, and a create answers `422` "no ready <arch> node" while no node of that architecture is up. For guest exit codes and SDK error patterns, see [Error handling](/docs/guides/error-handling).
 
 Common statuses include:
 
@@ -344,7 +344,7 @@ Every response includes `x-request-id`. A safe client-provided ID is echoed; oth
 
 ## Checkpoints and branches
 
-Checkpoints capture any running machine, guest RAM and processes included, into durable storage: `POST /v1/machines/{id}/checkpoints` captures one, `GET /v1/machines/{id}/checkpoints` lists them, `POST /v1/checkpoints/{id}/restore` starts a new machine from one, and `DELETE /v1/checkpoints/{id}` (`machine:delete`) deletes one, answering `409` while a machine still references it. A checkpoint whose contents do not match its checksum is refused with `422` ("the checkpoint is corrupt"), which a retry cannot help, so capture or upload it again. A restore checks this, and so does `POST /v1/checkpoints/{id}/complete` for an upload of up to 32 MiB. See [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) for the lifecycle and the CLI equivalents.
+Checkpoints capture any running machine, guest RAM and processes included, into durable storage: `POST /v1/machines/{id}/checkpoints` captures one, `GET /v1/machines/{id}/checkpoints` lists them, `POST /v1/checkpoints/{id}/restore` creates a stopped machine from one, with networking blocked unless the request names a `network` (start it to resume it), and `DELETE /v1/checkpoints/{id}` (`machine:delete`) deletes one, answering `409` while a machine still references it. A checkpoint whose contents do not match its checksum is refused with `422` ("the checkpoint is corrupt"), which a retry cannot help, so capture or upload it again. A restore checks this, and so does `POST /v1/checkpoints/{id}/complete` for an upload of up to 32 MiB. See [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) for the lifecycle and the CLI equivalents.
 
 Branch routes are specialized cloud operations. They do not move a running local VM into cloud or provide a portable cross-architecture restore format. `POST /v1/machines/{id}/snapshot` is not implemented and returns `501`; use a checkpoint to capture a running machine, or export a stopped machine's disk to a `.smolmachine` artifact (`POST /v1/machines/{id}/export`, or `smol cloud export`).
 
