@@ -31,7 +31,7 @@ image, so a machine restricted to one hostname still starts from an image on a
 registry that list does not name. Add `--seed-digest-ttl SECONDS` to reuse a
 digest resolved that recently instead of checking the registry on every run. On the default backend the guest has no visible network interface and `ping` does
 not work, even though TCP and UDP do — see [how networking behaves inside a
-machine](#how-networking-behaves-inside-a-machine). An ephemeral run pulls every time unless you add `--oci-cache`,
+machine](#how-networking-behaves-inside-a-machine). With seeding off or on Windows, an ephemeral run pulls every time unless you add `--oci-cache`,
 which keeps the image on the host for later runs to start from without a pull.
 Beyond the pull, enable networking only when the workload needs network access:
 
@@ -90,7 +90,7 @@ Package installs, file writes, and configuration changes made through `machine e
 
 If `--name` is omitted, `SMOLVM_MACHINE_NAME` names the machine when it is set; `machine run` does not read it. Without either,
 `machine create` generates a name such as `vm-60d4e0ec`, commands that act on an existing machine
-fall back to `default`, and `delete`, `pause`, `resume`, `update`, `branch-release`, `data-dir`, `images` and `prune` refuse to run.
+fall back to `default`, and `delete`, `pause`, `resume`, `update`, `branch-release`, `data-dir`, `images` and `prune` refuse to run. `machine checkpoint` reads neither and needs `--name`.
 A name is at most 128 letters, digits, `-` and `_`, starts with a letter or digit, and has no
 trailing or doubled hyphen.
 

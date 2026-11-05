@@ -26,9 +26,9 @@ The [throwaway-machine](/docs/guides/skills/throwaway-machine) and [dev-env](/do
 Network access is off unless enabled, and a registry image usually does not need
 it: a separate builder machine pulls the image into a shared seed and the job's
 machine starts from that, so a job with no egress of its own runs on an
-unnetworked machine. On a CI host
-that runs the same image repeatedly, add `--oci-cache` so
-later runs start from the host copy instead of pulling again:
+unnetworked machine. A CI host that runs the same image repeatedly reuses the seed;
+where seeding is off, add `--oci-cache` so later runs start from the host copy
+instead of pulling again:
 
 ```bash
 smolvm machine run --net --image alpine:3.20 -- \
@@ -53,12 +53,9 @@ A mount deliberately exposes a host directory to guest code. Do not mount the re
 ## Restrict egress
 
 Enable only the destinations the job needs. This standalone example checks
-the npm registry; it does not assume a project or lockfile exists in the image.
-Pre-pull the image with networking first, then reuse the host OCI cache so
-the restricted job does not need additional registry/auth/CDN hosts:
+the npm registry; it does not assume a project or lockfile exists in the image:
 
 ```bash
-smolvm machine run --net --oci-cache --image node:22-alpine -- node --version
 smolvm machine run --net --oci-cache \
   --allow-host registry.npmjs.org \
   --image node:22-alpine -- \
@@ -143,9 +140,9 @@ For an HTTPS credential the workload must use but never hold, `--credential NAME
 binds one: the guest gets a placeholder in `ENV_VAR` and the host substitutes the real value only
 on requests to the listed hosts, so the code in the machine never sees it. The value comes from a
 `--secret-env` or `--secret-file` reference of the same name, or from that host variable, and the
-flag implies `--net`. `[[network.credentials]]` is the Smolfile form. There is still no
-cloud-native secrets store, so prefer short-lived, least-privilege credentials and scope them to
-one job.
+flag implies `--net`. `[[network.credentials]]` is the Smolfile form. On smol cloud the SDK's
+`credentials` field stores the value sealed under its name. Prefer short-lived, least-privilege
+credentials and scope them to one job.
 
 ## Cleanup on every path
 
