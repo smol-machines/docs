@@ -72,7 +72,7 @@ never silently redirects a program that meant to run locally.
 ```rust
 use smolmachines::{ConnectOptions, Machine};
 
-// Local: the engine runs in this process.
+// Local: the crate drives the engine as a child process.
 let local = Machine::builder("here").image("alpine:latest").create()?;
 
 // Cloud: the control plane runs it. create_with also starts the machine and
@@ -99,5 +99,5 @@ All four drive the same engine and the same cloud API. The Node and Python packa
 through NAPI and pyo3, and the Go module loads it without cgo; the Rust crate drives the engine as a
 child process and fetches it when the host has none.
 
-See [Machine API](/docs/sdk/machine-api) for the method surface the three share, and
+See [Machine API](/docs/sdk/machine-api) for the method surface they share, and
 [Use SDK on Cloud](/docs/sdk/with-cloud) for the cloud target's configuration fields.

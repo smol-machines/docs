@@ -12,7 +12,7 @@ The prebuilt local SDK supports:
 
 - macOS 11 or later on Apple Silicon
 - Linux x86_64 or arm64 with glibc 2.34 or later
-- Linux kernel 5.4 or later, with access to `/dev/kvm`
+- Linux with access to `/dev/kvm`
 
 Common supported Linux distributions include Ubuntu 22.04+, Debian 12+, RHEL 9, and Amazon Linux 2023.
 

@@ -362,7 +362,7 @@ Each `credentials` entry names a guest variable (`envVar`, `env_var` in Python) 
 |---|---|---|---|
 | `cpus` | `cpus` | Both | vCPU count; omitted values use the target's default |
 | `memoryMb` | `memory_mb` | Both | Memory in MiB; omitted values use the target's default |
-| `network` | `network` | Both | Unrestricted guest outbound networking. Local default `false`. On cloud it only turns access **on**: omitting it and setting `false` both leave the control-plane default, which is open. To allow only specific destinations, set `allowHosts` / `allowCidrs` instead of this flag |
+| `network` | `network` | Both | Unrestricted guest outbound networking. Local default `false`. On cloud, omitting it leaves the control-plane default, which is open, and `false` blocks egress, so the machine cannot pull an image its node has not cached. To allow only specific destinations, set `allowHosts` / `allowCidrs` instead of this flag |
 | `storageGb` | `storage_gb` | Both | Storage disk size in GiB; local SDK default `20` |
 | `overlayGb` | `overlay_gb` | Local | Overlay disk size in GiB; local SDK default `10` |
 | `diskDurability` | `disk_durability` | Both | `"full"` (default): a guest `fsync` waits for the host's disk. `"deferred"`: writes reach it on the host's schedule, faster for fsync-heavy work, and a host crash can lose recent writes. Go: `DiskDurability`; Rust: `.disk_durability()` |

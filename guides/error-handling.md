@@ -91,7 +91,7 @@ Do not parse error message text when a type or code is available. Common SDK cod
 
 ### Retries
 
-A cloud error also says whether retrying can help: `retryable`, the HTTP `status`, the server's `problemCode`, and how long to wait (`retryAfterMs` in Node, `retry_after_s` in Python).
+A cloud error also says whether retrying can help: `retryable`, the HTTP `status`, the server's `problemCode` (`problem_code` in Python), and how long to wait (`retryAfterMs` in Node, `retry_after_s` in Python).
 
 The SDKs retry on their own, up to three times and waiting as the server asks, when that is safe: a `429` for any call, and a `502`, `503` or `504` for reads, deletes, start, stop and resume. Set `maxRetries` (Node) or `max_retries` (Python) on the connection to change the count, or `0` to turn retries off.
 
