@@ -25,7 +25,7 @@ Which default applies depends on how the machine is started:
 |---|---|
 | The SDK (`smolmachines` for Node or Python) | Both enforce, on Linux |
 | `smolvm serve` | Both enforce, changeable with `--seccomp` and `--landlock` |
-| The boot helper invoked directly | Off unless set |
+| `smolvm machine` commands, or the boot helper invoked directly | Off unless set |
 
 An explicitly set variable always wins, so `SMOLVM_SECCOMP=off` remains the escape hatch for a workload the allowlist does not cover. On macOS both are ignored, so setting them there changes nothing.
 
@@ -79,7 +79,7 @@ to the host is the rare case: it takes a bug in device emulation, and a machine 
 kernel behind a small virtio device surface rather than an emulated PC.
 
 What actually exposes a host is what you shared on purpose. A host mount is the guest's write
-access to that directory. A published port is reachable from wherever the host is reachable. An
+access to that directory. A published port listens on the host's loopback unless the node widens it with `SMOLVM_PUBLISH_ADDR`, and then it is reachable from wherever that address is. An
 allow list one entry wider than you meant is egress you did not intend. And the code running
 inside the machine is code you chose to run. Every one of those is off by default, so the
 exposure a machine has is the exposure you gave it.

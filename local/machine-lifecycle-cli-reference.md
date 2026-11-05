@@ -456,7 +456,7 @@ These select `virtio-net` when you have not named a backend, because each one ne
 
 | You passed | Why virtio-net |
 |---|---|
-| `--port` / `-p` | only virtio-net serves inbound connections |
+| `--port` / `-p` | at create, only virtio-net serves inbound connections; a running `tsi` machine gets its new TCP ports through a host forwarder |
 | `--allow-host`, `--allow-cidr`, `--outbound-localhost-only`, `--block-private`, `--deny-cidr`, `--allow-udp` | the egress policy is enforced by the host-side gateway |
 | `--credential` | the host substitutes credentials in that gateway |
 | `--network` | a named inter-VM network is fabric routing in that gateway |
