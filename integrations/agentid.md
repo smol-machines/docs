@@ -47,7 +47,7 @@ A machine in `state: "started"` is not yet ready for work. Wait for `ready` to b
 ## What to know
 
 - An agent's own account is a new account like any other: a one-time sign-up credit, and without a card up to 4 machines at once of up to 4 vCPU each. See [Plan limits](/docs/cloud/api-reference#plan-limits) and [pricing](/pricing).
-- Inboxes on `agentmail.to` share one email domain. If many accounts sign up from the same email domain or network on one day, later ones create nothing until they add credit or turn on auto-recharge, and receive the credit once their first payment is a week old. An agent in your organization uses the organization's credit instead.
+- Inboxes on `agentmail.to` share one email domain. If many accounts sign up from the same email domain or network on one day, later ones create nothing until they add credit or turn on auto-recharge, and receive the credit later, once a payment has settled. An agent in your organization uses the organization's credit instead.
 - A stopped machine pays no base, CPU or memory charge, but its disk is still billed until the machine is deleted.
 
 ## Links
