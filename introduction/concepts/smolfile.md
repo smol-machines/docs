@@ -200,7 +200,7 @@ allow_hosts = ["pypi.org", "files.pythonhosted.org"]
 allow_cidrs = ["10.0.0.0/8"]
 ```
 
-Hostnames are resolved when the VM starts. Use an allowlist instead of unrestricted `net = true` when the workload only needs a few destinations. To change the list of an existing machine, run `smolvm machine update` with `--allow-host` and `--remove-allow-host`, or `--allow-cidr` and `--remove-allow-cidr`; see [Update a machine](/docs/local/machine-lifecycle-cli-reference#update-a-machine).
+Hostnames are resolved when the VM starts. Use an allow list instead of unrestricted `net = true` when the workload only needs a few destinations. To change the list of an existing machine, run `smolvm machine update` with `--allow-host` and `--remove-allow-host`, or `--allow-cidr` and `--remove-allow-cidr`; see [Update a machine](/docs/local/machine-lifecycle-cli-reference#update-a-machine).
 
 ### Choosing a networking backend
 

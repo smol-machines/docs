@@ -74,7 +74,7 @@ Two properties are worth knowing before you point a tool at anything
 confidential:
 
 - **You control exactly what it can reach.** A machine can be created with an
-  allow-list — for example, only your internal ticket system — and everything
+  allow list (for example, only your internal ticket system) and everything
   else is refused at the virtualization layer, beneath the app. Refused
   attempts are recorded, so "what did this tool try to talk to?" has an
   answer.

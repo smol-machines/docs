@@ -76,7 +76,7 @@ Booting a machine logs its id at INFO on the `pydantic_ai_harness.smol_sandbox._
 ## What to know
 
 - The capability always connects with `target='local'`, so smol cloud credentials in the environment do not move it to smol cloud.
-- A new machine has no network access. `allow_internet_access=True` gives it outbound access with no allowlist. The capability does not expose smolvm's host and CIDR allowlists. See [Isolation, networking and credentials](/docs/introduction/concepts/isolation-networking-credentials).
+- A new machine has no network access. `allow_internet_access=True` gives it outbound access with no allow list. The capability does not expose smolvm's host and CIDR allow lists. See [Isolation, networking and credentials](/docs/introduction/concepts/isolation-networking-credentials).
 - Files move through the shell, 64 KiB per command, so reading or writing a file of several MiB takes seconds.
 - The backend needs the asyncio event loop. Under Trio, operations raise `UserError`.
 - Treat a ref as trusted input. A ref from the message history opens only machines the capability booted, named `pydantic-ai-` and 32 hex digits. `SmolSandboxBackend(ref=...)` opens any machine of your OS user by name, so do not build one from user input.

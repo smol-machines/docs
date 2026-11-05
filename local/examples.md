@@ -44,7 +44,7 @@ smolvm machine run \
   -- wget -q -O /dev/null https://registry.npmjs.org
 ```
 
-Networking is off unless `--net` is set. The allow-list limits the enabled network path to the declared host.
+Networking is off unless `--net` is set. The allow list limits the enabled network path to the declared host.
 
 ## Persistent Python environment
 

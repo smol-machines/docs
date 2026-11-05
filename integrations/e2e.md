@@ -81,7 +81,7 @@ With `app`, set the target's `app.url` to `http://localhost:<port>`, declare no 
 
 ## What to know
 
-- `hostPorts` is not an allowlist. The machine can reach any loopback port on your computer through `host.smolvm.internal`, and it has open outbound network access. See [Isolation, networking and credentials](/docs/introduction/concepts/isolation-networking-credentials).
+- `hostPorts` is not an allow list. The machine can reach any loopback port on your computer through `host.smolvm.internal`, and it has open outbound network access. See [Isolation, networking and credentials](/docs/introduction/concepts/isolation-networking-credentials).
 - The browser's back/forward cache is off, so going back reloads the page.
 - A killed runner, such as a cancelled CI job, can leave worker-scope machines behind, stopped, with names that start with `e2e-`. List them with `smol machine ls --local --json`, which prints each full name (the table shortens names longer than 18 characters), and delete each with `smol machine rm --name <name> --yes`, using the [`smol` CLI](https://github.com/smol-machines/smol).
 
@@ -89,4 +89,4 @@ With `app`, set the target's `app.url` to `http://localhost:<port>`, declare no 
 
 - [Provider reference in the e2e docs](https://e2e.com/docs/integrations/smol)
 - [`@e2e-dev/smol` changelog](https://github.com/tester-army/e2e/blob/main/packages/smol/CHANGELOG.md)
-- [Forks and snapshots](/docs/introduction/concepts/forks-and-snapshots), the branching the provider builds on
+- [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots), the branching the provider builds on

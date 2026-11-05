@@ -41,7 +41,7 @@ puts it on the new engine.
 | `[fork]` in a Smolfile | `[branch]` |
 | `fork()` in the Node and Python SDKs | `branch()` |
 
-The rest of the documentation uses the current names only.
+New text uses the current names.
 
 ## Branches, packs, and checkpoints
 
