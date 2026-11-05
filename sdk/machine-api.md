@@ -347,7 +347,7 @@ Cloud authentication also reads `SMOL_CLOUD_TOKEN`. The base URL override is `SM
 | `ports` | `ports` | Both | Host-to-guest or published port mappings |
 | `resources` | `resources` | Both | CPU, memory, disk, network, and local GPU settings |
 | `persistent` | `persistent` | Local | Keep the local machine record |
-| `autoStopSeconds` | `auto_stop_seconds` | Cloud | Stop after an idle period |
+| `autoStopSeconds` | `auto_stop_seconds` | Cloud | Stop after an idle period; `0` means never |
 | `ttlSeconds` | `ttl_seconds` | Cloud | Delete after a fixed period |
 | `branchable` | `branchable` | Both | Prepare as a live branch source |
 | `env` | `env` | Both | Workload environment at creation |

@@ -41,6 +41,7 @@ The create request can include:
 
 - `autoStopSeconds`: stop the machine after this many seconds of inactivity. Activity is anything dispatched to the machine — exec, sessions, file transfers, ingress traffic — and an in-flight exec keeps the machine alive even past the timeout. The timer is checked by a sweep that runs every 15 seconds, so expect the stop to land within about 15 seconds after the idle deadline.
   A machine that publishes a port and sets no `autoStopSeconds` can still be stopped when idle by the platform's default timeout, unless its plan includes always-on. Set `autoStopSeconds` yourself to choose the timeout; a machine with no published port is not stopped this way.
+  `0` means never auto-stop. On a plan without always-on the default timeout would override it on a published port, so `0` together with a port is refused with `422`, at create and when a `0` machine publishes its first port.
 - `ttlSeconds`: hard lifetime limit — the machine is deleted this many seconds after creation regardless of activity, on the same 15-second sweep.
 - `ephemeral`: the machine is deleted (not kept as stopped) once it stops.
 

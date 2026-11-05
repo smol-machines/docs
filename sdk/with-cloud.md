@@ -157,7 +157,7 @@ body = machine.request(8080, "/healthz")
 Cloud `MachineConfig` supports:
 
 - `image`: required base OCI image
-- `autoStopSeconds` / `auto_stop_seconds`: stop after an idle period
+- `autoStopSeconds` / `auto_stop_seconds`: stop after an idle period; `0` means never
 - `ttlSeconds` / `ttl_seconds`: delete after a fixed period
 - `branchable`: prepare a machine as a live branch source
 - `env`: machine workload environment variables
