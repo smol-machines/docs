@@ -97,6 +97,11 @@ while it ran. Read output with `?stream=stdout` or `stderr` from an `offset`, as
 `nextOffset` until `eof`. Cancel sends `SIGTERM`, and a cancelled or timed-out job records exit
 code `143`. The image needs `sh`.
 
+Both reads take `?wait=<seconds>` to long-poll instead of polling: a job read holds until the job
+stops running, and an output read until there is output past `offset` or the job ends, for at most
+30 seconds (a larger value is treated as 30). At most 4 waits run at once per machine, 64 per account
+and 128 per node; past that a read answers a retryable `429`.
+
 ### Interactive terminal
 
 The console's terminal is a WebSocket you can open yourself, to give your own product a real shell in a machine: full-screen programs, colors, prompts, and resizing all work.
