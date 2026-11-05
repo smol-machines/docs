@@ -68,6 +68,12 @@ Credentials and configuration are a common case. A configuration path that is a 
 
 Stopping is not a backup. Delete removes the machine, and infrastructure failures can still affect machine-local state. Keep important source data and outputs in an external system of record.
 
+### Recovery points
+
+Each stop of a machine exports its filesystem as a recovery point, at no charge. If its node is lost, the next start creates the machine from that export, so it comes back with its files as of its last stop. A machine running when its node died loses its memory and what it wrote since that stop.
+
+`GET /v1/machines/{id}` shows the point as `recovery` (`reference`, `at`, `sizeBytes`), and a failed or skipped export as `recoveryError`; an earlier point still stands. Ephemeral machines, branches and branch bases take none, and the label `smol.recovery: off` opts a machine out. An account's points are capped in total: past the cap a stop takes no new point, and `recoveryError` says so.
+
 ## Cache disks
 
 A cache disk is a disk image many machines start from, each through its own copy-on-write layer,
