@@ -69,7 +69,7 @@ started with.
 | `GET` | `/api/v1/machines/:name` | Get one machine |
 | `POST` | `/api/v1/machines/:name/start` | Start a machine |
 | `POST` | `/api/v1/machines/:name/stop` | Stop a machine |
-| `PUT` | `/api/v1/machines/:name/cpu-limit` | Cap the host CPU a running machine's VMM may use, as `{"millicpus": N}` across all its vCPUs (`200` is a fifth of one CPU), or `{"millicpus": null}` to clear it; the guest still sees every vCPU, and the limit holds across restarts until cleared. A stopped machine answers `409`. It needs the VMM in a cgroup smolvm controls, so the request is refused with `400` on macOS, and on Linux unless `serve` runs as root on systemd or in a systemd unit with `Delegate=yes` |
+| `PUT` | `/api/v1/machines/:name/cpu-limit` | Cap the host CPU a running machine's VMM may use, as `{"millicpus": N}` across all its vCPUs (`200` is a fifth of one CPU), or `{"millicpus": null}` to clear it; the guest still sees every vCPU, and the limit holds across restarts until cleared. A stopped machine answers `409`. It needs the VMM in a cgroup smolvm controls, so the request is refused with `400` on macOS, and on Linux unless `serve` runs as root on systemd or with a delegated cgroup, such as a systemd unit with `Delegate=yes` |
 | `DELETE` | `/api/v1/machines/:name` | Delete a machine |
 | `PUT` | `/api/v1/machines/:name/ports` | Replace a machine's published ports, live while it runs; a taken host port answers `409` `PORT_IN_USE` |
 | `GET`, `POST`, `DELETE` | `/api/v1/machines/:name/mounts` | List, add or remove host directories mounted into a running machine; `POST` takes `source`, `target` and `readonly`, `DELETE` takes `?target=`, and a stopped machine answers `409` |

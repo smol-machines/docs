@@ -63,7 +63,7 @@ An API key created in the organization's account acts there. A signed-in session
 
 ## Billing
 
-An organization pays for itself, separately from its people's own accounts. Until it has a card on file, and credit or [auto-recharge](/console/billing), its requests that create or change anything are refused with `402`, which names what is missing; inviting people needs them too. A plan it subscribed to itself runs at the free plan's limits until its first payment or subscription is a week old.
+An organization pays for itself, separately from its people's own accounts. Until it has a card on file, and credit or [auto-recharge](/console/billing), its requests that create or change anything are refused with `402`, which names what is missing; inviting people needs them too. A plan it subscribed to itself runs the free plan's concurrent machines and vCPUs per machine until its first payment or subscription is a week old.
 
 Billing email goes to the organization's own address, or, when it has none, to its longest-standing owner with one.
 

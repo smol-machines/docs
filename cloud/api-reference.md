@@ -99,8 +99,8 @@ code `143`. The image needs `sh`.
 
 Both reads take `?wait=<seconds>` to long-poll instead of polling: a job read holds until the job
 stops running, and an output read until there is output past `offset` or the job ends, for at most
-30 seconds (a larger value is treated as 30). At most 4 waits run at once per machine, 64 per account
-and 128 per node; past that a read answers a retryable `429`.
+30 seconds (a larger value is treated as 30). Past 4 waits at once per machine, 64 per account or 128
+per node, a read can answer a retryable `429`.
 
 ### Interactive terminal
 
@@ -236,7 +236,7 @@ The [cloud-usage](/docs/guides/skills/cloud-usage) skill packet reads these tota
 
 ### Metrics export
 
-`PUT /v1/account/telemetry` (`billing:write`) pushes every running machine's metrics to an OpenTelemetry collector you name, as OTLP over HTTP with JSON encoding, every 30 seconds:
+`PUT /v1/account/telemetry` (`billing:write`) pushes the metrics of the account's machines to an OpenTelemetry collector you name, as OTLP over HTTP with JSON encoding, every 30 seconds:
 
 ```bash
 curl -fsSL -X PUT https://api.smolmachines.com/v1/account/telemetry \
@@ -245,11 +245,11 @@ curl -fsSL -X PUT https://api.smolmachines.com/v1/account/telemetry \
   -d '{"otlpEndpoint": "https://otlp.example.com", "headers": {"Authorization": "Bearer COLLECTOR_TOKEN"}}'
 ```
 
-Exports go to `<otlpEndpoint>/v1/metrics` and do not follow redirects. An endpoint that is not an `http://` or `https://` URL, carries a query, does not resolve, or names a loopback, link-local, private or metadata address answers `400`. At most 16 headers are kept, sealed, and only their names come back. Inside a sub-organization the route answers `403`.
+Exports go to `<otlpEndpoint>/v1/metrics` and do not follow redirects. An endpoint that is not an `http://` or `https://` URL, carries a query, does not resolve, or names a loopback, link-local, private or metadata address answers `400`. More than 16 headers answers `400`. Header values are sealed, and only their names come back. Inside a sub-organization `PUT` and `DELETE` answer `403`, and its machines are not exported.
 
 `GET` (`machine:read` or `usage:read`) returns the endpoint, `headerNames`, `intervalSeconds`, `lastExportAt` and, after a failed export, `lastError`, or `404` when no destination is set. `DELETE` (`billing:write`) stops the exports. A failed export is dropped, not retried: the next one sends the next readings.
 
-Each machine is one OTLP resource, with `smol.machine.id`, `smol.machine.name`, `smol.node.id`, `smol.account`, `smol.machine.parent_id` on a branch and `smol.machine.label.<key>` for each label. Its metrics are `smol.machine.cpu.time`, `smol.machine.cpu.limit`, `smol.machine.memory.pss`, `smol.machine.memory.rss`, `smol.machine.disk.used`, `smol.machine.disk.size`, `smol.machine.network.egress` and `smol.machine.network.connections`. Cumulative sums start at the machine's creation, and a restart resets them. Each node hosting the machines adds `smol.node.cpu.pressure`.
+Each machine is one OTLP resource, with `smol.machine.id`, `smol.machine.name`, `smol.node.id`, `smol.account`, `smol.machine.parent_id` on a branch and `smol.machine.label.<key>` for each label. Its metrics are `smol.machine.cpu.time`, `smol.machine.cpu.limit`, `smol.machine.memory.pss`, `smol.machine.memory.rss`, `smol.machine.disk.used`, `smol.machine.disk.size`, `smol.machine.network.egress` and `smol.machine.network.connections`. A reading a node does not report is left out: `smol.machine.cpu.limit` appears only while a limit is held. Cumulative sums start at the machine's creation, and a restart resets them. Each node hosting the machines adds `smol.node.cpu.pressure`.
 
 ### API keys
 
@@ -323,15 +323,15 @@ limits once the account has paid or is a day old; with a prepaid card, or one
 already on another account, only once it has paid:
 
 ```text
-concurrency limit reached: an account without a card can run 4 machines at once; add a card at https://smolmachines.com/console/billing to run up to your plan's limit
-machine size exceeds what an account without a card can run, up to 4 vCPU, 16 GB memory and 50 GB disk per machine (requested 8 vCPU, 8 GB); add a card at https://smolmachines.com/console/billing to use your plan's full limit
-concurrency limit reached: a new account can run 4 machines at once until its first payment or its first day; add credit at https://smolmachines.com/console/billing to run up to your plan's limit now
-concurrency limit reached: an account whose card is prepaid or already on another account can run 4 machines at once until its first payment; add credit at https://smolmachines.com/console/billing to run up to your plan's limit
+concurrency limit reached: an account without a card can run 4 machines at once; add a card at https://smolmachines.com/console/usage to run up to your plan's limit
+machine size exceeds what an account without a card can run, up to 4 vCPU, 16 GB memory and 50 GB disk per machine (requested 8 vCPU, 8 GB); add a card at https://smolmachines.com/console/usage to use your plan's full limit
+concurrency limit reached: a new account can run 4 machines at once until its first payment or its first day; add credit at https://smolmachines.com/console/usage to run up to your plan's limit now
+concurrency limit reached: an account whose card is prepaid or already on another account can run 4 machines at once until its first payment; add credit at https://smolmachines.com/console/usage to run up to your plan's limit
 ```
 
-A plan an account subscribed to itself runs at the free plan's limits until its
-first payment or subscription is a week old; email hello@smolmachines.com to
-lift them sooner.
+A plan an account subscribed to itself runs the free plan's concurrent machines
+and vCPUs per machine until its first payment or subscription is a week old;
+email hello@smolmachines.com to lift them sooner.
 
 ::: tip
 A count refusal usually means machines were left behind rather than that the
