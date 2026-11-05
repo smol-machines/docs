@@ -19,7 +19,7 @@ Each worker slot boots one warm Chromium machine. By default every test attempt 
 
 - **Retries that start clean.** An attempt cannot leave cookies, storage or open pages behind for the next one.
 - **Sign in once per worker.** A `prepare` step signs the warm browser in before it is branched, so every attempt starts signed in.
-- **Per-attempt app data.** With the app running inside the machine, each attempt gets its own copy of the running app and its files, a local database included.
+- **Per-attempt app data.** With the app running inside the machine, each attempt gets its own copy of the running app and its files, a local database included. An app on your computer, reached through `hostPorts`, and any external service stay shared between attempts.
 - **Nothing to sign up for.** The machines run on the test runner with the local engine. No account or API key is needed.
 
 ## Requirements
@@ -88,5 +88,5 @@ With `app`, set the target's `app.url` to `http://localhost:<port>`, declare no 
 ## Links
 
 - [Provider reference in the e2e docs](https://e2e.com/docs/integrations/smol)
-- [`@e2e-dev/smol` 0.1.0 release notes](https://github.com/tester-army/e2e/releases/tag/%40e2e-dev%2Fsmol%400.1.0)
+- [`@e2e-dev/smol` changelog](https://github.com/tester-army/e2e/blob/main/packages/smol/CHANGELOG.md)
 - [Forks and snapshots](/docs/introduction/concepts/forks-and-snapshots), the branching the provider builds on
