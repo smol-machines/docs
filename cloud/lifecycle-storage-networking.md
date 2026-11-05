@@ -70,7 +70,7 @@ Stopping is not a backup. Delete removes the machine, and a recovery point only 
 
 ### Recovery points
 
-A stop through the API or the idle timeout exports the machine's filesystem as a recovery point, at no charge. If its node is lost, the next start creates the machine from its latest point, so it comes back with its files as of that stop. A machine running when its node died loses its memory and what it wrote since that point.
+A stop through the API or the idle timeout exports the machine's filesystem, without `/workspace`, as a recovery point, at no charge. If its node is lost, the next start creates the machine from its latest point, so its files outside `/workspace` come back as of that stop and `/workspace` comes back empty. A machine running when its node died loses its memory and what it wrote since that point.
 
 `GET /v1/machines/{id}` shows the point as `recovery` (`reference`, `at`, `sizeBytes`), and a failed or skipped export as `recoveryError`; an earlier point still stands. Ephemeral machines, branches and branch bases take none, and the label `smol.recovery: off` (`labels` on the create request) opts a machine out. An account's points are capped in total: past the cap a stop takes no new point, and `recoveryError` says so.
 
