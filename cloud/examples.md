@@ -133,7 +133,7 @@ for _ in $(seq 1 60); do
   if jq -e '(has("ready") | not) and .state == "started"' \
     >/dev/null <<<"$record" &&
     curl --fail --silent \
-      "$SMOL_CLOUD_URL/v1/machines/$WEB_MACHINE_ID/connect/8000/" \
+      "$SMOL_CLOUD_URL/v1/machines/$WEB_MACHINE_ID/connect/8000" \
       -H "Authorization: Bearer $SMOL_CLOUD_TOKEN" >/dev/null; then
     ready=true
     break
@@ -154,7 +154,7 @@ Connect through the authenticated bridge:
 
 ```bash
 curl --fail \
-  "$SMOL_CLOUD_URL/v1/machines/$WEB_MACHINE_ID/connect/8000/" \
+  "$SMOL_CLOUD_URL/v1/machines/$WEB_MACHINE_ID/connect/8000" \
   -H "Authorization: Bearer $SMOL_CLOUD_TOKEN"
 ```
 
@@ -178,7 +178,7 @@ curl --fail-with-body -X POST \
   }'
 ```
 
-The image pull runs inside the guest. When a hostname allow-list is in force, the image's own registry is folded into the enforced egress policy automatically, so you do not need to list it. Add registry or package hosts only when software running inside the guest must reach them at runtime — or when a registry serves its blobs from a different host than the one in the image reference, which the automatic fold does not cover.
+The image pull runs inside the guest. When a hostname allow list is in force, the image's own registry is folded into the enforced egress policy automatically, so you do not need to list it. Add registry or package hosts only when software running inside the guest must reach them at runtime, or when a registry serves its blobs from a different host than the one in the image reference, which the automatic fold does not cover.
 
 ## List and inspect machines
 

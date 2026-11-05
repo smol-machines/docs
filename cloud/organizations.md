@@ -4,7 +4,7 @@ title: Organizations
 
 # Organizations
 
-An organization is a smol cloud account that several people share. Its machines, volumes, registry namespace, API keys, balance and card belong to the organization, and each person's role decides what they can do there. Your own account stays yours; you switch between the accounts you belong to in the console.
+An organization is a smol cloud account that several people share. Its machines, registry namespace, API keys, balance and card belong to the organization, and each person's role decides what they can do there. Your own account stays yours; you switch between the accounts you belong to in the console.
 
 ## Create an organization
 
@@ -33,8 +33,8 @@ Only the person it belongs to can turn a converted account back, with `DELETE /v
 | Role | Can |
 |---|---|
 | `owner` | Everything an admin can, plus make other owners and delete the organization |
-| `admin` | Run machines and volumes, read usage, manage billing, invite and remove people, change roles, create API keys |
-| `member` | Run machines and volumes, read usage and the member list |
+| `admin` | Run machines, read usage, manage billing, invite and remove people, change roles, create API keys |
+| `member` | Run machines, read usage and the member list |
 
 An organization keeps at least one owner: removing or demoting the last one is refused with `409` until someone else is promoted. Only an owner can make someone an owner.
 
@@ -63,7 +63,7 @@ An API key created in the organization's account acts there. A signed-in session
 
 ## Billing
 
-An organization pays for itself, separately from its people's own accounts. Until it has a card on file, and credit or [auto-recharge](/console/billing), its requests that create or change anything are refused with `402`, which names what is missing; inviting people needs them too.
+An organization pays for itself, separately from its people's own accounts. Until it has a card on file, and credit or [auto-recharge](/console/billing), its requests that create or change anything are refused with `402`, which names what is missing; inviting people needs them too. A plan it subscribed to itself runs the free plan's concurrent machines and vCPUs per machine until its first payment or subscription is a week old.
 
 Billing email goes to the organization's own address, or, when it has none, to its longest-standing owner with one.
 
@@ -91,7 +91,7 @@ The identifier follows the same rules as an organization's, and nothing of the p
 
 **Who does what in a sub-organization:**
 
-- The parent's owners and admins act in it as its provider: they create, start, stop and delete its machines and volumes, read its usage and manage its members. The provider does not reach inside its machines: exec, files, export, checkpoint capture and restore, images from the sub-organization's own registry namespace, stored credentials, registry pull credentials and custom domains are refused with `403`.
+- The parent's owners and admins act in it as its provider: they create, start, stop and delete its machines, read its usage and manage its members. The provider does not reach inside its machines: exec, files, export, checkpoint capture and restore, images from the sub-organization's own registry namespace, stored credentials, registry pull credentials and custom domains are refused with `403`.
 - Its own people hold `admin`, `member` or `downstream`. There is no owner, since the parent owns it. `downstream` works inside the machines (exec and files), exports them and captures and restores their checkpoints, and reads them and the member list, but does not otherwise create or delete machines.
 - Billing lives on the parent: the sub-organization's spend is drawn from the parent's balance, counts toward the parent's limits, and its billing email goes to the parent.
 - A request acting in a sub-organization finds no `/v1/org/sub` routes, and its own people see their own roster, not the parent's people.

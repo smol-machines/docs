@@ -61,7 +61,7 @@ page.
 | The underlying model — machines, isolation, state | `introduction/concepts/` |
 | Writing code against machines (Node/Python) | `sdk/` |
 | Running on your own host, CLI flags | `local/` |
-| A task-scoped procedure an agent loads to drive the CLI | `guides/skills/` |
+| A task-scoped procedure an agent loads to drive smol machines | `guides/skills/` |
 | The hosted platform, REST API, registry | `cloud/` |
 | A concrete end-to-end task | `guides/` |
 | Using smol machines from another tool or framework | `integrations/` |
@@ -185,8 +185,9 @@ markup noise:
 - **Callouts** — `::: tip`, `::: warning`, `::: info`, closed by `:::`, with an
   optional title on the opening line. These hold caveats that change what a
   reader should do — a cloud/local difference, a limit, a surprising default —
-  so carry them into any answer you build from the page. Nine are in use:
+  so carry them into any answer you build from the page. Ten are in use:
   `cloud/api-reference.md` (exec is metered at $0),
+  `cloud/api-reference.md` (a count refusal usually means leftovers),
   `introduction/concepts/gpu.md` (cloud has no GPU machines),
   `sdk/machine-api.md` (host mounts are local only),
   `sdk/with-local.md` (`/workspace` mount priority),

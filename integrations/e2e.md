@@ -19,12 +19,12 @@ Each worker slot boots one warm Chromium machine. By default every test attempt 
 
 - **Retries that start clean.** An attempt cannot leave cookies, storage or open pages behind for the next one.
 - **Sign in once per worker.** A `prepare` step signs the warm browser in before it is branched, so every attempt starts signed in.
-- **Per-attempt app data.** With the app running inside the machine, each attempt gets its own copy of the running app and its files, a local database included.
+- **Per-attempt app data.** With the app running inside the machine, each attempt gets its own copy of the running app and its files, a local database included. An app on your computer, reached through `hostPorts`, and any external service stay shared between attempts.
 - **Nothing to sign up for.** The machines run on the test runner with the local engine. No account or API key is needed.
 
 ## Requirements
 
-- macOS on Apple Silicon, or Linux with KVM (`/dev/kvm`). See [Supported platforms](/docs/introduction/concepts/supported-platforms).
+- macOS on Apple Silicon, or Linux on x86_64 or aarch64 with glibc 2.34 or newer and read and write access to `/dev/kvm`. See [Supported platforms](/docs/introduction/concepts/supported-platforms).
 - Node.js 22.22.3 or a later 22 release, or 24.8 or later, and an e2e project with a web target.
 
 The first boot pulls the Playwright Ubuntu image, so it takes longer than later runs.
@@ -81,12 +81,12 @@ With `app`, set the target's `app.url` to `http://localhost:<port>`, declare no 
 
 ## What to know
 
-- `hostPorts` is not an allowlist. The machine can reach any loopback port on your computer through `host.smolvm.internal`, and it has open outbound network access. See [Isolation, networking and credentials](/docs/introduction/concepts/isolation-networking-credentials).
+- `hostPorts` is not an allow list. The machine can reach any loopback port on your computer through `host.smolvm.internal`, and it has open outbound network access. See [Isolation, networking and credentials](/docs/introduction/concepts/isolation-networking-credentials).
 - The browser's back/forward cache is off, so going back reloads the page.
 - A killed runner, such as a cancelled CI job, can leave worker-scope machines behind, stopped, with names that start with `e2e-`. List them with `smol machine ls --local --json`, which prints each full name (the table shortens names longer than 18 characters), and delete each with `smol machine rm --name <name> --yes`, using the [`smol` CLI](https://github.com/smol-machines/smol).
 
 ## Links
 
 - [Provider reference in the e2e docs](https://e2e.com/docs/integrations/smol)
-- [`@e2e-dev/smol` 0.1.0 release notes](https://github.com/tester-army/e2e/releases/tag/%40e2e-dev%2Fsmol%400.1.0)
-- [Forks and snapshots](/docs/introduction/concepts/forks-and-snapshots), the branching the provider builds on
+- [`@e2e-dev/smol` changelog](https://github.com/tester-army/e2e/blob/main/packages/smol/CHANGELOG.md)
+- [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots), the branching the provider builds on

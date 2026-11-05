@@ -55,7 +55,7 @@ smolvm machine stop --name app
 smolvm pack create --from-vm app -o ./app
 ```
 
-Stop the machine before packing it. The artifact captures durable disk state. It does not capture live RAM, running processes, or open connections.
+Stop the machine before packing it. The artifact captures durable disk state, but by default not `/workspace`. It does not capture live RAM, running processes, or open connections.
 
 ## Create a persistent machine from an artifact
 
@@ -106,7 +106,7 @@ The generated launcher also has a persistent daemon mode:
 ./app stop
 ```
 
-In launcher daemon mode, `/workspace` persists across `exec` and stop/start. OCI container overlay changes, including package installs, reset for each `exec`. Use `machine create --from` when the full machine filesystem must remain writable and persistent.
+In launcher daemon mode, changes made through `exec`, package installs included, persist from one `exec` to the next, and `/workspace` persists across stop/start. Use `machine create --from` when the artifact should become a normal named machine.
 
 ## Sizing the export helper
 
@@ -164,4 +164,4 @@ Without `-o`, `pack pull` keeps the artifact in the local cache and prints the `
 command that starts a machine from it. `pack list` shows every pulled artifact with its digest,
 size, age and cache path, and `--json` for scripts.
 
-See [Cloud Registry](/docs/cloud/registry) for artifact names, authentication, publishing, and cloud availability. Registry support does not make incompatible architectures interchangeable.
+See [Registry](/docs/cloud/registry) for artifact names, authentication, publishing, and cloud availability. Registry support does not make incompatible architectures interchangeable.

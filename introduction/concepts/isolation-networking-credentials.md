@@ -16,7 +16,7 @@ The VM boundary does not make a deliberately shared host resource safe. Treat ac
 
 The guest kernel boundary protects the host from the workload. A second boundary protects the host from the process that runs the machine, in case a guest ever escapes into it. On Linux the VMM process can be confined two ways, both applied before it loads the hypervisor library and enters the guest run loop:
 
-- `SMOLVM_SECCOMP` restricts it to a syscall allowlist. `enforce` kills the process on a disallowed syscall, `audit` logs without killing, and `off` disables it. Enforce fails closed: a filter that cannot be installed stops the boot rather than running unconfined. Available on Linux on x86_64 and arm64.
+- `SMOLVM_SECCOMP` restricts it to a syscall allow list. `enforce` kills the process on a disallowed syscall, `audit` logs without killing, and `off` disables it. Enforce fails closed: a filter that cannot be installed stops the boot rather than running unconfined. Available on Linux on x86_64 and arm64.
 - `SMOLVM_LANDLOCK` restricts its view of the filesystem to that machine's own rootfs, disks, and devices, denying the rest of the host. `enforce` or `off`. Linux only.
 
 Which default applies depends on how the machine is started:
@@ -25,15 +25,15 @@ Which default applies depends on how the machine is started:
 |---|---|
 | The SDK (`smolmachines` for Node or Python) | Both enforce, on Linux |
 | `smolvm serve` | Both enforce, changeable with `--seccomp` and `--landlock` |
-| The boot helper invoked directly | Off unless set |
+| `smolvm machine` commands, or the boot helper invoked directly | Off unless set |
 
-An explicitly set variable always wins, so `SMOLVM_SECCOMP=off` remains the escape hatch for a workload the allowlist does not cover. On macOS both are ignored, so setting them there changes nothing.
+An explicitly set variable always wins, so `SMOLVM_SECCOMP=off` remains the escape hatch for a workload the allow list does not cover. On macOS both are ignored, so setting them there changes nothing.
 
 ## Networking
 
 Local smolvm guest networking is off by default, and a machine usually does not need it for its image: `machine create` fetches a registry image on the host, and an ephemeral run starts from a shared seed unless seeding is turned off, as the [CLI reference](/docs/local/machine-lifecycle-cli-reference) describes. Beyond the image, enable guest networking only when the workload must resolve DNS, call an external service, or accept published traffic. A networked machine resolves names through the host's own resolver, so a VPN or corporate network that only answers DNS from its own resolver works without extra configuration; pass `--dns <IP>` to point the guest somewhere else, and `--dns-option` to add resolver options such as `timeout:1`. A cloud machine created without a `network` block gets open outbound access by default; set `network` explicitly when egress policy matters.
 
-Egress can be restricted with hostname and CIDR allowlists. A platform policy also blocks selected sensitive address ranges. To keep the public internet open while closing everything private, pass `--block-private`: it blocks the LAN, internal and link-local ranges, cloud metadata, carrier-grade NAT and the host's loopback. `--allow-private CIDR` reopens one private range under it, such as an internal registry, and cloud metadata stays blocked whatever it names. In a Smolfile these are `block_private` and `allow_private` under `[network]`. To refuse a range outright, pass `--deny-cidr CIDR` (Smolfile `deny_cidrs` under `[network]`): a deny is checked before any allow, so it wins over every allow list, and it implies `--net`.
+Egress can be restricted with hostname and CIDR allow lists. A platform policy also blocks selected sensitive address ranges. To keep the public internet open while closing everything private, pass `--block-private`: it blocks the LAN, internal and link-local ranges, cloud metadata, carrier-grade NAT and the host's loopback. `--allow-private CIDR` reopens one private range under it, such as an internal registry, and cloud metadata stays blocked whatever it names. In a Smolfile these are `block_private` and `allow_private` under `[network]`. To refuse a range outright, pass `--deny-cidr CIDR` (Smolfile `deny_cidrs` under `[network]`): a deny is checked before any allow, so it wins over every allow list, and it implies `--net`.
 
 Behind a corporate proxy or a TLS-inspecting firewall, two flags carry the host's setup into a machine. `--use-host-proxy` passes the host's `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` and `NO_PROXY`, or on macOS the system proxy, into the workload, rewriting a proxy on the host's loopback to an address the guest can reach; the run is refused when nothing answers there. `--trust-host-certs` mounts the certificates the host trusts at `/etc/smolvm-host-trust/ca-bundle.pem`, read-only, for image pulls and the workload, and points `SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE` and similar variables at it. Set `SMOLVM_HOST_CA_BUNDLE` to a PEM file when the host's trust store is not the system default.
 
@@ -79,7 +79,7 @@ to the host is the rare case: it takes a bug in device emulation, and a machine 
 kernel behind a small virtio device surface rather than an emulated PC.
 
 What actually exposes a host is what you shared on purpose. A host mount is the guest's write
-access to that directory. A published port is reachable from wherever the host is reachable. An
+access to that directory. A published port listens on the host's loopback unless the node widens it with `SMOLVM_PUBLISH_ADDR`, and then it is reachable from wherever that address is. An
 allow list one entry wider than you meant is egress you did not intend. And the code running
 inside the machine is code you chose to run. Every one of those is off by default, so the
 exposure a machine has is the exposure you gave it.

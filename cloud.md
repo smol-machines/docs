@@ -10,7 +10,7 @@ Create a persistent cloud machine, run a command, and clean it up through the RE
 
 Sign in at [smolmachines.com/console](/console), open [API Keys](/console/keys), and create a key. Copy it when it is shown.
 
-New accounts get a one-time sign-up credit, no card needed to start. An email-and-password sign-up holds it until the address is verified, and creates nothing until then unless credit is added or auto-recharge is turned on. Without a card an account can run up to 4 machines at once of up to 4 vCPU each; adding a card in [billing](/console/billing) lifts it to your plan's limits. If many accounts sign up from the same email domain or network on one day, later ones receive the credit once they add a card and sign in again, and create nothing until then. See [pricing](/pricing) for current limits and rates.
+New accounts get a one-time sign-up credit, no card needed to start. An email-and-password sign-up holds it until the address is verified, and creates nothing until then unless credit is added or auto-recharge is turned on. Without a card an account can run up to 4 machines at once of up to 4 vCPU each. Adding a card in [billing](/console/billing) lifts that to your plan's limits once the account has paid or is a day old; with a prepaid card, or one already on another account, only once it has paid. If many accounts sign up from the same email domain or network on one day, later ones create nothing until they add credit or turn on auto-recharge, and receive the credit later, once a payment has settled. A card already on another account keeps a held credit held. See [pricing](/pricing) for current limits and rates.
 
 Export the key. The SDK and the `smol` CLI read the same two variables:
 
@@ -155,6 +155,6 @@ curl --fail-with-body -X DELETE \
   -H "Authorization: Bearer $SMOL_CLOUD_TOKEN"
 ```
 
-See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking) before using ingress or restricted egress.
+See [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking) before using ingress or restricted egress, and [Cloud Examples](/docs/cloud/examples) for worked examples.
 
 The [cloud-auth](/docs/guides/skills/cloud-auth) and [cloud-machine](/docs/guides/skills/cloud-machine) skill packets are these steps as procedures, with a preflight before the first call and a cleanup that takes the settled bill from the delete.

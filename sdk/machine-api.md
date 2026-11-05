@@ -50,7 +50,7 @@ For local, pass the name of a persisted machine, a paused one included. For clou
 | `await machine.readyAt()` | `machine.ready_at()` | RFC 3339 ready timestamp, or null |
 | `await machine.waitUntilReady(options?)` | `machine.wait_until_ready(timeout_s=120, interval_s=1)` | Wait until ready or raise |
 
-State and readiness are separate. On cloud, `"started"` means only that the VM process launched. `ready: true` means the guest agent is reachable and every published port is accepting connections. `create()` waits for readiness; `connect()` does not. Check the application's own health endpoint separately when accepting a connection is not enough to establish application health.
+State and readiness are separate. On cloud, `"started"` means only that the VM process launched. `ready: true` means its published port is accepting connections, or, with no published port, that the guest agent answers. With several published ports only the first is probed. `create()` waits for readiness; `connect()` does not. Check the application's own health endpoint separately when accepting a connection is not enough to establish application health.
 
 TypeScript readiness options:
 
@@ -347,7 +347,7 @@ Cloud authentication also reads `SMOL_CLOUD_TOKEN`. The base URL override is `SM
 | `ports` | `ports` | Both | Host-to-guest or published port mappings |
 | `resources` | `resources` | Both | CPU, memory, disk, network, and local GPU settings |
 | `persistent` | `persistent` | Local | Keep the local machine record |
-| `autoStopSeconds` | `auto_stop_seconds` | Cloud | Stop after an idle period |
+| `autoStopSeconds` | `auto_stop_seconds` | Cloud | Stop after an idle period; `0` means never |
 | `ttlSeconds` | `ttl_seconds` | Cloud | Delete after a fixed period |
 | `branchable` | `branchable` | Both | Prepare as a live branch source |
 | `env` | `env` | Both | Workload environment at creation |
@@ -362,7 +362,7 @@ Each `credentials` entry names a guest variable (`envVar`, `env_var` in Python) 
 |---|---|---|---|
 | `cpus` | `cpus` | Both | vCPU count; omitted values use the target's default |
 | `memoryMb` | `memory_mb` | Both | Memory in MiB; omitted values use the target's default |
-| `network` | `network` | Both | Unrestricted guest outbound networking. Local default `false`. On cloud it only turns access **on**: omitting it and setting `false` both leave the control-plane default, which is open. To allow only specific destinations, set `allowHosts` / `allowCidrs` instead of this flag |
+| `network` | `network` | Both | Unrestricted guest outbound networking. Local default `false`. On cloud, omitting it leaves the control-plane default, which is open, and `false` blocks egress, so the machine cannot pull an image its node has not cached. To allow only specific destinations, set `allowHosts` / `allowCidrs` instead of this flag |
 | `storageGb` | `storage_gb` | Both | Storage disk size in GiB; local SDK default `20` |
 | `overlayGb` | `overlay_gb` | Local | Overlay disk size in GiB; local SDK default `10` |
 | `diskDurability` | `disk_durability` | Both | `"full"` (default): a guest `fsync` waits for the host's disk. `"deferred"`: writes reach it on the host's schedule, faster for fsync-heavy work, and a host crash can lose recent writes. Go: `DiskDurability`; Rust: `.disk_durability()` |

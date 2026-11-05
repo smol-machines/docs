@@ -102,7 +102,7 @@ smolvm machine exec --name dev -- grep virtiofs /proc/mounts
 
 ## CPU and memory
 
-CPU and memory are assigned when the machine is configured. The local CLI defaults are 4 vCPUs and 8 GiB of memory when no Smolfile overrides them. Smolfile defaults may differ, so set values explicitly when reproducibility matters.
+CPU and memory are assigned when the machine is configured. The local CLI defaults are 4 vCPUs and 8 GiB of memory when no Smolfile overrides them. Set values explicitly when reproducibility matters.
 
 `--cpus` and `--mem` on the command line beat a Smolfile or a packed artifact's baked values, including when the value given equals the default. Passing `--cpus 4` to a machine whose Smolfile asks for 8 gets 4, not 8.
 

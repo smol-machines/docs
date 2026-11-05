@@ -6,7 +6,7 @@ title: Cloud Lifecycle, Storage, and Networking
 
 Cloud machines keep their filesystem across commands and stop/start cycles. Network access and published ports are explicit parts of the machine configuration.
 
-The command examples assume `SMOL_CLOUD_TOKEN` and `SMOL_CLOUD_URL` are set as shown in [Cloud Quick Start](/docs/cloud).
+The command examples assume `SMOL_CLOUD_TOKEN` and `SMOL_CLOUD_URL` are set as shown in [Cloud Quick Start](/docs/cloud). `smol` commands need the [`smol` CLI](/docs/local/smol-cli-reference).
 
 ## Lifecycle
 
@@ -21,7 +21,7 @@ The command examples assume `SMOL_CLOUD_TOKEN` and `SMOL_CLOUD_URL` are set as s
 Starting and ready are separate conditions:
 
 - `state: "started"` means the VM process launched
-- `ready: true` means the guest agent is reachable and every published port is accepting connections
+- `ready: true` means its published port is accepting connections, or, with no published port, that the guest agent answers. With several published ports only the first is probed
 
 Poll the machine until `ready` is true before sending dependent work. Probe the application's own health endpoint separately when accepting a connection is not enough to establish application health.
 
@@ -39,9 +39,10 @@ Current public pricing states that stopped machines have no base, CPU, or memory
 
 The create request can include:
 
-- `autoStopSeconds`: stop the machine after this many seconds of inactivity. Activity is anything dispatched to the machine — exec, sessions, file transfers, ingress traffic — and an in-flight exec keeps the machine alive even past the timeout. The timer is checked by a sweep that runs every 15 seconds, so expect the stop to land within about 15 seconds after the idle deadline.
+- `autoStopSeconds`: stop the machine after this many seconds of inactivity. Activity is anything dispatched to the machine (exec, sessions, file transfers, ingress traffic), and an in-flight exec keeps the machine alive even past the timeout. The timer is checked by a sweep that runs every 15 seconds, and each machine's deadline carries a fixed offset of up to a quarter of the timeout, at most 60 seconds, so expect the stop up to about 75 seconds after the idle deadline.
   A machine that publishes a port and sets no `autoStopSeconds` can still be stopped when idle by the platform's default timeout, unless its plan includes always-on. Set `autoStopSeconds` yourself to choose the timeout; a machine with no published port is not stopped this way.
-- `ttlSeconds`: hard lifetime limit — the machine is deleted this many seconds after creation regardless of activity, on the same 15-second sweep.
+  `0` means never auto-stop.
+- `ttlSeconds`: hard lifetime limit: the machine is deleted this many seconds after creation regardless of activity, on the same sweep and offset.
 - `ephemeral`: the machine is deleted (not kept as stopped) once it stops.
 
 Both timers take a final metering sample before acting, so an auto-stopped or expired machine's last window of CPU and memory is still billed and visible in `/usage`.
@@ -65,7 +66,13 @@ Write anything that must survive a restart to `/workspace` or another path on th
 
 Credentials and configuration are a common case. A configuration path that is a symlink into `/tmp` is emptied whenever the machine stops, so a long-running agent that re-reads it after an idle stop finds nothing there. Keep those files on the machine filesystem instead.
 
-Stopping is not a backup. Delete removes the machine, and infrastructure failures can still affect machine-local state. Keep important source data and outputs in an external system of record.
+Stopping is not a backup. Delete removes the machine, and a recovery point only brings a machine back after its node is lost, so keep important source data and outputs in an external system of record.
+
+### Recovery points
+
+A stop through the API or the idle timeout exports the machine's filesystem, without `/workspace`, as a recovery point, at no charge. If its node is lost, the next start creates the machine from its latest point, so its files outside `/workspace` come back as of that stop and `/workspace` comes back empty. A machine running when its node died loses its memory and what it wrote since that point.
+
+`GET /v1/machines/{id}` shows the point as `recovery` (`reference`, `at`, `sizeBytes`), and a failed or skipped export as `recoveryError`; an earlier point still stands. Ephemeral machines, branches and branch bases take none, and the label `smol.recovery: off` (`labels` on the create request) opts a machine out. An account's points are capped in total: past the cap a stop takes no new point, and `recoveryError` says so.
 
 ## Cache disks
 
@@ -136,7 +143,7 @@ Allow only selected hosts and CIDR ranges:
 }
 ```
 
-An allow list must include every registry, package host, API, and redirect target the workload needs. Prefer `blocked` or `allowCidrs` for untrusted workloads.
+An allow list must include every package host, API, and redirect target the workload needs at runtime. The image's own registry is folded in for the pull; see [Cloud Examples](/docs/cloud/examples). Prefer `blocked` or `allowCidrs` for untrusted workloads.
 
 ### Credentials the machine never holds
 
@@ -168,7 +175,7 @@ With `public: false`, use the authenticated connect route where it is enabled:
 
 ```bash
 curl --fail \
-  "$SMOL_CLOUD_URL/v1/machines/$MACHINE_ID/connect/80/" \
+  "$SMOL_CLOUD_URL/v1/machines/$MACHINE_ID/connect/80" \
   -H "Authorization: Bearer $SMOL_CLOUD_TOKEN"
 ```
 
@@ -232,7 +239,7 @@ Branching creates a copy-on-write child from a running branchable cloud machine.
 
 For a tree of machines that build on each other, branch rather than checkpoint, because a branch carries its source's disks and cache disk. Branch with `freezeSource` (`freeze_source` in Python) and the source is kept paused as a reusable branch base that no longer counts toward the concurrency cap. A frozen source cannot run commands again; work in its branches, or stop it.
 
-`POST /v1/machines/{id}/snapshot` is not implemented and returns `501`; use a checkpoint to capture a running machine. To keep a stopped machine's disk state without its running state, export it to a `.smolmachine` artifact.
+To keep a stopped machine's disk state without its running state, export it to a `.smolmachine` artifact.
 
 ## GPU
 

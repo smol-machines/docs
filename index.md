@@ -21,7 +21,7 @@ All three use the same basic machine model: an isolated Linux guest with explici
 	</a>
 	<a class="doc-card" href="/docs/sdk">
 		<span class="doc-card-title">SDK</span>
-		<span class="doc-card-desc">Create and control machines from a TypeScript or Python application.</span>
+		<span class="doc-card-desc">Create and control machines from a TypeScript, Python, Go or Rust application.</span>
 	</a>
 </div>
 

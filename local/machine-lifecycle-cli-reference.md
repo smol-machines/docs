@@ -31,7 +31,7 @@ image, so a machine restricted to one hostname still starts from an image on a
 registry that list does not name. Add `--seed-digest-ttl SECONDS` to reuse a
 digest resolved that recently instead of checking the registry on every run. On the default backend the guest has no visible network interface and `ping` does
 not work, even though TCP and UDP do — see [how networking behaves inside a
-machine](#how-networking-behaves-inside-a-machine). An ephemeral run pulls every time unless you add `--oci-cache`,
+machine](#how-networking-behaves-inside-a-machine). With seeding off or on Windows, an ephemeral run pulls every time unless you add `--oci-cache`,
 which keeps the image on the host for later runs to start from without a pull.
 Beyond the pull, enable networking only when the workload needs network access:
 
@@ -90,7 +90,7 @@ Package installs, file writes, and configuration changes made through `machine e
 
 If `--name` is omitted, `SMOLVM_MACHINE_NAME` names the machine when it is set; `machine run` does not read it. Without either,
 `machine create` generates a name such as `vm-60d4e0ec`, commands that act on an existing machine
-fall back to `default`, and `delete`, `pause`, `resume`, `update`, `branch-release`, `data-dir`, `images` and `prune` refuse to run.
+fall back to `default`, and `delete`, `pause`, `resume`, `update`, `branch-release`, `data-dir`, `images` and `prune` refuse to run. `machine checkpoint` reads neither and needs `--name`.
 A name is at most 128 letters, digits, `-` and `_`, starts with a letter or digit, and has no
 trailing or doubled hyphen.
 
@@ -410,6 +410,8 @@ VM boots rather than failing inside the guest. On Apple silicon that means an M3
 macOS 15 or later; on Linux it means nested KVM is enabled, through `kvm_intel.nested=1` or
 `kvm_amd nested=1`. A host that cannot returns an error naming the check result.
 
+[Android Emulator in a Machine](/docs/guides/android-emulator) runs a guest hypervisor end to end.
+
 Running a Docker daemon in a machine does not need this flag. Containers share the guest kernel,
 so [Docker in a Machine](/docs/guides/docker-in-a-machine) works without it.
 
@@ -456,7 +458,7 @@ These select `virtio-net` when you have not named a backend, because each one ne
 
 | You passed | Why virtio-net |
 |---|---|
-| `--port` / `-p` | only virtio-net serves inbound connections |
+| `--port` / `-p` | at create, only virtio-net serves inbound connections; a running `tsi` machine gets its new TCP ports through a host forwarder |
 | `--allow-host`, `--allow-cidr`, `--outbound-localhost-only`, `--block-private`, `--deny-cidr`, `--allow-udp` | the egress policy is enforced by the host-side gateway |
 | `--credential` | the host substitutes credentials in that gateway |
 | `--network` | a named inter-VM network is fabric routing in that gateway |

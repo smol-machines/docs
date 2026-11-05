@@ -11,6 +11,8 @@ a deployed tool your teammates can use.
 
 ## 1. Scaffold a working app
 
+This uses the `smol` CLI; [install it](/docs/local/smol-cli-reference#install).
+
 ```bash
 smol new tracker
 cd tracker
@@ -74,14 +76,15 @@ Two properties are worth knowing before you point a tool at anything
 confidential:
 
 - **You control exactly what it can reach.** A machine can be created with an
-  allow-list — for example, only your internal ticket system — and everything
+  allow list (for example, only your internal ticket system) and everything
   else is refused at the virtualization layer, beneath the app. Refused
   attempts are recorded, so "what did this tool try to talk to?" has an
   answer.
 - **It doesn't have to leave the building.** The same app, unchanged, runs on
-  a machine in your office with `smolvm` and is reachable only on your LAN.
-  For regulated data, the right deployment is often the one that never gets a
-  public address at all — talk to your IT team about which tools belong where.
+  a machine in your office with `smolvm`. A published port listens only on that
+  machine's loopback, so put your own authenticated proxy in front of it to serve
+  the LAN. For regulated data, the right deployment is often the one that never
+  gets a public address at all. Talk to your IT team about which tools belong where.
 
 ## Where to go next
 

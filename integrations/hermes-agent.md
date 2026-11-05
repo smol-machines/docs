@@ -6,7 +6,7 @@ title: Hermes Agent by Nous Research
 
 Run Hermes Agent's terminal, file and code tools in a smol machine on your own computer, with the `smolmachines` terminal backend from Hermes's plugin catalog.
 
-- **Package:** the `smolmachines` plugin in [Hermes's plugin catalog](https://hermes-agent.nousresearch.com/docs/plugins), a community plugin for Hermes 0.21.6 or later
+- **Package:** the `smolmachines` plugin in [Hermes's plugin catalog](https://hermes-agent.nousresearch.com/docs/plugins), a community plugin for Hermes 0.22.6 or later
 - **Code:** [`smol-machines/hermes-smolmachines`](https://github.com/smol-machines/hermes-smolmachines), written and maintained by smol machines
 - **Runs on:** the local engine, on the computer that runs Hermes
 - **Issues:** the plugin on [hermes-smolmachines issues](https://github.com/smol-machines/hermes-smolmachines/issues), the machines on [smolvm issues](https://github.com/smol-machines/smolvm/issues)
@@ -24,7 +24,7 @@ The `smolmachines` backend runs those tools in a smol machine: a microVM with it
 ## Requirements
 
 - macOS on Apple Silicon, or Linux on x86_64 or aarch64 with glibc 2.34 or newer and access to `/dev/kvm`. See [Supported platforms](/docs/introduction/concepts/supported-platforms).
-- Hermes 0.21.6 or newer.
+- Hermes 0.22.6 or newer.
 
 ## Set up
 
@@ -49,7 +49,7 @@ hermes config set plugins.entries.smolmachines.settings.image ubuntu:24.04
 
 ## What to know
 
-- **Persistent machines keep running.** With `terminal.container_persistent: true`, the Hermes default, each Hermes home and session keeps one machine, named `hermes-<session>-<hash>`, which keeps running after Hermes exits. If it was stopped, the next command boots it again from its disk. List them with `smolvm machine ls`, and free one with `smolvm machine stop -n <name>` or `smolvm machine delete -n <name>`. With `false`, each session's machine is deleted when the session ends.
+- **Persistent machines keep running.** With `terminal.container_persistent: true`, the Hermes default, each Hermes home and session keeps one machine, named `hermes-<session>-<hash>`, which keeps running after Hermes exits. If it was stopped, the next command boots it again from its disk. With the [`smolvm` CLI](/docs/local), which the plugin does not install, list them with `smolvm machine ls`, and free one with `smolvm machine stop -n <name>` or `smolvm machine delete -n <name>`. With `false`, each session's machine is deleted when the session ends.
 - **Image pulls use your Docker login.** Creating a machine pulls its image, from Docker Hub for the default `python:3.12-slim`. When this computer has a Docker registry login, the engine reads it and sends it only to the registry it pulls from.
 - **The network is open.** The machine has outbound network access, so commands can install packages.
 - **Local only.** The plugin always starts machines on the local engine, even when `SMOL_CLOUD_TOKEN` is set.

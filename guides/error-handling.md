@@ -91,7 +91,7 @@ Do not parse error message text when a type or code is available. Common SDK cod
 
 ### Retries
 
-A cloud error also says whether retrying can help: `retryable`, the HTTP `status`, the server's `problemCode`, and how long to wait (`retryAfterMs` in Node, `retry_after_s` in Python).
+A cloud error also says whether retrying can help: `retryable`, the HTTP `status`, the server's `problemCode` (`problem_code` in Python), and how long to wait (`retryAfterMs` in Node, `retry_after_s` in Python).
 
 The SDKs retry on their own, up to three times and waiting as the server asks, when that is safe: a `429` for any call, and a `502`, `503` or `504` for reads, deletes, start, stop and resume. Set `maxRetries` (Node) or `max_retries` (Python) on the connection to change the count, or `0` to turn retries off.
 
@@ -112,7 +112,7 @@ try {
 
 ## REST API errors
 
-Check the HTTP status before decoding a success response. Every error body is RFC 9457 `application/problem+json` with a stable `code`, a `detail` sentence, and `retryable`. Keep the body and `x-request-id` for debugging:
+Check the HTTP status before decoding a success response. An `exec` whose command failed still answers `200`; read `exitCode`. Every error body is RFC 9457 `application/problem+json` with a stable `code`, a `detail` sentence, and `retryable`. Keep the body and `x-request-id` for debugging:
 
 ```bash
 body=$(mktemp)
@@ -138,9 +138,9 @@ Typical meanings:
 - `400`: the body was not JSON, or a well-formed body broke a rule the schema cannot express
 - `401` or `403`: missing, invalid, or insufficient credentials
 - `402`: tenant billing or budget restriction
-- `404`: machine or other resource does not exist
+- `404`: machine or other resource does not exist, or is not yours
 - `409`: lifecycle conflict or duplicate name
-- `422`: the body parsed but did not satisfy the schema, or the request was refused by a quota. A quota refusal names the plan and the ceiling it hit, so the body is worth surfacing to whoever triggered the call — see [plan limits](/docs/cloud/api-reference)
+- `422`: the body parsed but did not satisfy the schema, or the request was refused by a quota. A quota refusal names the plan and the ceiling it hit, so the body is worth surfacing to whoever triggered the call. See [plan limits](/docs/cloud/api-reference#plan-limits)
 - `429`: rate limited; wait `Retry-After` seconds, then resend. The request never ran
 - `503` with code `machine_interrupted`: the machine stopped or became unreachable while an exec ran. Wait `Retry-After`; resend only a command that is safe to run twice
 - `502`, `503`, `504`: briefly unavailable; wait `Retry-After`, then resend requests that are safe to repeat
@@ -158,7 +158,7 @@ The local `smolvm serve` API uses `/api/v1`. Generate the OpenAPI document for t
 smolvm serve openapi
 ```
 
-`smolvm serve` is a local control surface and does not currently enforce authentication. Bind it to loopback or a protected Unix socket, not an untrusted network.
+`smolvm serve` is a local control surface and does not enforce authentication by default. Bind it to loopback or a protected Unix socket, not an untrusted network.
 
 ## CLI exit codes
 
