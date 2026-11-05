@@ -239,7 +239,7 @@ Branching creates a copy-on-write child from a running branchable cloud machine.
 
 For a tree of machines that build on each other, branch rather than checkpoint, because a branch carries its source's disks and cache disk. Branch with `freezeSource` (`freeze_source` in Python) and the source is kept paused as a reusable branch base that no longer counts toward the concurrency cap. A frozen source cannot run commands again; work in its branches, or stop it.
 
-`POST /v1/machines/{id}/snapshot` is not implemented and returns `501`; use a checkpoint to capture a running machine. To keep a stopped machine's disk state without its running state, export it to a `.smolmachine` artifact.
+To keep a stopped machine's disk state without its running state, export it to a `.smolmachine` artifact.
 
 ## GPU
 

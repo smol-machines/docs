@@ -327,18 +327,7 @@ a stopped machine still holds its slot.
 
 Use the HTTP status code first. An `exec` whose command failed still answers `200`; read `exitCode`. Error bodies are RFC 9457 `application/problem+json`: a stable `code`, a `detail` sentence, and `retryable`, which is true for `408`, `429`, `502`, `503` and `504`; those also carry `Retry-After` in seconds. An exec whose machine stopped under it returns `503` with code `machine_interrupted`: the command may have partly run, and a retry runs it again. Two other refusals are worth retrying after a wait: a branch answers `409` "branches of this source made no progress ...; retry" while it waits behind its siblings, and a create answers `422` "no ready <arch> node" while no node of that architecture is up. For guest exit codes and SDK error patterns, see [Error handling](/docs/guides/error-handling).
 
-Common statuses include:
-
-- `400`: invalid request
-- `401`: missing or invalid credentials
-- `403`: insufficient scope
-- `404`: resource not found or not owned by the caller
-- `409`: conflicting resource
-- `402`: billing or budget restriction
-- `422`: quota, capacity, or validation constraint
-- `429`: rate limit exceeded
-- `500`: server error
-- `503`: service or feature unavailable
+[Error handling](/docs/guides/error-handling#rest-api-errors) says what each status means.
 
 Every response includes `x-request-id`. A safe client-provided ID is echoed; otherwise the service generates one. Record it with the status and response body when reporting a failed request.
 
