@@ -53,7 +53,7 @@ These fields describe the machine and its workload. All are optional.
 | `net` | boolean | Enable outbound networking. Networking is off by default. |
 | `gpu` | boolean | Enable Vulkan GPU acceleration through virtio-gpu. |
 | `gpu_vram` | integer | GPU shared-memory size in MiB. Ignored unless `gpu = true`. |
-| `cuda` | boolean | Enable CUDA-over-vsock on supported Linux hosts with an NVIDIA driver. |
+| `cuda` | boolean | Enable CUDA-over-vsock on supported Linux and Windows hosts with an NVIDIA driver. |
 | `auto_graph` | boolean | Ask compatible CUDA frameworks to capture safe graph regions. Implies `cuda`. |
 | `rosetta` | boolean | Enable Rosetta 2 translation for x86_64 binaries on Apple Silicon macOS. |
 | `docker_socket` | boolean | Expose the guest Docker socket to the host as a Unix socket. |
@@ -155,13 +155,13 @@ accepted on `machine run` as well as `machine create`. When a Smolfile also sets
 
 An ephemeral run that has `init` steps is cached by default. smolvm bakes `image` plus `init` once
 into a reusable artifact and later runs of the same pair rehydrate from it, printing
-`Using cached init layer <id>`. Nothing has to be passed to opt in, so a Smolfile with `[init]`
+`Using cached init layer <id>`. Nothing has to be passed to opt in, so a Smolfile with `init`
 takes that path on its second run whether or not you know the cache exists.
 
 **A secret that `init` needs does not survive that path.** The bake runs without the secret refs,
 and what happens next depends on how the secret was given:
 
-- A Smolfile `[secrets]` entry with `[init]` **fails the run**, with an error about packs that
+- A Smolfile `[secrets]` entry with `init` **fails the run**, with an error about packs that
   never mentions the cache: `secret 'MYSEC': source kind 'env' is not allowed in scope Untrusted;
   secret refs may only be resolved on the trusted local host (packs may not carry secret refs)`.
 - `--secret-env` or `--secret-file` on the command line is worse, because it does not fail. The
