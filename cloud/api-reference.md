@@ -296,13 +296,20 @@ concurrency limit reached: your Standard plan allows 20 machines running at once
 ```
 
 An account without a card on file runs up to 4 machines at once of up to
-4 vCPU each, and its refusals say so; adding a card lifts both to the plan's
-limits:
+4 vCPU each, and its refusals say so. Adding a card lifts both to the plan's
+limits once the account has paid or is a day old; with a prepaid card, or one
+already on another account, only once it has paid:
 
 ```text
 concurrency limit reached: an account without a card can run 4 machines at once; add a card at https://smolmachines.com/console/billing to run up to your plan's limit
 machine size exceeds what an account without a card can run, up to 4 vCPU, 16 GB memory and 50 GB disk per machine (requested 8 vCPU, 8 GB); add a card at https://smolmachines.com/console/billing to use your plan's full limit
+concurrency limit reached: a new account can run 4 machines at once until its first payment or its first day; add credit at https://smolmachines.com/console/billing to run up to your plan's limit now
+concurrency limit reached: an account whose card is prepaid or already on another account can run 4 machines at once until its first payment; add credit at https://smolmachines.com/console/billing to run up to your plan's limit
 ```
+
+A plan an account subscribed to itself runs at the free plan's limits until its
+first payment or subscription is a week old; email hello@smolmachines.com to
+lift them sooner.
 
 ::: tip
 A count refusal usually means machines were left behind rather than that the
