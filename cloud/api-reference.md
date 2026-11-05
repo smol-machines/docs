@@ -234,6 +234,23 @@ When the prepaid balance runs out, running work continues for 48 hours, with an 
 
 The [cloud-usage](/docs/guides/skills/cloud-usage) skill packet reads these totals and reconciles one machine's bill against its uptime and the published rate.
 
+### Metrics export
+
+`PUT /v1/account/telemetry` (`billing:write`) pushes every running machine's metrics to an OpenTelemetry collector you name, as OTLP over HTTP with JSON encoding, every 30 seconds:
+
+```bash
+curl -fsSL -X PUT https://api.smolmachines.com/v1/account/telemetry \
+  -H "Authorization: Bearer $SMOL_CLOUD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"otlpEndpoint": "https://otlp.example.com", "headers": {"Authorization": "Bearer COLLECTOR_TOKEN"}}'
+```
+
+Exports go to `<otlpEndpoint>/v1/metrics` and do not follow redirects. An endpoint that is not an `http://` or `https://` URL, carries a query, does not resolve, or names a loopback, link-local, private or metadata address answers `400`. At most 16 headers are kept, sealed, and only their names come back. Inside a sub-organization the route answers `403`.
+
+`GET` (`machine:read` or `usage:read`) returns the endpoint, `headerNames`, `intervalSeconds`, `lastExportAt` and, after a failed export, `lastError`, or `404` when no destination is set. `DELETE` (`billing:write`) stops the exports. A failed export is dropped, not retried: the next one sends the next readings.
+
+Each machine is one OTLP resource, with `smol.machine.id`, `smol.machine.name`, `smol.node.id`, `smol.account`, `smol.machine.parent_id` on a branch and `smol.machine.label.<key>` for each label. Its metrics are `smol.machine.cpu.time`, `smol.machine.cpu.limit`, `smol.machine.memory.pss`, `smol.machine.memory.rss`, `smol.machine.disk.used`, `smol.machine.disk.size`, `smol.machine.network.egress` and `smol.machine.network.connections`. Cumulative sums start at the machine's creation, and a restart resets them. Each node hosting the machines adds `smol.node.cpu.pressure`.
+
 ### API keys
 
 Keys are listed, created and revoked through these routes:
