@@ -154,7 +154,7 @@ page.
 | Page | Covers |
 |---|---|
 | `integrations.md` | Every integration, where its code lives, and what it runs on |
-| `integrations/testerarmy.md` | TesterArmy's e2e framework with smol machines as the browser provider |
+| `integrations/e2e.md` | The e2e framework with smol machines as the browser provider |
 | `integrations/pydantic-ai-harness.md` | Pydantic AI Harness's `SmolSandbox`, an agent's shell and file tools in a local machine |
 | `integrations/sweeper.md` | The Paper Compute Company's sweeper with its smol backend, lint-fixing agents in a local machine |
 | `integrations/hermes-agent.md` | Nous Research's Hermes Agent with the `smolmachines` terminal backend, its tools in a local machine |

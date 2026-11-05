@@ -1,17 +1,17 @@
 ---
-title: e2e by TesterArmy
+title: e2e
 ---
 
-# e2e by TesterArmy
+# e2e
 
-Run TesterArmy e2e web tests with smol machines as the browser provider.
+Run e2e web tests with smol machines as the browser provider.
 
 - **Package:** [`@e2e-dev/smol`](https://www.npmjs.com/package/@e2e-dev/smol), 0.1.x
-- **Code:** [`packages/smol`](https://github.com/tester-army/e2e/tree/main/packages/smol) in TesterArmy's e2e repository, written by smol machines
+- **Code:** [`packages/smol`](https://github.com/tester-army/e2e/tree/main/packages/smol) in the e2e repository, written by smol machines
 - **Runs on:** the local engine, on the computer that runs the tests
 - **Issues:** the provider on [e2e issues](https://github.com/tester-army/e2e/issues), the machines on [smolvm issues](https://github.com/smol-machines/smolvm/issues)
 
-[e2e](https://github.com/tester-army/e2e) is TesterArmy's open-source end-to-end testing framework for web and mobile apps. Its `@e2e-dev/smol` package is a browser provider that runs each web test attempt in a smol machines microVM.
+[e2e](https://e2e.com) is an open-source end-to-end testing framework for web and mobile apps. Its `@e2e-dev/smol` package is a browser provider that runs each web test attempt in a smol machines microVM.
 
 Each worker slot boots one warm Chromium machine. By default every test attempt runs in a copy-on-write branch of that machine, ready in about a second, and the branch is deleted when the attempt ends. A retry starts from the same browser state as the first try.
 
@@ -77,7 +77,7 @@ smol({
 })
 ```
 
-With `app`, set the target's `app.url` to `http://localhost:<port>`, declare no `app.command`, and keep `port` out of `hostPorts`: the provider rejects a port in both. In the default attempt scope, every attempt's branch holds its own running app and data. The full field list, `prepare` for signing in, and the choice between attempt and worker scope are on the [provider page in the e2e docs](https://e2e.tester.army/docs/integrations/smol).
+With `app`, set the target's `app.url` to `http://localhost:<port>`, declare no `app.command`, and keep `port` out of `hostPorts`: the provider rejects a port in both. In the default attempt scope, every attempt's branch holds its own running app and data. The full field list, `prepare` for signing in, and the choice between attempt and worker scope are on the [provider page in the e2e docs](https://e2e.com/docs/integrations/smol).
 
 ## What to know
 
@@ -87,6 +87,6 @@ With `app`, set the target's `app.url` to `http://localhost:<port>`, declare no 
 
 ## Links
 
-- [Provider reference in the e2e docs](https://e2e.tester.army/docs/integrations/smol)
+- [Provider reference in the e2e docs](https://e2e.com/docs/integrations/smol)
 - [`@e2e-dev/smol` 0.1.0 release notes](https://github.com/tester-army/e2e/releases/tag/%40e2e-dev%2Fsmol%400.1.0)
 - [Forks and snapshots](/docs/introduction/concepts/forks-and-snapshots), the branching the provider builds on
