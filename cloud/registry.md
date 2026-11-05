@@ -14,22 +14,22 @@ Check the catalog for available architectures before pulling. A `.smolmachine` a
 
 ```bash
 smolvm pack pull \
-  registry.smolmachines.com/library/go:latest \
-  -o go.smolmachine
+  registry.smolmachines.com/library/node:24-bookworm \
+  -o node.smolmachine
 ```
 
 Create a local persistent machine from the artifact:
 
 ```bash
-smolvm machine create --name go --from go.smolmachine
-smolvm machine start --name go
-smolvm machine exec --name go -- go version
+smolvm machine create --name node --from node.smolmachine
+smolvm machine start --name node
+smolvm machine exec --name node -- node --version
 ```
 
 Tags are mutable. Use a digest reference when a workflow needs an immutable artifact:
 
 ```text
-registry.smolmachines.com/library/go@sha256:<64-hex-digest>
+registry.smolmachines.com/library/node@sha256:<64-hex-digest>
 ```
 
 ## Create and publish an artifact
