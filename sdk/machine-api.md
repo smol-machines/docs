@@ -50,7 +50,7 @@ For local, pass the name of a persisted machine, a paused one included. For clou
 | `await machine.readyAt()` | `machine.ready_at()` | RFC 3339 ready timestamp, or null |
 | `await machine.waitUntilReady(options?)` | `machine.wait_until_ready(timeout_s=120, interval_s=1)` | Wait until ready or raise |
 
-State and readiness are separate. On cloud, `"started"` means only that the VM process launched. `ready: true` means the guest agent is reachable and every published port is accepting connections. `create()` waits for readiness; `connect()` does not. Check the application's own health endpoint separately when accepting a connection is not enough to establish application health.
+State and readiness are separate. On cloud, `"started"` means only that the VM process launched. `ready: true` means its published port is accepting connections, or, with no published port, that the guest agent answers. With several published ports only the first is probed. `create()` waits for readiness; `connect()` does not. Check the application's own health endpoint separately when accepting a connection is not enough to establish application health.
 
 TypeScript readiness options:
 
