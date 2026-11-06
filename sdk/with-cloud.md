@@ -4,6 +4,8 @@ title: Use SDK on Cloud
 
 # Use SDK on Cloud
 
+To run Claude Code, Codex, OpenCode, or a custom agent as a persistent session, see [Managed Agent Sessions](/docs/sdk/managed-agents). The examples below cover the lower-level `Machine` API.
+
 The cloud target uses the same `Machine` API as local and sends operations to smol cloud. It does not start a local microVM, so the host does not need KVM, Hypervisor.framework, or a separate hypervisor installation.
 
 ## Create an account and API key

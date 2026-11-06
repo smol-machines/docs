@@ -31,6 +31,10 @@ Keep API keys on trusted servers. Use separate keys for development, CI, and pro
 
 ## Core resources
 
+### Managed agents
+
+`/v1/agents` creates a named session for Claude Code, Codex, OpenCode, or a custom command harness. `POST /v1/agents/{name}/turns` starts background work and returns a turn index. `GET /v1/agents/{name}/turns/{turn}/events` replays and follows its events. Sessions can be cancelled, rewound, forked, paused, resumed, and deleted. Use the [Node, Python, or Rust SDK walkthrough](/docs/sdk/managed-agents) for application code; the generated OpenAPI document describes each route and request body.
+
 ### Machines
 
 Machines are persistent cloud microVMs. The core lifecycle is:
