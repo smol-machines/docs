@@ -4,7 +4,7 @@ title: Cloud Quick Start
 
 # Cloud Quick Start
 
-Create a persistent cloud machine, run a command, and clean it up through the REST API.
+Create a persistent cloud machine, start it, run a command, and clean it up through the REST API.
 
 ## 1. Create an account and API key
 
@@ -21,7 +21,7 @@ export SMOL_CLOUD_URL="https://api.smolmachines.com"
 
 Send the key as a bearer token. Do not put it in source control or client-side application code.
 
-## 2. Create a machine
+## 2. Create and start a machine
 
 This request creates an Alpine machine with one vCPU, 256 MB of memory, and open outbound networking:
 
@@ -43,7 +43,15 @@ The response includes the machine `id`. Save it:
 export MACHINE_ID="mach-replace-with-your-id"
 ```
 
-A newly created machine is stopped. The first exec request starts it automatically.
+A newly created machine is stopped (`state: "stopped"`, `ready: false`) and stays stopped until something starts it. Polling `GET /v1/machines/{id}` does not start it, so start it now:
+
+```bash
+curl --fail-with-body -X POST \
+  "$SMOL_CLOUD_URL/v1/machines/$MACHINE_ID/start" \
+  -H "Authorization: Bearer $SMOL_CLOUD_TOKEN"
+```
+
+The start request returns once the machine has booted, normally within a few seconds. An exec request also starts a stopped machine, so you can skip this call when the next thing you send is an exec. The SDKs' `Machine.create` does both steps for you: it creates the machine, starts it, and returns once it is ready.
 
 ## 3. Execute a command
 
@@ -90,7 +98,7 @@ Pass JSON, source code, or another small payload through standard input with the
 
 `state: "started"` means the VM process has launched. It does not guarantee that the guest agent or an application listening on a published port is ready.
 
-Poll the machine until `ready` is `true` before connecting to an application:
+Once the machine is started, poll it until `ready` is `true` before connecting to an application. A machine that nothing has started never becomes ready, so this loop only makes sense after step 2's start or an exec:
 
 ```bash
 ready=false
