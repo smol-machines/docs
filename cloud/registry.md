@@ -58,6 +58,36 @@ smolvm pack pull \
   -o python-tools.smolmachine
 ```
 
+## Publish to the smolmachines registry
+
+Anything you push to `registry.smolmachines.com` is private to your account until you publish it. Publishing needs a handle, the name your public machines live under. A handle is chosen once.
+
+```bash
+smol auth login
+smol registry handle acme            # your public namespace: acme/<name>
+```
+
+Push under the handle, then publish:
+
+```bash
+smol pack push acme/python-tools:v1 -f ./python-tools.smolmachine
+smol registry publish acme/python-tools
+smol registry readme acme/python-tools -f README.md
+```
+
+Anyone can now pull `registry.smolmachines.com/acme/python-tools:v1` without logging in, and the machine is listed at `smolmachines.com/machines/acme/python-tools` with its README, tags and pull count. `smol registry unpublish acme/python-tools` makes it private again. A bare name such as `python-tools:v1` stays in your private `tenants/` namespace, which cannot be published.
+
+Browse what others published:
+
+```bash
+smol registry search kicad
+smol registry search --kind workspace
+smol registry show acme/python-tools
+smol registry mine
+```
+
+A checkpoint captured with `smolvm machine checkpoint --smolfile Smolfile` carries the Smolfile's `[workspace]` table, and the registry lists it as a workspace: the tool server an agent reaches over MCP, the check that judges its output, and the warm recipe. See [Smolfile](/docs/local/smolfile#workspace).
+
 ## Configure a custom registry
 
 Initialize or edit the smolvm registry configuration:
