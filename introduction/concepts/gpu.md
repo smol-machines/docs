@@ -10,6 +10,8 @@ Local smolvm has two GPU paths for different workloads: Vulkan graphics through 
 
 The Vulkan path presents a paravirtualized GPU to the guest through virtio-gpu and Venus. It fits accelerated graphics workloads such as headless browsers, WebGL, and OpenGL ES through ANGLE.
 
+How far that goes depends on the host. On an Apple M4 with v1.33.0, the guest's Vulkan device, compute shaders and offscreen rendering worked, and WebGL through headless Chromium did not: `getContext("webgl")` returned null, while `--screenshot` still exited 0 and wrote a PNG. To check a browser workload, ask the page for a WebGL context and do not rely on the exit code.
+
 Vulkan support depends on the host graphics stack. It is not available on native Windows: the current release accepts `--gpu` there without effect, and the guest gets no `/dev/dri`.
 
 Enable it with `--gpu`, `gpu = true` in a Smolfile, or `gpu: true` / `gpu=True` in the local SDK:
@@ -22,7 +24,7 @@ On macOS, the release bundles virglrenderer and MoltenVK. On Linux, install virg
 
 ```bash
 # Debian or Ubuntu
-sudo apt install virglrenderer0 mesa-vulkan-drivers
+sudo apt install libvirglrenderer1 mesa-vulkan-drivers
 ```
 
 The guest needs a Vulkan loader and the Venus virtio ICD, and on a glibc image it needs nothing
