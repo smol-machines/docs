@@ -70,6 +70,7 @@ started with.
 | `POST` | `/api/v1/machines/:name/start` | Start a machine |
 | `POST` | `/api/v1/machines/:name/stop` | Stop a machine |
 | `PUT` | `/api/v1/machines/:name/cpu-limit` | Cap the host CPU a running machine's VMM may use, as `{"millicpus": N}` across all its vCPUs (`200` is a fifth of one CPU), or `{"millicpus": null}` to clear it; the guest still sees every vCPU, and the limit holds across restarts until cleared. A stopped machine answers `409`. It needs the VMM in a cgroup smolvm controls, so the request is refused with `400` on macOS, and on Linux unless `serve` runs as root on systemd or can write its own cgroup, as in a systemd unit with `Delegate=yes` |
+| `PUT` | `/api/v1/machines/:name/credential-values` | Supply the values for a machine's credential bindings as `{"values": {"<binding>": "<value>"}}`, `204`; a running machine uses them at once, and a name with no binding answers `400` |
 | `DELETE` | `/api/v1/machines/:name` | Delete a machine |
 | `PUT` | `/api/v1/machines/:name/ports` | Replace a machine's published ports, live while it runs; a taken host port answers `409` `PORT_IN_USE` |
 | `GET`, `POST`, `DELETE` | `/api/v1/machines/:name/mounts` | List, add or remove host directories mounted into a running machine; `POST` takes `source`, `target` and `readonly`, `DELETE` takes `?target=`, and a stopped machine answers `409` |
@@ -90,7 +91,7 @@ A warm pool keeps `desiredReady` workers branched from a source machine and read
 
 The HTTP API covers common lifecycle, execution, file, image, volume, export, and branch operations. It does not have complete parity with every CLI command or interactive CLI behavior. Use the generated OpenAPI document as the wire-level reference for your installed release.
 
-A branch request waits for the source up to 60 seconds plus 20 seconds per GiB of its memory, at most 540 seconds, then answers a retryable `503`.
+A branch request waits for the source up to 60 seconds plus 20 seconds per GiB of its memory, at most 540 seconds, then answers a retryable `503`. With `"keepMachineId": true` the child keeps the source's `/etc/machine-id`, for tools that key a cache by it; its hostname is still its own name.
 
 A start takes `branchable`, `branchPoolSize` and `cudaVramLimitMib` in its JSON body or its query string; when both carry one, the query string wins.
 
@@ -102,6 +103,8 @@ A create body's `diskVolumes` lists guest paths kept on the machine's storage di
 overlay root, the API form of `-v /var/lib/docker`. A running machine's record carries
 `cpuLimitMillicpus` while a CPU limit is set and, on a virtio-net machine, `egressFlows`: its open
 TCP flows, how many distinct peers they reach and the oldest one, refreshed about every 15 seconds.
+A running machine in the list also carries `pressure`, the guest's CPU, memory and IO stall
+figures that `machine stats` prints, sampled about every 15 seconds.
 
 ## Choose an integration
 

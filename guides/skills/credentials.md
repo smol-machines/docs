@@ -140,8 +140,9 @@ and send it anywhere the network allows; that is why the binding is the default 
 Full detail in `references/traps.md`.
 
 - **An environment value behaves as the one the machine started with**; `README.md` has the
-  v1.18.2 measurement. Rotate it with a restart, or use a file reference,
-  read per request.
+  v1.18.2 measurement. Rotate it with a restart, use a file reference, read per request, or, on a
+  machine `smolvm serve` created, `PUT /api/v1/machines/{name}/credential-values`, which a running
+  machine uses at once from v1.34.0.
 - **Never put the real value on an `exec` command line.** smolvm writes exec commands into the
   machine's console log on the host, so a check that interpolated the value into its own `grep`
   planted it in `agent-console.log` and failed itself. `verify-containment.sh` hands the value to
@@ -835,7 +836,10 @@ the host environment out of that process. So:
 
 `docs/credential-substitution.md` says an environment value is read at `machine start` and
 `machine exec` time; what was observed is start time. Rotate a value from the environment by restarting the machine, and use a
-file reference for a value that has to rotate under a running machine.
+file reference for a value that has to rotate under a running machine. On v1.34.0 on macOS arm64,
+2026-11-09, both rotated under a running machine and reached an API that echoes the header it
+received, a dummy value: a `--secret-file` value on the next request, and a value supplied through
+`PUT /api/v1/machines/{name}/credential-values` on a machine `smolvm serve` created.
 
 ### A check that interpolates the value plants it
 

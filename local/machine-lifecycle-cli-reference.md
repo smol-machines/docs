@@ -134,14 +134,21 @@ smolvm machine logs --name dev --follow
 
 ### See a machine's CPU and memory
 
-`machine stats` samples a running machine's CPU and memory; `--json` gives the raw figures:
+`machine stats` samples a running machine's CPU, memory and pressure stalls; `--json` gives the raw figures:
 
 ```text
 $ smolvm machine stats --name dev
 Machine 'dev': running
   cpu: 0.4% of 400% (4 CPUs)
   memory: 0.10 GiB of 7.77 GiB used (1%), 7.67 GiB available
+  cpu pressure: some 0.0% (10s) 0.0% (60s)
+  memory pressure: some 0.0% (10s) 0.0% (60s), full 0.0% (10s) 0.0% (60s)
+  io pressure: some 0.0% (10s) 0.0% (60s), full 0.0% (10s) 0.0% (60s)
 ```
+
+The pressure lines are the guest kernel's stall information from `/proc/pressure`: the share of the
+last 10 and 60 seconds in which some task, or every task, waited for that resource, which tells a
+starved machine from a busy one.
 
 When `smolvm serve` or an embedding SDK reaped a machine's VM, `machine status` also shows
 `last exit`, naming an out-of-memory or seccomp kill (`last_exit` in `--json`). A machine started
@@ -238,9 +245,12 @@ Use `machine:path` for the VM side:
 
 ```bash
 smolvm machine cp ./script.py dev:/workspace/script.py
+smolvm machine cp ./src dev:/workspace
 smolvm machine exec --name dev -- python3 /workspace/script.py
 smolvm machine cp dev:/workspace/result.json ./result.json
 ```
+
+A host directory is uploaded recursively, like `cp -r`: into an existing guest directory under its own name, or as the destination path itself, each file keeping its permission bits unless `--mode` is given. A download copies one file; a guest directory is refused.
 
 `/workspace` persists across `exec` sessions and stop/start cycles. For files larger than the copy limit, mount a directory with `--volume`.
 
@@ -273,7 +283,7 @@ of its own: its hostname is the new machine's name. Add `--keep-identity` to kee
 machine ID the checkpoint was saved with, which is what rewinding one machine to an earlier save
 point wants. Do not run two machines from one checkpoint with it.
 
-Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
+Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`, naming the option: `cpus cannot be set when restoring a live checkpoint`. Its environment can still be set with `-e`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
 
 Adding `--store DIR` writes an incremental checkpoint instead of one file. `--output` is still
 what names the result, and with `--store` it becomes a self-contained directory on the same

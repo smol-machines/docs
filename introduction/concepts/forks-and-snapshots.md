@@ -10,7 +10,7 @@ A branch creates a new machine from a live, branchable source. The child starts 
 
 Prepare a branchable machine as a source environment, start the workload, and branch children from that point. Each child continues with the cloned process state. This is useful for parallel agent tasks, test branches, and warm model-serving workers.
 
-Copy-on-write avoids duplicating all memory and disk data at branch time. The source and children remain separate machines after the branch.
+Copy-on-write avoids duplicating all memory and disk data at branch time. The source and children remain separate machines after the branch. Each child gets its own hostname and machine ID; a branch request to the local API with `keepMachineId: true` keeps the source's machine ID.
 
 `smolvm machine branch --from SOURCE --count N --name-prefix PREFIX` makes `PREFIX-0` to
 `PREFIX-(N-1)` from one checkpoint of the source, booting `--parallel` of them at a time (four by

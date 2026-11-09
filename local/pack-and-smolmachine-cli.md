@@ -68,6 +68,8 @@ smolvm machine stop --name app-dev
 
 This path gives the artifact a normal named-machine lifecycle. Changes made through `machine exec` persist across stop/start cycles.
 
+`machine create --from` takes every option `--image` takes. The pack's CPUs, memory, command, environment, working directory, user and network are defaults that a flag replaces: `--cpus 2 --mem 1024` on a pack made from a 4 vCPU, 8 GiB machine gives a 2 vCPU, 1 GiB machine. Before v1.34.0 some flags were dropped on `--from` without an error.
+
 A pack does not carry `--credential` bindings, so pass them again on `machine create`; `pack create` warns when the source machine has some. A `machine checkpoint` carries them.
 
 ## One prepared base, one machine per working directory
@@ -139,6 +141,19 @@ applies, so a value smaller than the export needs will fail where the automatic 
 The payload can move between supported host operating systems when the host architecture matches. An arm64 artifact requires an arm64 host; an x86_64 artifact requires an x86_64 host. The launcher stub is specific to the host platform that created it, so use a launcher built for the destination platform or run the `.smolmachine` payload with an installed compatible `smolvm`.
 
 The manifest records the guest platform, host platform, creation time, and smolvm version. Cross-architecture restore is not supported.
+
+## Clean up pack extractions
+
+```bash
+smolvm pack prune --dry-run
+smolvm pack prune --all
+```
+
+`pack prune` removes cached pack extractions that no machine references, keeping five unused ones
+unless `--keep N` says otherwise; `--all` removes every unused one and `--dry-run` lists what would
+go. On Linux, `--artifact <SHA8|PATH>` removes only one pack's shared extraction, named by its
+eight-digit checksum or its `.smolmachine` file, unless a machine references it. Elsewhere
+`--artifact` is refused, because shared extractions exist only on Linux.
 
 ## Disk state, RAM, and migration
 
