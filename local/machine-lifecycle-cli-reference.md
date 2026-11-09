@@ -238,9 +238,12 @@ Use `machine:path` for the VM side:
 
 ```bash
 smolvm machine cp ./script.py dev:/workspace/script.py
+smolvm machine cp ./src dev:/workspace
 smolvm machine exec --name dev -- python3 /workspace/script.py
 smolvm machine cp dev:/workspace/result.json ./result.json
 ```
+
+A host directory is uploaded recursively, like `cp -r`: into an existing guest directory under its own name, or as the destination path itself, each file keeping its permission bits unless `--mode` is given. A download copies one file; a guest directory is refused.
 
 `/workspace` persists across `exec` sessions and stop/start cycles. For files larger than the copy limit, mount a directory with `--volume`.
 
