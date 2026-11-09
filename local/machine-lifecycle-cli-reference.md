@@ -276,7 +276,7 @@ of its own: its hostname is the new machine's name. Add `--keep-identity` to kee
 machine ID the checkpoint was saved with, which is what rewinding one machine to an earlier save
 point wants. Do not run two machines from one checkpoint with it.
 
-Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
+Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`, naming the option: `cpus cannot be set when restoring a live checkpoint`. Its environment can still be set with `-e`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
 
 Adding `--store DIR` writes an incremental checkpoint instead of one file. `--output` is still
 what names the result, and with `--store` it becomes a self-contained directory on the same
