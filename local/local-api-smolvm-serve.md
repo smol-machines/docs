@@ -90,7 +90,7 @@ A warm pool keeps `desiredReady` workers branched from a source machine and read
 
 The HTTP API covers common lifecycle, execution, file, image, volume, export, and branch operations. It does not have complete parity with every CLI command or interactive CLI behavior. Use the generated OpenAPI document as the wire-level reference for your installed release.
 
-A branch request waits for the source up to 60 seconds plus 20 seconds per GiB of its memory, at most 540 seconds, then answers a retryable `503`.
+A branch request waits for the source up to 60 seconds plus 20 seconds per GiB of its memory, at most 540 seconds, then answers a retryable `503`. With `"keepMachineId": true` the child keeps the source's `/etc/machine-id`, for tools that key a cache by it; its hostname is still its own name.
 
 A start takes `branchable`, `branchPoolSize` and `cudaVramLimitMib` in its JSON body or its query string; when both carry one, the query string wins.
 
