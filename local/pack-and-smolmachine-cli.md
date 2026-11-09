@@ -140,6 +140,19 @@ The payload can move between supported host operating systems when the host arch
 
 The manifest records the guest platform, host platform, creation time, and smolvm version. Cross-architecture restore is not supported.
 
+## Clean up pack extractions
+
+```bash
+smolvm pack prune --dry-run
+smolvm pack prune --all
+```
+
+`pack prune` removes cached pack extractions that no machine references, keeping five unused ones
+unless `--keep N` says otherwise; `--all` removes every unused one and `--dry-run` lists what would
+go. On Linux, `--artifact <SHA8|PATH>` removes only one pack's shared extraction, named by its
+eight-digit checksum or its `.smolmachine` file, unless a machine references it. Elsewhere
+`--artifact` is refused, because shared extractions exist only on Linux.
+
 ## Disk state, RAM, and migration
 
 A `.smolmachine` is a disk artifact. It packages the prepared filesystem and storage needed to start another machine. It is not:
