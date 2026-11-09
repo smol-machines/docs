@@ -102,6 +102,8 @@ A create body's `diskVolumes` lists guest paths kept on the machine's storage di
 overlay root, the API form of `-v /var/lib/docker`. A running machine's record carries
 `cpuLimitMillicpus` while a CPU limit is set and, on a virtio-net machine, `egressFlows`: its open
 TCP flows, how many distinct peers they reach and the oldest one, refreshed about every 15 seconds.
+A running machine in the list also carries `pressure`, the guest's CPU, memory and IO stall
+figures that `machine stats` prints, sampled about every 15 seconds.
 
 ## Choose an integration
 

@@ -134,14 +134,21 @@ smolvm machine logs --name dev --follow
 
 ### See a machine's CPU and memory
 
-`machine stats` samples a running machine's CPU and memory; `--json` gives the raw figures:
+`machine stats` samples a running machine's CPU, memory and pressure stalls; `--json` gives the raw figures:
 
 ```text
 $ smolvm machine stats --name dev
 Machine 'dev': running
   cpu: 0.4% of 400% (4 CPUs)
   memory: 0.10 GiB of 7.77 GiB used (1%), 7.67 GiB available
+  cpu pressure: some 0.0% (10s) 0.0% (60s)
+  memory pressure: some 0.0% (10s) 0.0% (60s), full 0.0% (10s) 0.0% (60s)
+  io pressure: some 0.0% (10s) 0.0% (60s), full 0.0% (10s) 0.0% (60s)
 ```
+
+The pressure lines are the guest kernel's stall information from `/proc/pressure`: the share of the
+last 10 and 60 seconds in which some task, or every task, waited for that resource, which tells a
+starved machine from a busy one.
 
 When `smolvm serve` or an embedding SDK reaped a machine's VM, `machine status` also shows
 `last exit`, naming an out-of-memory or seccomp kill (`last_exit` in `--json`). A machine started
