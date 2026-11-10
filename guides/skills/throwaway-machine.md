@@ -6,20 +6,19 @@ title: "Throwaway machine: run untrusted code with no network"
 
 Runs untrusted code in a throwaway smolvm microVM against a repo it must not modify, with no network unless explicitly granted, and collects artifacts from a writable output directory. Use when executing an agent's generated script, a pull request's test suite, or any code that should not be trusted with the host; when a workload needs egress granted one host at a time; or when a run has to be cancelled, because Ctrl-C on the wrapper script leaves the VM running, and on releases before v1.20.2 so does Ctrl-C on the CLI. Do not use it for a development environment that is re-entered across sessions, for running a Docker daemon inside a machine, or for installing smolvm itself, which is the install packet.
 
-Verified on **smolvm v1.23.0** on macOS arm64, 2026-10-04, by the offline route, the network-on route
-and the cancel; on Linux aarch64 by the offline route and the cancel on v1.20.2, 2026-09-29, and the
+Verified on **smolvm v1.34.0** on macOS arm64, 2026-11-09, by the offline route, the network-on route
+and the cancel, and on Linux x86_64 by all three, 2026-11-09; on Linux aarch64 by the offline route and the cancel on v1.20.2, 2026-09-29, and the
 network-on route on v1.18.2, 2026-09-24. Done means the command's output landed in your writable directory,
 the repo is unchanged, the workload could not reach the network, and nothing is left running.
-The Linux runs used the scripts of their date; this version's preflight, run and cleanup scripts
+The Linux aarch64 runs used the scripts of their date; this version's preflight, run and cleanup scripts
 ran on Linux aarch64 on v1.22.2 on 2026-10-03.
 
-**On macOS from v1.24.0 the offline route does not run**
-([#1819](https://github.com/smol-machines/smolvm/issues/1819)). Every `--oci-cache` run, the bake's own
-included, fails with `agent did not become ready within 30 seconds`: measured on v1.24.0, v1.24.1,
-v1.25.0, v1.25.1, v1.27.3, v1.28.1 and v1.29.0, while v1.23.3 and v1.23.7 boot the same command on
-the same host. The preflight says `offline_shape=unavailable` there and `bake.sh` says
-`result=FAILED`. For a run with no network, use the persistent machine with no network in
-`README.md`, which boots the image with no bake; the network-on route works.
+**On macOS from v1.24.0 to v1.29.0 the offline route does not run**
+([#1819](https://github.com/smol-machines/smolvm/issues/1819), fixed in v1.29.1). Every `--oci-cache`
+run, the bake's own included, fails with `agent did not become ready within 30 seconds`: measured on
+v1.24.0, v1.24.1, v1.25.0, v1.25.1, v1.27.3, v1.28.1 and v1.29.0. On those releases the preflight
+says `offline_shape=unavailable` and `bake.sh` says `result=FAILED`; upgrade, or use the persistent
+machine with no network in `README.md`, which boots the image with no bake.
 
 **Ctrl-C on `run.sh` ends the run from v1.20.2**: the script forwards an interrupt or a `SIGTERM`
 to the CLI, which ends its VM. Before v1.20.2 the cancel is `scripts/cleanup.sh --cancel`, as
@@ -53,10 +52,13 @@ scripts/preflight.sh --mounts 2 --ports 0
 
 `device_budget_ok=no` means the boot will fail with `no more IRQs are available`. On x86_64
 through v1.22.2 the guest has eleven IRQs: **four `-v` mounts boot and five do not, and publishing
-any port, or granting egress, adds one device**. arm64 guests have 128, and the preflight prints
-`device_budget_ok=not_limiting` there. v1.23.0 ships a libkrun whose x86_64 guests have IRQs 5 to 23
-(#1521); its ceiling was not measured, and the preflight applies the budget through v1.22.2 only.
-Combine directories under one mount rather than discovering this at boot.
+any port, or granting egress, adds one device**. v1.23.0 ships a libkrun whose x86_64 guests have
+IRQs 5 to 23 (#1521): on v1.34.0 on Linux x86_64 **nine mounts boot and ten do not**, and eight
+mounts with any number of `-p`, or with `--allow-host`, is the most that boots; `--net` alone adds
+nothing. The error leads with `krun_start_enter returned: -22 (EINVAL` and a guess about disks;
+`no more IRQs are available` is at its end. arm64 guests have 128, and the preflight prints
+`device_budget_ok=not_limiting` there. Combine directories under one mount rather than discovering
+this at boot.
 
 `offline_shape=unavailable` means this host cannot run the shape below: macOS before v1.20.2
 (#1192), or Windows. The preflight cannot see whether the 8192 MiB bake helper fits; `bake.sh`
@@ -217,17 +219,17 @@ Read these when the situation calls for them; they are not needed for a normal r
 
 - **Linux aarch64**: **the offline route and the cancel path on both routes were run here on
   v1.20.2**, 2026-09-29; the network-on route end to end on v1.18.2, and once on v1.22.2.
-- **Linux x86_64**: the offline route was verified on v1.14.2 on an NVIDIA A10 cloud host, not
-  re-run since.
+- **Linux x86_64**: **every step, twice, on v1.34.0**, 2026-11-09, on an NVIDIA A10 cloud host,
+  the 8192 MiB bake helper included. The mount ceiling in step 1 was measured there.
 - **macOS arm64**: **the offline route, the network-on route and the cancel path on both were run
-  here on v1.23.0**, 2026-10-04; on v1.29.0 everything but the offline route, which fails from
-  v1.24.0. Before v1.20.2 the offline shape is unavailable (#1192, reproduced
+  here on v1.23.0**, 2026-10-04, and on v1.34.0, 2026-11-09; on v1.24.0 to v1.29.0 everything but
+  the offline route (#1819). Before v1.20.2 the offline shape is unavailable (#1192, reproduced
   3 of 3 on v1.18.2), and `references/macos.md` gives the routes run on v1.18.2.
 - **Windows x86_64**: the offline shape is unavailable for a different reason, the bake never
-  completes. `references/windows.md`, **re-run on 2026-10-03 against v1.22.2** on Windows 11 Home
-  build 10.0.26200 UBR 9457: the mount, the artifact directory and the network-off refusal
-  confirmed, the bake still did not complete inside a five minute cap in any of four shapes, and a
-  plain foreground run interrupted by Ctrl-C or a kill left its VM running.
+  completes. `references/windows.md`, **re-run on 2026-11-09 against v1.34.0** on Windows 11 Home
+  build 10.0.26200 UBR 9711: the mount, the artifact directory and the network-off refusal
+  confirmed, the bake still did not complete inside a five minute cap with or without a mount, and
+  a plain foreground run whose CLI was killed left its VM running (on v1.22.2, by Ctrl-C too).
 
 ## Eval prompts, and what they produced
 
@@ -271,32 +273,31 @@ on v1.22.2 and v1.23.0 on macOS the same cancel printed
 
 **3. "Can I run untrusted code on this host?"**
 
-On macOS arm64 on v1.23.0 the preflight says `offline_shape=available` and `result=ready`; from
-v1.24.0 it says `offline_shape=unavailable` and `result=blocked`, as above. Before
+On macOS arm64 on v1.23.0 and v1.34.0 the preflight says `offline_shape=available` and
+`result=ready`; from v1.24.0 to v1.29.0 it says `offline_shape=unavailable` and `result=blocked`. Before
 v1.20.2 it says `offline_shape=unavailable`, `offline_shape_blocker=smol-machines/smolvm#1192` and
 `result=blocked`, and `bake.sh` refuses with `result=unsupported_on_macos` rather than baking
 something unusable.
 
-## Run on v1.29.0, not re-verified
+## Re-verified on v1.34.0
 
-Run 2026-10-15 PT against v1.29.0 from the published release, checksum checked, under a fresh
-isolated `HOME` on macOS 27.0.1 arm64, twice, the second time from a fresh `HOME`. Linux was not
-run. The stamp stays on v1.23.0 because the offline route failed.
+Run 2026-11-09 PT against v1.34.0 from the published release, checksum checked, under a fresh
+isolated `HOME` on macOS 27.2 arm64 (Apple M4), twice, the second time from a fresh `HOME`, and once
+on Lima `linux-kvm` (Ubuntu 24.04 aarch64, 11 GiB). **The offline route runs again on macOS** (#1819
+is fixed from v1.29.1: `machine run --oci-cache` failed on v1.29.0 and printed `HI` on v1.29.1).
+Both passes: `offline_shape=available`, `baked in 35s`, `used_host_cache=yes`, `inside_network=ok
+(blocked)`, `artifact=ok (42)`, `repo_unchanged=ok`, `result=isolation_held`; the network-on route
+with `inside_network=ok (REACHED)`; `--allow-host example.com` reached it and not `example.org`; the
+cancel `result=clean`; the shell by hand and the persistent machine with no network as above. On
+Linux the bake's 8192 MiB helper did not boot inside 30 s, and `bake.sh` said so with
+`control_boot_2048=ok`; the network-on route, the grant and the cancel held.
 
-**The offline route failed.** `bake.sh` printed `baked in 10s` and then `agent did not become ready
-within 30 seconds`, and `run.sh` the same error with `used_host_cache=yes`, so `verify.sh` found
-no artifact. The same `machine run --oci-cache` with `--net` and without it failed 3 of 3 on
-v1.29.0 and passed on v1.23.7, so the cause is in smolvm, not in the scripts.
-
-**Everything else held.** The network-on route gave `inside_workspace=ok (readonly)`,
-`inside_out=ok (writable)`, `inside_network=ok (REACHED)`, `artifact=ok (42)` and
-`result=isolation_held`; once in three it exited 255 with no artifact and the log was overwritten
-before it was read. `--allow-host example.com` reached it. Ctrl-C to the script's process group gave
-`cli_exit=130` and no machine; `SIGKILL` to the script left `running (eph)`, and
-`cleanup.sh --cancel --purge` printed `cancelled=<pid>` and `result=clean`. The interactive shell
-above gave `Read-only file system` and `bad address 'example.com'`. The persistent machine with no
-network in `README.md` started in 7 s with `network` false, the same two refusals, and `42` in the
-output directory.
+On Linux x86_64 (Ubuntu 22.04, KVM, an NVIDIA A10 cloud host with 30 cores and 222 GiB), twice on
+2026-11-09, each pass from a fresh `HOME`, every step at the packet's sizes:
+`offline_shape=available`, `baked in 8s`, `used_host_cache=yes`, `result=isolation_held` on both
+routes, `--allow-host example.com` reached it and not `example.org`, the cancel `result=clean`, and
+the shell by hand and the persistent machine at the default size printed `print(6*7)`, `Read-only
+file system`, `bad address 'example.com'` and `42`.
 
 ## Re-verified on v1.23.0
 
@@ -402,21 +403,29 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 
 set -uo pipefail
 
-VERIFIED_VERSION="1.23.0"
+VERIFIED_VERSION="1.34.0"
 
 # v1.20.2 fixed both issues this packet was built around (#1467): a cached run
 # with a mount boots on macOS (#1192), and a cached run's VM ends with its CLI
 # (#1193). Older releases still have both.
 FIXED_IN="1.20.2"
+
+# From v1.24.0 to v1.29.0 no --oci-cache run boots on macOS (#1819); v1.29.1
+# boots cached runs in a fresh process (#1821).
+REGRESSED_IN="1.24.0"
+REGRESSION_FIXED_IN="1.29.1"
 at_least() { [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$2" ]; }
 
 # x86_64 guests through v1.22.2 have eleven IRQs (libkrun IRQ_BASE 5 to
 # IRQ_MAX 15): four -v mounts boot and five fail with "no more IRQs are
 # available". Any -p, --allow-host or --allow-cidr adds one virtio-net device,
 # however many ports. Measured on Windows Hypervisor Platform. v1.23.0 ships
-# libkrun with IRQ_MAX 23 (#1521) and its ceiling was not measured, so the check
-# applies to x86_64 through v1.22.2 only. arm64 guests have 128 IRQs.
-DEVICE_BUDGET=4
+# libkrun with IRQ_MAX 23 (#1521): on v1.34.0 on Linux KVM nine mounts boot and
+# ten fail with the same error, and the network device still counts as one.
+# v1.23.0 to v1.33.x were not measured and take the newer budget. arm64 guests
+# have 128 IRQs.
+DEVICE_BUDGET_TO_1_22=4
+DEVICE_BUDGET=9
 
 emit() { printf '%s=%s\n' "$1" "$2"; }
 note() { printf 'note=%s\n' "$1"; }
@@ -477,12 +486,13 @@ case "$kernel" in
         fi
         # The offline shape is bake with --oci-cache, then run with mounts and
         # no network. Before v1.20.2 that combination never boots on macOS, and
-        # from v1.24.0 no --oci-cache run boots there (measured through v1.29.0).
-        if [ -n "${version:-}" ] && [ "$version" != "unknown" ] && at_least "$version" "1.24.0"; then
+        # from v1.24.0 to v1.29.0 no --oci-cache run boots there.
+        if [ -n "${version:-}" ] && [ "$version" != "unknown" ] && at_least "$version" "$REGRESSED_IN" \
+            && ! at_least "$version" "$REGRESSION_FIXED_IN"; then
             emit offline_shape unavailable
-            emit offline_shape_blocker "an --oci-cache run does not boot on macOS from v1.24.0"
+            emit offline_shape_blocker "smol-machines/smolvm#1819, fixed in v$REGRESSION_FIXED_IN"
             blocked=1
-            note "from v1.24.0 to at least v1.29.0, on macOS every --oci-cache run, the bake's own included, fails with 'agent did not become ready within 30 seconds', so the offline shape cannot run here. A persistent machine with no network boots the image with no bake (README.md, \"The network is off unless you ask for it\")."
+            note "from v1.24.0 to v1.29.0, on macOS every --oci-cache run, the bake's own included, fails with 'agent did not become ready within 30 seconds', so the offline shape cannot run here. Upgrade to v$REGRESSION_FIXED_IN or later; until then a persistent machine with no network boots the image with no bake (README.md, \"The network is off unless you ask for it\")."
         elif [ -n "${version:-}" ] && [ "$version" != "unknown" ] && at_least "$version" "$FIXED_IN"; then
             emit offline_shape available
         else
@@ -528,14 +538,16 @@ net_devices=0
 emit planned_mounts "$mounts"
 emit planned_ports "$ports"
 emit devices_requested "$((mounts + net_devices))"
-if [ "$arch" = "x86_64" ] && [ -n "${version:-}" ] && [ "$version" != "unknown" ] && ! at_least "$version" "1.22.3"; then
-    emit device_budget "$DEVICE_BUDGET"
-    if [ "$((mounts + net_devices))" -le "$DEVICE_BUDGET" ]; then
+if [ "$arch" = "x86_64" ] && [ -n "${version:-}" ] && [ "$version" != "unknown" ]; then
+    budget="$DEVICE_BUDGET"
+    at_least "$version" "1.22.3" || budget="$DEVICE_BUDGET_TO_1_22"
+    emit device_budget "$budget"
+    if [ "$((mounts + net_devices))" -le "$budget" ]; then
         emit device_budget_ok yes
     else
         emit device_budget_ok no
         blocked=1
-        note "on x86_64 through v1.22.2 more than four devices beyond the base set fail with 'no more IRQs are available'; a published port or an --allow-host grant is one. Combine directories under one mount."
+        note "on x86_64 more than $budget devices beyond the base set fail with 'no more IRQs are available' (four through v1.22.2, nine from v1.23.0); a published port or an --allow-host grant is one. Combine directories under one mount."
     fi
 else
     emit device_budget_ok not_limiting
@@ -604,12 +616,12 @@ printf 'elapsed_s=%s\n' "$elapsed"
 # Assert the value, not the exit code. A bake that did not cache still exits
 # zero, and the run that depends on it then fails much later with a message
 # about the registry. A cache that was written but did not boot is no bake
-# either: on macOS from v1.24.0 the bake prints both lines.
+# either: on macOS from v1.24.0 to v1.29.0 the bake prints both lines (#1819).
 if printf '%s' "$out" | grep -q 'baked in' && printf '%s' "$out" | grep -q 'did not become ready'; then
     printf 'result=FAILED the image was cached, but the machine started from the cache did not boot.\n'
-    printf 'On macOS from v1.24.0 to at least v1.29.0 every --oci-cache run fails this way. A persistent\n'
-    printf 'machine with no network boots the image with no bake (README.md, "The network is off unless\n'
-    printf 'you ask for it").\n'
+    printf 'On macOS from v1.24.0 to v1.29.0 every --oci-cache run fails this way (#1819); v1.29.1 fixed\n'
+    printf 'it. A persistent machine with no network boots the image with no bake (README.md, "The\n'
+    printf 'network is off unless you ask for it").\n'
     exit 1
 fi
 if printf '%s' "$out" | grep -q 'baked in'; then
