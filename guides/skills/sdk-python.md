@@ -6,9 +6,10 @@ title: "SDK Python: drive cloud machines from Python"
 
 Drives smol cloud machines from Python with the smolmachines SDK, from install through create, exec, files and delete. Use when a Python program or agent tool needs to run code in a machine; when the import fails after a successful install; when every call fails with a certificate error on a fresh interpreter; when an exec that failed did not raise; or when a machine config field seems to be ignored. Do not use it for the Node SDK or for raw HTTP, which have their own packets, and do not use it to install the CLI or mint a key.
 
-Verified on **smolmachines 1.14.3** from PyPI (wheel `cp39-abi3-macosx_11_0_arm64`, 46.6 MB),
-CPython **3.13.9** from python.org in a fresh venv, against **smolfleet API 0.1.0**, macOS 26.6.2
-arm64, on 2026-09-10. Done means a machine was created, ran a command, round-tripped a file, and
+Verified on **smolmachines 1.32.4** from PyPI (wheel `cp39-abi3-macosx_11_0_arm64`, 43.9 MB),
+CPython **3.13.9** from python.org in a fresh venv, against **smolfleet API 0.1.0**, macOS 27.2
+arm64, on 2026-11-09, twice, each time from a fresh venv; first written on smolmachines 1.14.3 on
+2026-09-10. What the re-run found changed is under Corrections; the steps and traps are as first written. Done means a machine was created, ran a command, round-tripped a file, and
 was deleted, with every assertion made on a value rather than on the absence of an exception.
 
 Two facts break more first attempts than anything else in this packet:
@@ -138,6 +139,27 @@ catches transport errors only.
   the wait. Not re-provoked here because it costs two minutes of billing to observe.
 - **Branch and fork** were exercised from this SDK while verifying `cloud-machine`, not by this
   packet's own script.
+
+## Corrections
+
+### 2026-11-09, smolmachines 1.32.4
+
+Every step ran as written. `import smolmachines` still fails, a fresh python.org interpreter still
+fails every call with `CERTIFICATE_VERIFY_FAILED` until `certifi` is installed and `SSL_CERT_FILE`
+points at it, and `exec` still returns for a failed command. These changed:
+
+- `ready_after_create` failed once. In five creates on this run, `machine.ready()` read right
+  after `Machine.create()` returned was `False` once and `True` four times, although `create`
+  documents that on the cloud it returns only when the machine is ready for work. The `exec` that
+  followed worked each time. Treat `ready()` straight after a create as a hint, and let the first
+  `exec` be the proof.
+- The error text carries the problem body. A missing machine raises `SmolError: cloud GET
+  /v1/machines/mach-does-not-exist → 404: {"code":"not_found","detail":"machine not found",...}`
+  with the request id after it.
+- A string `command` no longer costs a readiness wait on a machine with no published port:
+  `Machine.create` with `command="echo hi"` returned a started machine in 4 seconds. Whether the
+  workload ran was not checked. Pass a list, as before.
+- `branch()` also takes `freeze_source`. `fork()` keeps the signature above.
 
 ## Related packets
 

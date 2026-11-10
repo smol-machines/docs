@@ -6,9 +6,10 @@ title: "Cloud machine: create, drive and delete a cloud machine"
 
 Creates a smol cloud machine, runs commands in it, moves files in and out, stops and starts it, and deletes it with the settled bill. Use when a task needs a machine on smol cloud rather than a local one; when a create call is rejected for a field that looks right; when an exec that failed still came back as HTTP 200; when a file uploaded over the API cannot be found afterwards; or when deciding what survives a stop and start. Do not use it to install the CLI or hand over a key, which is the cloud-auth packet, and do not use it to scope egress or publish ports, which the machine record exposes but this packet deliberately leaves alone.
 
-Verified on **smol v1.14.3** and **smolfleet API 0.1.0** (`apiVersion` 2), macOS 26.6.2 arm64
-client, against `https://api.smolmachines.com` on 2026-09-10. Guest architecture served was
-`amd64`. One full pass cost **1810 micros (USD 0.0018)** for 157 uptime-seconds.
+Verified on **smol v1.32.4** and **smolfleet API 0.1.0** (`apiVersion` 2), macOS 27.2 arm64
+client, against `https://api.smolmachines.com` on 2026-11-09, twice, each time from a fresh `HOME`;
+first written on smol v1.14.3 on 2026-09-10. Guest architecture served was `amd64`. One full pass
+cost **920 micros (USD 0.00092)** for 5 uptime-seconds. What the re-run found changed is under Corrections; the steps and traps are as first written.
 
 Done means a marker written before a stop is readable after the start, the guest's own uptime
 proves it really rebooted, a file round-tripped through the API, and the machine id is gone from
@@ -168,6 +169,33 @@ deployment, which no longer reproduces.
   the create schema and were not exercised in this pass.
 - **The CLI half of the lifecycle.** Everything above was driven over HTTP. `smol cloud ls` is
   used only as the second surface in the leak check.
+
+## Corrections
+
+### 2026-11-09, smol v1.32.4
+
+Every step ran as written and gave the outputs above, with `really_rebooted` at 1 and 2 seconds.
+These changed:
+
+- `/tmp` is on the machine's disk now, emptied at each start. `mount` in the guest shows
+  `/dev/vda on /tmp type ext4`, beside `/workspace`. The table's `tmpfs` row is out of date; the
+  answer to "does it survive" is still no, and `tmp_wiped` still passes.
+- The query form of the files route is told apart now. `?path=` answers `404` with a problem
+  body, `no such endpoint`, where a missing machine says `machine not found` and the suffix form's
+  missing file says `file not found: workspace/rt.txt`. Use the suffix form, as before.
+- `smol cloud deploy` publishes no port unless asked. Its last line says no port was published
+  and names `--port <PORT>`, so the trap about a default 8080 no longer applies to the CLI.
+- A bare reference resolves to the library now. `smol cloud deploy alpine:3.20 --name <n>`
+  made a machine whose source is `registry.smolmachines.com/library/alpine:3.20` and whose
+  `/etc/alpine-release` read `3.20.10`. The trap about your tenant namespace no longer applies.
+- Top-level `cpus` and `memoryMb` are still dropped, and the machine falls back to the default
+  size, which on this run was 4 CPUs and 8192 MiB: a larger machine than asked for, billed as one.
+- The base rate no longer dominates a short run. Each machine on this run billed about 830
+  micros of CPU however short it lived (1 to 66 seconds), against a base of 11 to 733 micros. The
+  base term still reconciles exactly; see `cloud-usage`.
+- `smol cloud logs` now reads back the output of a detached `smol cloud exec`.
+- Not re-run: branching, a published port and `ready`, ingress forwarding the key, and the CLI's
+  exit code from `smol cloud exec`.
 
 ## Related packets
 

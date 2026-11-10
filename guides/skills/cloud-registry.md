@@ -8,7 +8,8 @@ Pulls a smolmachine artifact from the smol registry, pushes one into the account
 
 Verified on **smol v1.14.3** against `registry.smolmachines.com` and smolfleet API 0.1.0, macOS
 26.6.2 arm64 client, on 2026-09-10. One pass cost **29 micros (USD 0.00003)** for 2
-uptime-seconds. Done means a machine is executing code that came out of the registry write
+uptime-seconds. **Re-run on smol v1.32.4 on 2026-11-09, twice, except the push**: see
+Corrections. Done means a machine is executing code that came out of the registry write
 performed earlier in the same run, proven by reading a value from inside it.
 
 **A push cannot be undone.** No verb in `smol pack` or `smol registry` deletes, and the OCI
@@ -121,6 +122,30 @@ client may not be that.
   packet pulls one that already exists.
 - **`smol pack inspect`** against a matching-architecture artifact. On this host it refuses.
 - **The catalog endpoint.** `smol registry catalog` returns a registry 401 with a normal key.
+
+## Corrections
+
+### 2026-11-09, smol v1.32.4
+
+**The push was not run.** The account used has no `smolskill-pack` repository yet (`smol
+registry tags` answers `blob not found`), so a push would have created an artifact that cannot be
+deleted, rather than rewriting a tag that exists. Step 4 ran instead against the library artifact,
+`scripts/verify-registry.sh library/alpine:3.20-linux-amd64`, which gave `runs_from_artifact=ok
+(3.20.10)`, `guest_arch=ok (x86_64)` and `result=registry_ok` for 865 micros. That proves the
+`smolmachine` source and the deploy, not a write.
+
+The preflight, both pulls (18512547 bytes), the refusal of `push.sh` without its flag and the
+cleanup ran as written. These changed:
+
+- `smol pack inspect` reads an `amd64` artifact on an arm64 Mac now. Against
+  `registry.smolmachines.com/library/alpine:3.20-linux-amd64` it printed `Platform: linux/amd64`
+  and the image. The preflight's note and the trap that it refuses are out of date.
+- A local file passed to `smol pack inspect` fails with `invalid dns name` instead of a
+  registry 401. It still takes a reference only.
+- The `smolmachine` source no longer needs `"arch"`. A create without it was accepted and the
+  record came back with `"arch":"amd64"`. Passing it is still harmless.
+- A bare reference through `smol cloud deploy` resolves to the library now, as the API's does;
+  see `cloud-machine`. The first row of the table above is out of date.
 
 ## Related packets
 

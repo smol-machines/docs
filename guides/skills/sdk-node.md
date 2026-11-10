@@ -6,8 +6,9 @@ title: "SDK Node: drive cloud machines from Node"
 
 Drives smol cloud machines from Node with the smolmachines package, from install through create, exec, files and delete. Use when a Node program or agent tool needs to run code in a machine; when an await on exec did not throw for a command that failed; when a machine object needs to be logged or serialised safely; or when deciding between the SDK and raw HTTP. Do not use it for the Python SDK or for raw HTTP, which have their own packets, and do not use it to install the CLI or mint a key.
 
-Verified on **smolmachines 1.14.3** from npm (no runtime dependencies), **Node v25.9.0**, against
-**smolfleet API 0.1.0**, macOS 26.6.2 arm64, on 2026-09-10. Done means a machine was created, ran
+Verified on **smolmachines 1.32.4** from npm, **Node v24.13.0**, against **smolfleet API 0.1.0**,
+macOS 27.2 arm64, on 2026-11-09, twice, each time in a fresh project directory; first written on
+smolmachines 1.14.3 with Node v25.9.0 on 2026-09-10. What the re-run found changed is under Corrections; the steps and traps are as first written. Done means a machine was created, ran
 a command, round-tripped a file, and was deleted, with every assertion made on a value.
 
 **The one trap that is specific to this SDK: `console.log(machine)` prints your API key.**
@@ -134,6 +135,19 @@ non-enumerable on the transport first. Both are one line and neither ships in th
 - **Branch and fork**, which were exercised through the Python SDK while verifying
   `cloud-machine`.
 - **TypeScript type-checking**, as above.
+
+## Corrections
+
+### 2026-11-09, smolmachines 1.32.4
+
+Every step ran as written and gave the outputs above, `stringify_leaks_the_key=ok (true)` and
+`inspect_leaks_the_key=ok (true)` included: `console.log(machine)` still prints the key. One fact
+changed:
+
+- The package has a native part now. `smolmachines` 1.32.4 lists `smolmachines-darwin-arm64`,
+  `smolmachines-linux-x64-gnu` and `smolmachines-linux-arm64-gnu` as optional dependencies, and
+  `npm install smolmachines` on this Mac installed the first beside it. It is no longer a package
+  with no runtime dependencies.
 
 ## Related packets
 

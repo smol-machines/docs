@@ -6,8 +6,9 @@ title: "Cloud auth: point an agent at a cloud account and prove it"
 
 Points the smol CLI and raw HTTP at a smol cloud account with an API key, and proves one authenticated call reaches it before any other work starts. Use when setting an agent up against smol cloud for the first time; when a call returns 401 and it is unclear whether the key, the tenant or the API is at fault; when choosing between the SMOL_CLOUD_TOKEN environment variable and a persisted CLI config; or when checking which scopes a key carries before a task that needs one. Do not use it to create an account or mint a key, which are human steps in the console, and do not use it to create or run machines, which later packets cover.
 
-Verified on **smol v1.14.3** and **smolfleet API 0.1.0** (`apiVersion` 2), macOS 26.6.2 arm64,
-against `https://api.smolmachines.com` on 2026-09-10. Done means the account body reports
+Verified on **smol v1.32.4** and **smolfleet API 0.1.0** (`apiVersion` 2), macOS 27.2 arm64,
+against `https://api.smolmachines.com` on 2026-11-09, twice, each time from a fresh `HOME`; first
+written on smol v1.14.3 on 2026-09-10. What the re-run found changed is under Corrections; the steps and traps are as first written. Done means the account body reports
 `status: active`, a machine list comes back as a list, and the CLI agrees with raw HTTP.
 
 This is the first packet. Every other cloud packet assumes it has passed.
@@ -120,6 +121,34 @@ text here.
   exercised with a malformed key, not with a real suspension, which cannot be provoked here.
 - **Linux and Windows**, as above.
 
+## Corrections
+
+### 2026-11-09, smol v1.32.4
+
+Every step ran as written, with route A, and gave the outputs above. These changed:
+
+- An unknown path is a 404 now, with or without a key. `GET /v1/nope`, `/v1/health`, `/` and
+  `/openapi.json` on the API host answer `404` with a problem body whose `detail` is `no such
+  endpoint; the API is described at https://smolmachines.com/openapi.json`. Only a real route
+  without a key is a `401`. That replaces the traps "The API 401s every path" and the empty-bodied
+  401s in the `/health` trap, and the matching line under security defaults. `/health` is still the
+  one route that answers without a key, so the preflight is unchanged.
+- The generated OpenAPI lists 112 paths, not 44, still at `https://smolmachines.com/openapi.json`.
+- A persisted CLI key wins over `SMOL_CLOUD_TOKEN`, and so does an empty one. With a valid
+  token in the environment and a stale key in `~/.config/smolvm/config.toml`, `smol cloud ls` failed
+  with `unknown API key`. After `smol config set cloud.api_key ""`, the undo step above, the file
+  holds `api_key = ""` and every cloud verb fails with `Error: API key is empty`, whatever the
+  environment holds; `smol config show` reports it as `(set)`. There is no `smol config unset`. To
+  undo route B, delete the `api_key` line under `[cloud]` in that file, or the file; with the file
+  gone the token in the environment worked again.
+- Route B was run with a placeholder key only, to see where it is written (mode 600, as above)
+  and what the preflight says (`credential_source=cli_config`, `account_readable=via_cli`,
+  `result=blocked` for a key that does not work). A real key was not written to disk.
+- Scopes are per key. The key used on this run carries `volume:create`, `volume:read`,
+  `volume:delete` and `usage:read` as well as the five `machine:` scopes, so read the `Access` line
+  for your own key rather than the list above.
+- The preflight's stamp moves to 1.32.4.
+
 ## Scripts
 
 The files the procedure runs, in the order it runs them. It calls each one by the path in its heading, relative to the directory the procedure is saved in.
@@ -133,7 +162,7 @@ The files the procedure runs, in the order it runs them. It calls each one by th
 # Never prints the key. Every line is key=value; the last line is result=.
 set -uo pipefail
 
-VERIFIED_CLI="1.14.3"
+VERIFIED_CLI="1.32.4"
 VERIFIED_API="0.1.0"
 API="${SMOL_CLOUD_URL:-https://api.smolmachines.com}"
 notes=()

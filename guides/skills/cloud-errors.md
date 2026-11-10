@@ -6,9 +6,10 @@ title: "Cloud errors: handle every failure the API returns"
 
 Provokes every failure the smol cloud API can return and shows what a client must branch on, including the failures that arrive as HTTP 200. Use when writing a client, harness or agent tool against the cloud API; when a call succeeded by status but the work did not happen; when a 422 needs to be told apart from a schema bug, a wrong type and a quota refusal; or when deciding which failures are safe to retry. Do not use it to drive a normal machine lifecycle, which is the cloud-machine packet, and do not expect it to cover billing suspension or rate limiting, which cannot be provoked on a healthy account.
 
-Verified on **smolfleet API 0.1.0** and **smol v1.14.3**, macOS 26.6.2 arm64 client, on
-2026-09-10. One pass cost **89 micros (USD 0.00009)** for 7 uptime-seconds; most of the packet
-costs nothing, because most failures happen before a machine exists.
+Verified on **smolfleet API 0.1.0** and **smol v1.32.4**, macOS 27.2 arm64 client, on
+2026-11-09, twice, each time from a fresh `HOME`; first written on smol v1.14.3 on 2026-09-10. One
+pass cost **911 micros (USD 0.00091)** for 5 uptime-seconds; most of the packet costs nothing,
+because most failures happen before a machine exists. What the re-run found changed is under Corrections; the steps and traps are as first written.
 
 Three rules:
 
@@ -129,6 +130,20 @@ So a client cannot triage by status alone. The `code` narrows it, but every `422
 - **`5xx`.** Nothing here can cause one on purpose. `machine_interrupted` is covered by the
   control plane's tests instead: an exec whose machine is stopped under it.
 - **`501`** was recorded from the export route by an earlier run and was not re-provoked here.
+
+## Corrections
+
+### 2026-11-09, smol v1.32.4
+
+Both scripts ran as written. `provoke-exec.sh` gave every line above. `provoke-http.sh` gave every
+line but one:
+
+- `missing_scope_403` depends on the key. The key used on this run holds `volume:read`, so
+  `GET /v1/volumes` answered `200` with `[]` and the probe reported `FAIL`. A route the key cannot
+  reach still gives the 403: `GET /v1/billing/meters` answered `403` with `missing scope: admin`.
+  Probe a route your own key's `Access` line does not cover.
+- The rate limit headers have standard names too. Besides `x-ratelimit-remaining`, responses
+  carry `ratelimit-limit` (10000 on this account) with `ratelimit-remaining` and `ratelimit-reset`.
 
 ## Related packets
 

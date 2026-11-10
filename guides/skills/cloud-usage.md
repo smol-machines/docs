@@ -6,7 +6,8 @@ title: "Cloud usage: find out what a run cost"
 
 Reads what a smol cloud account has spent, and reconciles one machine's bill against its own uptime and the plan's published rate. Use when a run needs a spend figure, a budget gate or a cost regression check; when a bill looks wrong and the arithmetic needs checking; when deciding where to read usage from, because the surfaces disagree; or when a machine was deleted before its bill was taken. Do not use it to read tenant usage over an arbitrary window, which needs a scope a machine key does not have, and do not use it as a leak check, because the machine count it reports is cumulative.
 
-Verified on **smolfleet API 0.1.0**, macOS 26.6.2 arm64 client, on 2026-09-10. **This packet
+Verified on **smolfleet API 0.1.0**, macOS 27.2 arm64 client, on 2026-11-09, twice, each time
+from a fresh `HOME`; first written on 2026-09-10. What the re-run found changed is under Corrections; the steps and traps are as first written. **This packet
 costs nothing**: it only reads, and the usage it reads was produced by other work.
 
 **Every cost field on this API is in micros.** One million micros is one US dollar. Reading them
@@ -119,6 +120,29 @@ not equal `periodCost.baseMicros`. Reconcile a machine, not a period.
 - **A month boundary.** Everything read here is inside one billing period.
 - **A budget refusal.** The account carries credit and `amountDueMicros` is 0, so no
   over-budget behaviour was observed.
+
+## Corrections
+
+### 2026-11-09, smolfleet API 0.1.0
+
+The three scripts ran as written against five machines deleted earlier on the same run. These
+changed:
+
+- The base term still reconciles exactly, and no longer dominates. Uptimes of 66, 12, 5, 5 and
+  1 seconds gave base charges of 733, 133, 56, 56 and 11 micros, each `ok` against 40000 micros an
+  hour, while each machine also billed 833 to 839 micros of CPU and about 20 to 50 of memory. A run
+  of a few seconds now costs about 900 micros, so for a bill this small check the CPU term, not the
+  base.
+- What a key can read depends on its scopes, as the table says. The key used on this run holds
+  `usage:read`, so `GET /v1/usage` answered `200` and the preflight printed `tenant_usage_route=200`
+  under its note that a `machine:` key gets 403. The body gives the window as `from`
+  and `to`, then totals for it: uptime seconds, CPU hours, memory and disk GB hours, egress GB and a
+  machine count.
+  `GET /v1/billing/meters` still answered `403` with `missing scope: admin`.
+- This account carries no credit now. `credit_applied_micros=0`, so `amount_due_micros` equals
+  `totalMicros`.
+- A machine's usage route answered for machines deleted minutes earlier, as above. The 30 day
+  window was not re-tested.
 
 ## Related packets
 

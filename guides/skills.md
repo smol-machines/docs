@@ -29,10 +29,10 @@ Find the task, then read the one page it names. Each packet was run end to end a
 
 | Your task | Packet | Not for | Verified on |
 |---|---|---|---|
-| Point an agent at a cloud account and prove one call works | [cloud-auth](/docs/guides/skills/cloud-auth) | Creating an account or minting a key; creating machines | smol v1.14.3 and API 0.1.0, macOS arm64 client |
-| Create a machine, exec, move files, restart it, delete it | [cloud-machine](/docs/guides/skills/cloud-machine) | Installing the CLI or handing over a key; scoping egress or publishing ports | smol v1.14.3 and API 0.1.0, macOS arm64 client |
-| Pull or push an artifact and run a machine from it | [cloud-registry](/docs/guides/skills/cloud-registry) | Creating the artifact from a machine; removing a pushed artifact | smol v1.14.3 and API 0.1.0, macOS arm64 client |
-| Handle the API's failures, including the ones that return 200 | [cloud-errors](/docs/guides/skills/cloud-errors) | A normal machine lifecycle; billing suspension or rate limiting | smol v1.14.3 and API 0.1.0, macOS arm64 client |
+| Point an agent at a cloud account and prove one call works | [cloud-auth](/docs/guides/skills/cloud-auth) | Creating an account or minting a key; creating machines | smol v1.32.4 and API 0.1.0, macOS arm64 client |
+| Create a machine, exec, move files, restart it, delete it | [cloud-machine](/docs/guides/skills/cloud-machine) | Installing the CLI or handing over a key; scoping egress or publishing ports | smol v1.32.4 and API 0.1.0, macOS arm64 client |
+| Pull or push an artifact and run a machine from it | [cloud-registry](/docs/guides/skills/cloud-registry) | Creating the artifact from a machine; removing a pushed artifact | smol v1.32.4 and API 0.1.0, macOS arm64 client, all but the push, which last ran on smol v1.14.3 |
+| Handle the API's failures, including the ones that return 200 | [cloud-errors](/docs/guides/skills/cloud-errors) | A normal machine lifecycle; billing suspension or rate limiting | smol v1.32.4 and API 0.1.0, macOS arm64 client |
 | Find out what a run cost | [cloud-usage](/docs/guides/skills/cloud-usage) | Tenant usage over an arbitrary window; a leak check | API 0.1.0, macOS arm64 client |
 | Scope a machine's egress, or publish a port | Not yet available, see [below](#what-has-no-packet-yet-and-why) | | |
 
@@ -42,8 +42,8 @@ Both target smol cloud.
 
 | Your task | Packet | Not for | Verified on |
 |---|---|---|---|
-| Drive machines from Python | [sdk-python](/docs/guides/skills/sdk-python) | The Node SDK or raw HTTP; installing the CLI or minting a key | smolmachines 1.14.3, CPython 3.13.9, macOS arm64 |
-| Drive machines from Node | [sdk-node](/docs/guides/skills/sdk-node) | The Python SDK or raw HTTP; installing the CLI or minting a key | smolmachines 1.14.3, Node v25.9.0, macOS arm64 |
+| Drive machines from Python | [sdk-python](/docs/guides/skills/sdk-python) | The Node SDK or raw HTTP; installing the CLI or minting a key | smolmachines 1.32.4, CPython 3.13.9, macOS arm64 |
+| Drive machines from Node | [sdk-node](/docs/guides/skills/sdk-node) | The Python SDK or raw HTTP; installing the CLI or minting a key | smolmachines 1.32.4, Node v24.13.0, macOS arm64 |
 
 Every packet page names the platforms in full under its platform arms, including the ones that were not run.
 
