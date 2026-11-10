@@ -14,25 +14,25 @@ Find the task, then read the one page it names. Each packet was run end to end a
 
 | Your task | Packet | Not for | Verified on |
 |---|---|---|---|
-| Install smolvm and prove the host can boot a VM | [install](/docs/guides/skills/install) | Removing an install; anything after the first boot | smolvm v1.29.0 on macOS arm64, v1.18.2 on Linux aarch64 |
-| Stop everything and prove the host is clean | [teardown](/docs/guides/skills/teardown) | Deleting machines another session created | smolvm v1.29.0 on macOS arm64, v1.18.2 on Linux aarch64 |
-| Run untrusted code with no network, against a read-only repo | [throwaway-machine](/docs/guides/skills/throwaway-machine) | A machine you re-enter; Docker in a machine; installing smolvm | smolvm v1.23.0 on macOS arm64; on Linux aarch64 the offline route on v1.20.2 and the network-on route on v1.18.2 |
-| Keep a development machine you re-enter across sessions | [dev-env](/docs/guides/skills/dev-env) | Untrusted code; Docker in a machine | smolvm v1.29.0 on macOS arm64, v1.18.2 on Linux aarch64 |
-| Drive the local runtime over HTTP | [local-api](/docs/guides/skills/local-api) | Replacing the CLI in a shell script; binding beyond loopback | smolvm v1.29.0 on macOS arm64, v1.18.2 on Linux aarch64 |
-| Run a Docker daemon inside a machine | [docker-in-machine](/docs/guides/skills/docker-in-machine) | Running OCI images, which need no Docker; Windows | smolvm v1.29.0 on macOS arm64, v1.18.2 on Linux aarch64 |
-| Run CUDA workloads against a host NVIDIA GPU | [gpu-cuda](/docs/guides/skills/gpu-cuda) | Vulkan graphics (`--gpu`); a Mac, which has no NVIDIA GPU | smolvm v1.22.2 on Windows x86_64 (RTX 4050) and v1.14.6 on Linux x86_64 (A10); the no-GPU answer on v1.22.2 on macOS arm64 and v1.18.2 on Linux aarch64 |
-| Ship a prepared machine to another host as one file | [pack](/docs/guides/skills/pack) | A machine you re-enter; untrusted code | smolvm v1.29.0 on macOS arm64, v1.14.6 on Linux aarch64 |
-| Checkpoint a machine on a schedule, restore any generation, pause and resume, and keep a branch point | [branch-and-checkpoint](/docs/guides/skills/branch-and-checkpoint) | Moving a machine to another host as a file; state that only has to survive a restart | smolvm v1.29.0 on macOS arm64, v1.18.2 on Linux aarch64 |
-| Let a workload use an API key it can never read | [credentials](/docs/guides/skills/credentials) | A value the program must parse, which is `--secret-env`; git and ssh keys, which is SSH agent forwarding | smolvm v1.29.0 on macOS arm64, v1.18.2 on Linux aarch64, host side only |
+| Install smolvm and prove the host can boot a VM | [install](/docs/guides/skills/install) | Removing an install; anything after the first boot | smolvm v1.34.0 on macOS arm64 and Linux x86_64, v1.18.2 on Linux aarch64 |
+| Stop everything and prove the host is clean | [teardown](/docs/guides/skills/teardown) | Deleting machines another session created | smolvm v1.34.0 on macOS arm64 and Linux x86_64, v1.18.2 on Linux aarch64 |
+| Run untrusted code with no network, against a read-only repo | [throwaway-machine](/docs/guides/skills/throwaway-machine) | A machine you re-enter; Docker in a machine; installing smolvm | smolvm v1.34.0 on macOS arm64 and Linux x86_64; on Linux aarch64 the offline route on v1.20.2 and the network-on route on v1.18.2 |
+| Keep a development machine you re-enter across sessions | [dev-env](/docs/guides/skills/dev-env) | Untrusted code; Docker in a machine | smolvm v1.34.0 on macOS arm64 and Linux x86_64, v1.18.2 on Linux aarch64 |
+| Drive the local runtime over HTTP | [local-api](/docs/guides/skills/local-api) | Replacing the CLI in a shell script; binding beyond loopback | smolvm v1.34.0 on macOS arm64 and Linux x86_64, v1.18.2 on Linux aarch64 |
+| Run a Docker daemon inside a machine | [docker-in-machine](/docs/guides/skills/docker-in-machine) | Running OCI images, which need no Docker; Windows | smolvm v1.34.0 on macOS arm64 and Linux x86_64, v1.18.2 on Linux aarch64 |
+| Run CUDA workloads against a host NVIDIA GPU | [gpu-cuda](/docs/guides/skills/gpu-cuda) | Vulkan graphics (`--gpu`); a Mac, which has no NVIDIA GPU | smolvm v1.34.0 on Linux x86_64 (A10) and v1.22.2 on Windows x86_64 (RTX 4050); the no-GPU answer on v1.22.2 on macOS arm64 and v1.18.2 on Linux aarch64 |
+| Ship a prepared machine to another host as one file | [pack](/docs/guides/skills/pack) | A machine you re-enter; untrusted code | smolvm v1.34.0 on macOS arm64 and Linux x86_64, v1.14.6 on Linux aarch64 |
+| Checkpoint a machine on a schedule, restore any generation, pause and resume, and keep a branch point | [branch-and-checkpoint](/docs/guides/skills/branch-and-checkpoint) | Moving a machine to another host as a file; state that only has to survive a restart | smolvm v1.34.0 on macOS arm64 and Linux x86_64, v1.18.2 on Linux aarch64 |
+| Let a workload use an API key it can never read | [credentials](/docs/guides/skills/credentials) | A value the program must parse, which is `--secret-env`; git and ssh keys, which is SSH agent forwarding | smolvm v1.34.0 on macOS arm64 and Linux x86_64, v1.18.2 on Linux aarch64, host side only |
 
 ### Running things on smol cloud
 
 | Your task | Packet | Not for | Verified on |
 |---|---|---|---|
-| Point an agent at a cloud account and prove one call works | [cloud-auth](/docs/guides/skills/cloud-auth) | Creating an account or minting a key; creating machines | smol v1.14.3 and API 0.1.0, macOS arm64 client |
-| Create a machine, exec, move files, restart it, delete it | [cloud-machine](/docs/guides/skills/cloud-machine) | Installing the CLI or handing over a key; scoping egress or publishing ports | smol v1.14.3 and API 0.1.0, macOS arm64 client |
-| Pull or push an artifact and run a machine from it | [cloud-registry](/docs/guides/skills/cloud-registry) | Creating the artifact from a machine; removing a pushed artifact | smol v1.14.3 and API 0.1.0, macOS arm64 client |
-| Handle the API's failures, including the ones that return 200 | [cloud-errors](/docs/guides/skills/cloud-errors) | A normal machine lifecycle; billing suspension or rate limiting | smol v1.14.3 and API 0.1.0, macOS arm64 client |
+| Point an agent at a cloud account and prove one call works | [cloud-auth](/docs/guides/skills/cloud-auth) | Creating an account or minting a key; creating machines | smol v1.32.4 and API 0.1.0, macOS arm64 client |
+| Create a machine, exec, move files, restart it, delete it | [cloud-machine](/docs/guides/skills/cloud-machine) | Installing the CLI or handing over a key; scoping egress or publishing ports | smol v1.32.4 and API 0.1.0, macOS arm64 client |
+| Pull or push an artifact and run a machine from it | [cloud-registry](/docs/guides/skills/cloud-registry) | Creating the artifact from a machine; removing a pushed artifact | smol v1.32.4 and API 0.1.0, macOS arm64 client, all but the push, which last ran on smol v1.14.3 |
+| Handle the API's failures, including the ones that return 200 | [cloud-errors](/docs/guides/skills/cloud-errors) | A normal machine lifecycle; billing suspension or rate limiting | smol v1.32.4 and API 0.1.0, macOS arm64 client |
 | Find out what a run cost | [cloud-usage](/docs/guides/skills/cloud-usage) | Tenant usage over an arbitrary window; a leak check | API 0.1.0, macOS arm64 client |
 | Scope a machine's egress, or publish a port | Not yet available, see [below](#what-has-no-packet-yet-and-why) | | |
 
@@ -42,8 +42,8 @@ Both target smol cloud.
 
 | Your task | Packet | Not for | Verified on |
 |---|---|---|---|
-| Drive machines from Python | [sdk-python](/docs/guides/skills/sdk-python) | The Node SDK or raw HTTP; installing the CLI or minting a key | smolmachines 1.14.3, CPython 3.13.9, macOS arm64 |
-| Drive machines from Node | [sdk-node](/docs/guides/skills/sdk-node) | The Python SDK or raw HTTP; installing the CLI or minting a key | smolmachines 1.14.3, Node v25.9.0, macOS arm64 |
+| Drive machines from Python | [sdk-python](/docs/guides/skills/sdk-python) | The Node SDK or raw HTTP; installing the CLI or minting a key | smolmachines 1.32.4, CPython 3.13.9, macOS arm64 |
+| Drive machines from Node | [sdk-node](/docs/guides/skills/sdk-node) | The Python SDK or raw HTTP; installing the CLI or minting a key | smolmachines 1.32.4, Node v24.13.0, macOS arm64 |
 
 Every packet page names the platforms in full under its platform arms, including the ones that were not run.
 
