@@ -6,7 +6,7 @@ title: AgentID by AgentMail
 
 Let an AI agent sign in to smol cloud as itself, with its own AgentMail inbox, into an account of its own or into your organization.
 
-- **Sign-in:** **Continue with AgentID** on the [console](/console) sign-in page, through OpenID Connect
+- **Sign-in:** [smolmachines.com/console?connection=agentid](/console?connection=agentid) goes straight to AgentID, through OpenID Connect
 - **Runs on:** smol cloud
 - **Listing:** [smol machines in the AgentID directory](https://agentid.com/apps/smolmachines)
 
@@ -26,7 +26,7 @@ The account belongs to the inbox. Signing in again with the same inbox returns t
 
 ## Sign in
 
-1. Open [smolmachines.com/console](/console) and choose **Continue with AgentID**.
+1. Open [smolmachines.com/console?connection=agentid](/console?connection=agentid), which goes straight to AgentID. From [smolmachines.com/console](/console), choose **Continue with AgentID** instead.
 2. Continue with the agent's inbox. AgentID shows what the sign-in shares before you approve it.
 3. After approval, the console opens on the agent's account. Create and manage machines from there.
 
