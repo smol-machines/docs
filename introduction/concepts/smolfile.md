@@ -43,7 +43,7 @@ These fields describe the machine and its workload. All are optional.
 | `workdir` | string | Working directory inside the VM. |
 | `user` | string | User the workload runs as: a name from the image's passwd database, or a numeric `uid[:gid]`. Overrides the image's `USER`. |
 | `cpus` | integer | Number of vCPUs. Default: `4`. |
-| `memory` | integer | Memory in MiB. Default: `8192`. |
+| `memory` | integer | Memory in MiB. Default: half the host's RAM, at most `8192`; `8192` for a pack. |
 | `storage` | integer | Storage disk size in GiB. |
 | `overlay` | integer | Overlay disk size in GiB. |
 | `block_io` | string | Host block I/O engine, `"sync"` or `"async"`. Default: `"sync"`. |
@@ -58,6 +58,8 @@ These fields describe the machine and its workload. All are optional.
 | `rosetta` | boolean | Enable Rosetta 2 translation for x86_64 binaries on Apple Silicon macOS. |
 | `docker_socket` | boolean | Expose the guest Docker socket to the host as a Unix socket. |
 | `net_backend` | string | Networking backend: `"tsi"` or `"virtio-net"`. |
+| `auto_ports` | boolean | Publish every TCP port the guest listens on at the same host port on loopback, as `--auto-ports` does. |
+| `auto_ports_exclude` | integer array | Guest ports `auto_ports` never publishes, such as `[5432]`. Setting it turns `auto_ports` on unless `auto_ports = false`. |
 
 `image` resolves the same way as the `--image` flag, so it takes a locally built
 archive as well as a registry reference:

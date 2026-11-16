@@ -115,7 +115,8 @@ smolvm machine ls --quiet | xargs -I{} smolvm machine stop --name {}
 `--json` gives the full records when a script needs more than the name, including any labels.
 `--label KEY=VALUE` on `machine create` attaches them, and `machine branch --label` labels the
 child: a child inherits its source's labels, and a key given on the branch replaces the inherited
-value.
+value. `machine update --label KEY=VALUE` sets one and `--remove-label KEY` removes one in any
+machine state, because labels are host-side metadata.
 
 ```bash
 smolvm machine create --name agent --image alpine --label team=docs --label tier=a
@@ -183,11 +184,46 @@ smolvm machine run --net -p 3000-3009:3000-3009 --image node:22-alpine -- node s
 
 Append `/udp` to publish a UDP port instead, for example `-p 27015:27015/udp`.
 
+A published port listens on the host's `127.0.0.1` and `[::1]`, so only this host reaches it unless `SMOLVM_PUBLISH_ADDR` widens it. On macOS a host port below 1024, such as `-p 80:8080`, needs no root: macOS lets a normal user bind one only on every address, so smolvm binds it there and drops every connection that is not from this host. A machine can publish up to 4096 ports.
+
 A bare port or range uses the same numbers on both sides. Ranges map one to one, so the host and guest sides must cover the same number of ports; `3000-3009:4000-4001` is rejected. A range start must not exceed its end, and port 0 is not valid.
 
 Publishing a port selects the virtio-net backend for the machine, because the default outbound-only backend cannot accept inbound connections.
 
 The server inside the machine must listen on `0.0.0.0` (or the machine's own address), not `127.0.0.1`. A published port reaches the machine's network interface, so a server listening only on the machine's localhost cannot be reached from the host: the connection is accepted and then reset, which curl reports as `Connection reset by peer` and Safari as "the server unexpectedly dropped the connection". Many development servers listen on localhost by default, so start them with their bind option, for example `jupyter lab --ip=0.0.0.0` or `python3 -m http.server 8000 --bind 0.0.0.0`.
+
+### Publish the ports a machine starts listening on
+
+`--auto-ports` on `machine run` or `machine create` publishes every TCP port a process in the
+machine listens on, at the same port number on the host's `127.0.0.1` and `[::1]`, for as long as
+it listens. No `-p` is needed, which suits dev servers and tools that pick their ports at run time:
+
+```bash
+smolvm machine create --name dev --image python:3.12-alpine --net --auto-ports
+smolvm machine start --name dev
+smolvm machine exec --name dev -- sh -c 'python3 -m http.server 8000 --bind 127.0.0.1 >/dev/null 2>&1 &'
+curl http://127.0.0.1:8000/
+```
+
+The port appears within about a second and closes once nothing listens on it or the machine
+stops. Auto ports reach a server bound to the guest's `127.0.0.1` as well as one on `0.0.0.0`.
+`machine status` lists each port and says why one was left out, and `machine ls --json` carries
+the same as `auto_ports`:
+
+```text
+  port 8000 -> 8000: auto
+  port 900: listening, not published automatically (below 1024; publish it with -p HOST:900)
+  port 8002: listening, not published automatically (excluded)
+```
+
+- A host port already in use is skipped rather than moved to another number, and tried again the
+  next time the machine's set of listening ports changes.
+- Ports below 1024 are not published automatically; publish them with `-p`.
+- `--auto-ports-exclude PORT`, repeatable, leaves a port out and implies `--auto-ports`. A guest
+  port already published with `-p` stays with that mapping.
+- Auto ports apply only when the CLI starts the machine; `smolvm serve` and the SDKs start it
+  without them. On a stopped machine, `machine update --auto-ports`, `--no-auto-ports` and
+  `--auto-ports-exclude` change the setting for the next start.
 
 ### Publish a Unix socket
 
@@ -285,6 +321,20 @@ point wants. Do not run two machines from one checkpoint with it.
 
 Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`, naming the option: `cpus cannot be set when restoring a live checkpoint`. Its environment can still be set with `-e`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
 
+A checkpoint carries the machine's `--credential` bindings, never their values. To have a restore
+read the values from this host, name every binding again on `machine create --from`, exactly as it
+was captured, with the same variable, hosts and options:
+
+```bash
+smolvm machine create --name notes-restored --from ./notes.checkpoint \
+  --credential notion=NOTION_API_KEY@api.notion.com
+```
+
+A binding that differs or is missing is refused at create with `credential bindings on a restore
+can only re-authorize the checkpoint's own`, followed by the binding as it was captured. A restore
+given no `--credential` is created, but `machine start` refuses it, because it would intercept
+HTTPS to the bound hosts without adding a value.
+
 Adding `--store DIR` writes an incremental checkpoint instead of one file. `--output` is still
 what names the result, and with `--store` it becomes a self-contained directory on the same
 filesystem as `DIR`, sharing unchanged chunks with the generations it keeps so history costs only
@@ -329,8 +379,8 @@ smolvm machine start --name dev
 
 `machine update` changes configuration for the next start, so the machine must be stopped first,
 and it says so rather than guessing: on a running machine the command fails with `invalid vm state:
-expected stopped, got Running`. The allow list is the one exception, and a host directory can be
-mounted into a running machine with `machine mount add`, below.
+expected stopped, got Running`. Labels, the allow list and published TCP ports are the exceptions,
+when an update changes only them, and a host directory can be mounted into a running machine with `machine mount add`, below.
 
 It also edits the egress policy, which is otherwise fixed at create time. `--allow-host`,
 `--allow-host-pattern`, `--allow-cidr`, `--allow-udp` and `--outbound-localhost-only` add to the
@@ -521,6 +571,8 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]`. A guest path alone, such as `-v /var/lib/docker`, is a directory on the machine's own disk that persists across stop and start |
 | `--cache-disk` | Mount a shared cache disk as `BASE:/guest/path`. `BASE` is a raw or qcow2 image that stays read-only and can back many machines; this machine writes only to its own layer, which its branches copy. A blank `BASE` gets an ext4 filesystem |
 | `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT`, with `/udp` appended for a UDP port |
+| `--auto-ports` | Publish every TCP port the guest listens on at the same host port on loopback, while it listens |
+| `--auto-ports-exclude` | A guest port auto ports never publish; repeatable, and implies `--auto-ports` |
 | `--user`, `-u` | Run the workload as a name or `uid[:gid]` |
 | `--max-image-size` | On `machine run` and `machine create`: the largest local image archive accepted, such as `16GiB`, `512M` or a byte count; 8 GiB by default. A larger archive is refused with its size, and `SMOLVM_MAX_IMAGE_BYTES` sets the same limit |
 | `--oci-platform` | On `machine run` and `pack create`: the platform to pull from a multi-platform image, such as `linux/amd64`; a platform the image does not have is refused |
@@ -540,7 +592,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 
 `--block-io` takes `sync`, which services one request at a time on the virtio block worker, or `async`, which submits queued raw-disk reads through a restricted Linux io_uring. `async` is worth reaching for when a workload is disk heavy on a Linux host. It is a Linux-only engine, and asking for it anywhere else does not quietly fall back: the machine refuses to start with `async block I/O is currently supported on Linux hosts only; use --block-io sync`. `machine run`, `machine create` and `smolvm pack run` all accept the flag.
 
-Defaults are 4 vCPUs, 8192 MiB of guest memory, 20 GiB of storage, and a 10 GiB overlay. Memory is elastic: the host commits and reclaims memory according to guest use.
+Defaults are 4 vCPUs, half the host's RAM as guest memory (at least 1024 MiB and at most 8192 MiB), 20 GiB of storage, and a 10 GiB overlay. A machine keeps the memory it was created with, and a pack's default stays 8192 MiB. Memory is elastic: the host commits and reclaims memory according to guest use.
 
 ## How networking behaves inside a machine
 
