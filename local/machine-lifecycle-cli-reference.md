@@ -191,6 +191,39 @@ Publishing a port selects the virtio-net backend for the machine, because the de
 
 The server inside the machine must listen on `0.0.0.0` (or the machine's own address), not `127.0.0.1`. A published port reaches the machine's network interface, so a server listening only on the machine's localhost cannot be reached from the host: the connection is accepted and then reset, which curl reports as `Connection reset by peer` and Safari as "the server unexpectedly dropped the connection". Many development servers listen on localhost by default, so start them with their bind option, for example `jupyter lab --ip=0.0.0.0` or `python3 -m http.server 8000 --bind 0.0.0.0`.
 
+### Publish the ports a machine starts listening on
+
+`--auto-ports` on `machine run` or `machine create` publishes every TCP port a process in the
+machine listens on, at the same port number on the host's `127.0.0.1` and `[::1]`, for as long as
+it listens. No `-p` is needed, which suits dev servers and tools that pick their ports at run time:
+
+```bash
+smolvm machine create --name dev --image python:3.12-alpine --net --auto-ports
+smolvm machine start --name dev
+smolvm machine exec --name dev -- sh -c 'python3 -m http.server 8000 --bind 127.0.0.1 >/dev/null 2>&1 &'
+curl http://127.0.0.1:8000/
+```
+
+The port appears within about a second and closes once nothing listens on it or the machine
+stops. Auto ports reach a server bound to the guest's `127.0.0.1` as well as one on `0.0.0.0`.
+`machine status` lists each port and says why one was left out, and `machine ls --json` carries
+the same as `auto_ports`:
+
+```text
+  port 8000 -> 8000: auto
+  port 900: listening, not published automatically (below 1024; publish it with -p HOST:900)
+  port 8002: listening, not published automatically (excluded)
+```
+
+- A host port already in use is skipped rather than moved to another number, and tried again the
+  next time the machine's set of listening ports changes.
+- Ports below 1024 are not published automatically; publish them with `-p`.
+- `--auto-ports-exclude PORT`, repeatable, leaves a port out and implies `--auto-ports`. A guest
+  port already published with `-p` stays with that mapping.
+- Auto ports apply only when the CLI starts the machine; `smolvm serve` and the SDKs start it
+  without them. On a stopped machine, `machine update --auto-ports`, `--no-auto-ports` and
+  `--auto-ports-exclude` change the setting for the next start.
+
 ### Publish a Unix socket
 
 `machine create` and `machine run` take two socket flags, both repeatable. `--expose-socket` makes a socket the
@@ -523,6 +556,8 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]`. A guest path alone, such as `-v /var/lib/docker`, is a directory on the machine's own disk that persists across stop and start |
 | `--cache-disk` | Mount a shared cache disk as `BASE:/guest/path`. `BASE` is a raw or qcow2 image that stays read-only and can back many machines; this machine writes only to its own layer, which its branches copy. A blank `BASE` gets an ext4 filesystem |
 | `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT`, with `/udp` appended for a UDP port |
+| `--auto-ports` | Publish every TCP port the guest listens on at the same host port on loopback, while it listens |
+| `--auto-ports-exclude` | A guest port auto ports never publish; repeatable, and implies `--auto-ports` |
 | `--user`, `-u` | Run the workload as a name or `uid[:gid]` |
 | `--max-image-size` | On `machine run` and `machine create`: the largest local image archive accepted, such as `16GiB`, `512M` or a byte count; 8 GiB by default. A larger archive is refused with its size, and `SMOLVM_MAX_IMAGE_BYTES` sets the same limit |
 | `--oci-platform` | On `machine run` and `pack create`: the platform to pull from a multi-platform image, such as `linux/amd64`; a platform the image does not have is refused |

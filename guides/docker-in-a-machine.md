@@ -63,7 +63,16 @@ smolvm machine create --name docker --net --image docker:dind -p 8080:8080 \
   -v /var/lib/docker -v /var/lib/containerd
 ```
 
-A container can listen on guest port 8080, and smolvm forwards host port 8080 to it. Dynamic ports chosen later by Docker Compose or Testcontainers are not automatically published through the outer VM boundary. Pin the ports the host must reach.
+A container can listen on guest port 8080, and smolvm forwards host port 8080 to it.
+
+Ports that Docker Compose or Testcontainers choose later reach the host only with `--auto-ports`. Create the machine with it, and every port a container publishes inside appears at the same number on the host's loopback while it listens:
+
+```bash
+smolvm machine create --name docker --net --image docker:dind --auto-ports \
+  -v /var/lib/docker -v /var/lib/containerd
+```
+
+`docker run -p 8080:8080 ...` inside the machine then answers at `http://127.0.0.1:8080` on the host. Docker's userland proxy, on by default, is what auto ports see, so with `"userland-proxy": false` nothing appears. The daemon's own TLS port, 2376 on `docker:dind`, is published as well; add `--auto-ports-exclude 2376` to keep it off the host. See [Publish the ports a machine starts listening on](/docs/local/machine-lifecycle-cli-reference#publish-the-ports-a-machine-starts-listening-on).
 
 smolvm itself does not read Compose files. To run a Compose project, start this machine and run `docker compose up` inside it, with the project mounted or copied in.
 

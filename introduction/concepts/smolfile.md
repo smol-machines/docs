@@ -58,6 +58,8 @@ These fields describe the machine and its workload. All are optional.
 | `rosetta` | boolean | Enable Rosetta 2 translation for x86_64 binaries on Apple Silicon macOS. |
 | `docker_socket` | boolean | Expose the guest Docker socket to the host as a Unix socket. |
 | `net_backend` | string | Networking backend: `"tsi"` or `"virtio-net"`. |
+| `auto_ports` | boolean | Publish every TCP port the guest listens on at the same host port on loopback, as `--auto-ports` does. |
+| `auto_ports_exclude` | integer array | Guest ports `auto_ports` never publishes, such as `[5432]`. Setting it turns `auto_ports` on unless `auto_ports = false`. |
 
 `image` resolves the same way as the `--image` flag, so it takes a locally built
 archive as well as a registry reference:
