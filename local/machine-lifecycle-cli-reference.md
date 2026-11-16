@@ -321,6 +321,20 @@ point wants. Do not run two machines from one checkpoint with it.
 
 Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`, naming the option: `cpus cannot be set when restoring a live checkpoint`. Its environment can still be set with `-e`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
 
+A checkpoint carries the machine's `--credential` bindings, never their values. To have a restore
+read the values from this host, name every binding again on `machine create --from`, exactly as it
+was captured, with the same variable, hosts and options:
+
+```bash
+smolvm machine create --name notes-restored --from ./notes.checkpoint \
+  --credential notion=NOTION_API_KEY@api.notion.com
+```
+
+A binding that differs or is missing is refused at create with `credential bindings on a restore
+can only re-authorize the checkpoint's own`, followed by the binding as it was captured. A restore
+given no `--credential` is created, but `machine start` refuses it, because it would intercept
+HTTPS to the bound hosts without adding a value.
+
 Adding `--store DIR` writes an incremental checkpoint instead of one file. `--output` is still
 what names the result, and with `--store` it becomes a self-contained directory on the same
 filesystem as `DIR`, sharing unchanged chunks with the generations it keeps so history costs only

@@ -70,7 +70,7 @@ This path gives the artifact a normal named-machine lifecycle. Changes made thro
 
 `machine create --from` takes every option `--image` takes. The pack's CPUs, memory, command, environment, working directory, user and network are defaults that a flag replaces: `--cpus 2 --mem 1024` on a pack made from a 4 vCPU, 8 GiB machine gives a 2 vCPU, 1 GiB machine. Before v1.34.0 some flags were dropped on `--from` without an error.
 
-A pack does not carry `--credential` bindings, so pass them again on `machine create`; `pack create` warns when the source machine has some. A `machine checkpoint` carries them.
+A pack does not carry `--credential` bindings, so pass them again on `machine create`; `pack create` warns when the source machine has some. A `machine checkpoint` carries them, and restoring one from the CLI names each again with the same `--credential` flag; see [Checkpoint and restore a running machine](/docs/local/machine-lifecycle-cli-reference#checkpoint-and-restore-a-running-machine).
 
 ## One prepared base, one machine per working directory
 
