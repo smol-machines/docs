@@ -183,6 +183,8 @@ smolvm machine run --net -p 3000-3009:3000-3009 --image node:22-alpine -- node s
 
 Append `/udp` to publish a UDP port instead, for example `-p 27015:27015/udp`.
 
+A published port listens on the host's `127.0.0.1` and `[::1]`, so only this host reaches it unless `SMOLVM_PUBLISH_ADDR` widens it. On macOS a host port below 1024, such as `-p 80:8080`, needs no root: macOS lets a normal user bind one only on every address, so smolvm binds it there and drops every connection that is not from this host. A machine can publish up to 4096 ports.
+
 A bare port or range uses the same numbers on both sides. Ranges map one to one, so the host and guest sides must cover the same number of ports; `3000-3009:4000-4001` is rejected. A range start must not exceed its end, and port 0 is not valid.
 
 Publishing a port selects the virtio-net backend for the machine, because the default outbound-only backend cannot accept inbound connections.
