@@ -6,7 +6,7 @@ title: Docker in a Machine
 
 Run Docker inside a smolvm when a workload expects its own Docker daemon, including Testcontainers, Docker Compose, image builds, and coding agents that launch containers.
 
-smolvm can boot OCI images without Docker. You only need this setup when software inside the machine must call Docker.
+smolvm can boot OCI images without Docker. You only need this setup when software inside the machine must call Docker. For Docker clients on the host with no Docker daemon at all, see [the Docker Engine API](#the-docker-engine-api) below.
 
 ## Create the machine
 
@@ -86,3 +86,24 @@ The vsock-backed Unix socket is the preferred host endpoint. If a client require
 smolvm machine stop --name docker
 smolvm machine delete --name docker
 ```
+
+## The Docker Engine API
+
+smolvm can also answer the Docker Engine API itself. The docker CLI, Docker Compose, Testcontainers and VS Code Dev Containers on the host talk to it as they would to a Docker daemon, and every container is a machine booted from its image. It is opt-in: installing or upgrading smolvm leaves your Docker setup alone. Run the setup once, on macOS or on Linux with a systemd user session:
+
+```bash
+smolvm engine
+docker run --rm alpine echo hello
+```
+
+`smolvm engine` registers a socket at `~/.smolvm/run/docker.sock` with launchd on macOS or a systemd user socket on Linux, creates and selects the `smol` Docker context, and writes `docker.host` to `~/.testcontainers.properties` unless that file already names another runtime. When it replaces a context it names it, and `docker context use <previous>` switches back. A tool that reads only `DOCKER_HOST` can use the same socket:
+
+```bash
+export DOCKER_HOST=unix://$HOME/.smolvm/run/docker.sock
+```
+
+For a client fixed to `/var/run/docker.sock`, `smolvm engine link-socket` links that path to the socket through `sudo`. `smolvm engine status` says whether the socket is registered and whether the adapter is running.
+
+Nothing stays resident. A Docker connection starts the API adapter, which exits after ten seconds with no requests or open streams, and running containers carry on without it. Each container is a machine named `docker-` and the first 12 characters of its id, so `smolvm machine ls` lists it; stop it with `docker stop` or `docker compose down`. Published ports, user-defined networks, volumes, `docker save`, `load`, `push` and `commit` work, and images build through Buildx with its `docker-container` driver. The legacy builder (`DOCKER_BUILDKIT=0`) and network drivers other than `bridge` are not supported.
+
+Windows has no `smolvm engine`. On Linux without a systemd user session the setup fails with `Failed to connect to bus`.
