@@ -115,7 +115,8 @@ smolvm machine ls --quiet | xargs -I{} smolvm machine stop --name {}
 `--json` gives the full records when a script needs more than the name, including any labels.
 `--label KEY=VALUE` on `machine create` attaches them, and `machine branch --label` labels the
 child: a child inherits its source's labels, and a key given on the branch replaces the inherited
-value.
+value. `machine update --label KEY=VALUE` sets one and `--remove-label KEY` removes one in any
+machine state, because labels are host-side metadata.
 
 ```bash
 smolvm machine create --name agent --image alpine --label team=docs --label tier=a
@@ -364,8 +365,8 @@ smolvm machine start --name dev
 
 `machine update` changes configuration for the next start, so the machine must be stopped first,
 and it says so rather than guessing: on a running machine the command fails with `invalid vm state:
-expected stopped, got Running`. The allow list is the one exception, and a host directory can be
-mounted into a running machine with `machine mount add`, below.
+expected stopped, got Running`. Labels, the allow list and published TCP ports are the exceptions,
+when an update changes only them, and a host directory can be mounted into a running machine with `machine mount add`, below.
 
 It also edits the egress policy, which is otherwise fixed at create time. `--allow-host`,
 `--allow-host-pattern`, `--allow-cidr`, `--allow-udp` and `--outbound-localhost-only` add to the
