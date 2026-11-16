@@ -43,7 +43,7 @@ These fields describe the machine and its workload. All are optional.
 | `workdir` | string | Working directory inside the VM. |
 | `user` | string | User the workload runs as: a name from the image's passwd database, or a numeric `uid[:gid]`. Overrides the image's `USER`. |
 | `cpus` | integer | Number of vCPUs. Default: `4`. |
-| `memory` | integer | Memory in MiB. Default: `8192`. |
+| `memory` | integer | Memory in MiB. Default: half the host's RAM, at most `8192`; `8192` for a pack. |
 | `storage` | integer | Storage disk size in GiB. |
 | `overlay` | integer | Overlay disk size in GiB. |
 | `block_io` | string | Host block I/O engine, `"sync"` or `"async"`. Default: `"sync"`. |

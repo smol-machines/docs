@@ -58,7 +58,7 @@ Inside a machine the agent is always Claude Code, whatever `--provider` is set t
 ## What to know
 
 - sweeper's README describes a VM for each sub-agent. The smol backend boots one machine for the whole run, and the agents running at once (`-c`) share its CPU, memory and `/workspace`.
-- sweeper passes no machine size, so the machine gets smolvm's defaults, 4 vCPUs and 8192 MiB of memory.
+- sweeper passes no machine size, so the machine gets smolvm's defaults, 4 vCPUs and half the host's RAM, at most 8192 MiB.
 - The machine has open outbound network access. The credential binding turns networking on, and sweeper passes no host allow list, so the agents can reach any host, not only `api.anthropic.com`. See [Isolation, networking and credentials](/docs/introduction/concepts/isolation-networking-credentials).
 - The project is mounted read-write, so the agents' edits land in it as they happen.
 - When stdin is not a terminal, as in CI or an agent's shell, sweeper reads it as linter output and refuses a `--` command. Run it with `</dev/null`.
