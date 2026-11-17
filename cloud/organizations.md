@@ -91,7 +91,7 @@ The identifier follows the same rules as an organization's, and nothing of the p
 
 **Who does what in a sub-organization:**
 
-- The parent's owners and admins act in it as its provider: they create, start, stop and delete its machines, read its usage and manage its members. The provider does not reach inside its machines: exec, files, export, checkpoint capture and restore, images from the sub-organization's own registry namespace, stored credentials, registry pull credentials and custom domains are refused with `403`.
+- The parent's owners and admins act in it as its provider: they create, start, stop and delete its machines, read its usage and manage its members. The provider does not reach inside its machines: exec, files, export, checkpoint capture and restore, network, port and binding changes, making a machine public, port links, share links, rollback, machine logs, images from the sub-organization's own registry namespace, stored credentials, registry pull credentials and custom domains are refused with `403`.
 - Its own people hold `admin`, `member` or `downstream`. There is no owner, since the parent owns it. `downstream` works inside the machines (exec and files), exports them and captures and restores their checkpoints, and reads them and the member list, but does not otherwise create or delete machines.
 - Billing lives on the parent: the sub-organization's spend is drawn from the parent's balance, counts toward the parent's limits, and its billing email goes to the parent.
 - A request acting in a sub-organization finds no `/v1/org/sub` routes, and its own people see their own roster, not the parent's people.

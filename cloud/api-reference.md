@@ -102,6 +102,20 @@ stops running, and an output read until there is output past `offset` or the job
 30 seconds (a larger value is treated as 30). Past 4 waits at once per machine, 64 per account or 128
 per node, a read can answer a retryable `429`.
 
+A resumable exec is owned by the machine's node rather than by the connection that started it, so a dropped connection or a control plane restart does not end it. It suits long commands an agent runs and reads back:
+
+```text
+POST   /v1/machines/{id}/execs
+GET    /v1/machines/{id}/execs
+GET    /v1/machines/{id}/execs/{execId}?after=<next>&wait=<seconds>
+POST   /v1/machines/{id}/execs/{execId}/stdin
+POST   /v1/machines/{id}/execs/{execId}/resize
+GET    /v1/machines/{id}/execs/{execId}/attach   (WebSocket upgrade)
+DELETE /v1/machines/{id}/execs/{execId}
+```
+
+`POST` takes `command` and optionally `execId`, `cwd`, `env`, `user`, `stdin`, `timeoutSeconds` (600 by default, none for an `interactive` or `tty` exec), `interactive`, `tty` and `waitSeconds`. Choose `execId` (8 to 64 of `A-Z`, `a-z`, `0-9`, `_` and `-`) before the first try: a retry with the same id answers `200` with the exec the first try started, never running the command twice. With `waitSeconds`, at most 25, the answer carries the first output, so a short command takes one request. Read the rest with `?after=` set to the last answer's `next` until `done`, which carries `exitCode`, then `DELETE` it. A read answering `503` means the control plane is restarting: read again. A machine whose node has no resumable execs answers `501`; use `exec`. They need the `machine:exec` scope.
+
 ### Interactive terminal
 
 The console's terminal is a WebSocket you can open yourself, to give your own product a real shell in a machine: full-screen programs, colors, prompts, and resizing all work.
@@ -188,7 +202,17 @@ For command output without a terminal, such as an agent running a build, `POST /
 
 ### Files
 
-The API supports file upload and download for a machine. Use the current OpenAPI or API Explorer for the path shape and request encoding.
+`PUT /v1/machines/{id}/files/{path}` uploads the request body as a file, and `GET` on the same path downloads one. `{path}` is the absolute guest path without its leading slash, so `/workspace/data.csv` is `files/workspace/data.csv`. Both need the `machine:files` scope:
+
+```bash
+curl --fail-with-body -X PUT --data-binary @data.csv \
+  "$SMOL_CLOUD_URL/v1/machines/$MACHINE_ID/files/workspace/data.csv?mode=0644" \
+  -H "Authorization: Bearer $SMOL_CLOUD_TOKEN"
+curl --fail -o data.csv "$SMOL_CLOUD_URL/v1/machines/$MACHINE_ID/files/workspace/data.csv" \
+  -H "Authorization: Bearer $SMOL_CLOUD_TOKEN"
+```
+
+An upload answers `204` and creates the parent directories. Any path in the machine's filesystem can be written, `/etc` included; the file gets mode `0644` and belongs to the user the image's workload runs as, unless `mode`, `uid` or `gid` in the query say otherwise. `/proc`, `/sys` and `/dev` are refused with `422`, and so are `/etc/resolv.conf` and `/etc/smolvm-host-trust`, which the node manages.
 
 Request bodies are capped: 1 MiB on the JSON API, 1 GiB on a file upload to `/v1/machines/{id}/files/...` that declares its `Content-Length` and 100 MiB on one that does not (100 MiB either way on a node whose engine is older than smolvm 1.31.0), and 10 MiB per request through the connect route. A larger body is refused.
 
@@ -202,7 +226,7 @@ The Cloud API also provides endpoints for:
 - Machine events and logs
 - Per-machine usage and cached images
 - Sharing a machine through scoped share links
-- Branching a branchable machine
+- Branching a branchable machine, `POST /v1/machines/{id}/branches`, below
 - Exporting a machine to a `.smolmachine` artifact
 - Resizing a machine's vCPUs, memory or disk, `POST /v1/machines/{id}/resize` with any of `cpus`, `memoryMb` and `diskGb`: in place on a started machine, and at the next start or resume on a stopped or paused one. Memory and disk only grow; any other state answers `409`
 - Resetting the idle clock without running anything, `POST /v1/machines/{id}/keepalive`
@@ -339,6 +363,16 @@ Every response includes `x-request-id`. A safe client-provided ID is echoed; oth
 ## Checkpoints and branches
 
 Checkpoints capture any running machine, guest RAM and processes included, into durable storage: `POST /v1/machines/{id}/checkpoints` captures one, `GET /v1/machines/{id}/checkpoints` lists them, `POST /v1/checkpoints/{id}/restore` creates a stopped machine from one, which runs with the network its checkpoint was captured with (start it to resume it); the body takes `name` and optionally `labels`, `env`, `autoStopSeconds`, `idleAction` and `ports`, as [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) describes, and `DELETE /v1/checkpoints/{id}` (`machine:delete`) deletes one, answering `409` while a machine still references it. A checkpoint whose contents do not match its checksum is refused with `422` ("the checkpoint is corrupt"), which a retry cannot help, so capture or upload it again. Starting a restored machine checks this, and so does `POST /v1/checkpoints/{id}/complete` for an upload of up to 32 MiB. See [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) for the lifecycle and the CLI equivalents.
+
+A machine is branchable when it is created with `"branchable": true` or started with `POST /v1/machines/{id}/start?branchable=true`. `POST /v1/machines/{id}/branches` (`machine:create`) creates a running copy-on-write child of it:
+
+```bash
+curl --fail-with-body -X POST "$SMOL_CLOUD_URL/v1/machines/$MACHINE_ID/branches" \
+  -H "Authorization: Bearer $SMOL_CLOUD_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name": "try-1"}'
+```
+
+The body takes `name` and optionally `ports` (the source's guest ports when empty), `branchable` to let the child branch again, `freezeSource`, `keepMachineId` to keep the source's `/etc/machine-id` in the child, `labels` (the source's when left out), `expectedBusyCpus`, and `waitForCapacitySeconds`, at most 300, to keep retrying a branch refused for capacity. `POST /v1/machines/{id}/branches/batch` takes `count` or `names`, at most 64 children, with the same options; it is all or nothing, and a refusal for capacity may carry `childrenFit`.
 
 Branch routes are specialized cloud operations. They do not move a running local VM into cloud or provide a portable cross-architecture restore format. `POST /v1/machines/{id}/snapshot` is not implemented and returns `501`; use a checkpoint to capture a running machine, or export a stopped machine's disk to a `.smolmachine` artifact (`POST /v1/machines/{id}/export`, or `smol cloud export`).
 
