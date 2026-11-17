@@ -290,18 +290,18 @@ Egress, published ports and public access all change on a machine that already e
 
 ### Egress
 
-Send the machine's whole new policy, in the same form as `network` on create:
+Send the machine's whole new policy as the body, in the same form as `network` on create:
 
 ```bash
 curl -X PUT "https://api.smolmachines.com/v1/machines/$ID/network" \
   -H "Authorization: Bearer $SMOL_API_KEY" -H "Content-Type: application/json" \
-  -d '{"network": {"mode": "allowCidrs", "hosts": ["api.github.com"], "cidrs": ["10.0.0.0/8"]}}'
+  -d '{"mode": "allowCidrs", "hosts": ["api.github.com"], "cidrs": ["10.0.0.0/8"]}'
 ```
 
 - A started machine whose policy is an allow list takes a new allow list at once, from its next connection or lookup.
 - Switching a started machine to or from `open` needs it stopped first. The call answers `409` until it is; stop it, set the policy, and start it.
 - A stopped machine takes any change at its next start.
-- `blocked` on a machine that has run allows loopback only, so nothing beyond the machine is reachable. A machine that binds credentials cannot be `blocked`.
+- A machine that has run cannot be switched to `blocked` (`422`), because its VM was made with networking on. Restrict it to an allow list instead. A machine that has never run takes `blocked` for its first start, unless it binds credentials.
 
 In the SDKs the policy is `"allow-all"`, `"deny-all"`, or an allow list: `{ allowHosts, allowCidrs }` in Node, `{"allow_hosts": [...], "allow_cidrs": [...]}` in Python, and `AllowList(hosts, cidrs)` in Go.
 

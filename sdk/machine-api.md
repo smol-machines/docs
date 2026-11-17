@@ -236,7 +236,7 @@ The port must be declared in `MachineConfig.ports`, and the service must listen 
 
 ### Change the network policy
 
-`setNetworkPolicy(policy)` (`set_network_policy(policy)` in Python, `SetNetworkPolicy(ctx, policy)` in Go) replaces what an existing machine may reach outbound. The policy is `"allow-all"`, `"deny-all"`, or an allow list of hosts and CIDRs: `{ allowHosts, allowCidrs }` in Node, `{"allow_hosts": [...], "allow_cidrs": [...]}` in Python, `AllowList(hosts, cidrs)` in Go. Host names are exact (`api.github.com`) or `*.domain` for subdomains only. Locally the machine must be stopped. On cloud a running machine takes a new allow list at once; switching it to or from `"allow-all"` needs it stopped first. See [Change an existing machine's network](/docs/cloud/lifecycle-storage-networking#change-an-existing-machine-s-network).
+`setNetworkPolicy(policy)` (`set_network_policy(policy)` in Python, `SetNetworkPolicy(ctx, policy)` in Go) replaces what an existing machine may reach outbound. The policy is `"allow-all"`, `"deny-all"`, or an allow list of hosts and CIDRs: `{ allowHosts, allowCidrs }` in Node, `{"allow_hosts": [...], "allow_cidrs": [...]}` in Python, `AllowList(hosts, cidrs)` in Go. Host names are exact (`api.github.com`) or `*.domain` for subdomains only. Locally the machine must be stopped. On cloud a running machine takes a new allow list at once; switching it to or from `"allow-all"` needs it stopped first, and `"deny-all"` is refused once the machine has run. See [Change an existing machine's network](/docs/cloud/lifecycle-storage-networking#change-an-existing-machine-s-network).
 
 ### Port links
 
