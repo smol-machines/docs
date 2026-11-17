@@ -85,9 +85,8 @@ machine built elsewhere.
 ### Choosing the workload user
 
 `user` sets the account the workload runs as, in the same form `docker run --user`
-takes. The usual reason to set it is a mounted host directory: an image built for
-`root` writes files the host user then cannot edit, and naming the mount's owner
-here avoids that.
+takes. A mounted host directory does not need it: a non-root workload sees the directory as its
+own, and the files it creates belong to the host user.
 
 ```toml
 image = "python:3.12-alpine"

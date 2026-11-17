@@ -270,9 +270,9 @@ It is accepted on `machine run`, `machine create`, and `machine exec`. On
 falling back to the image's `USER` when the machine has none. Passing `--user`
 to `exec` overrides both for that command.
 
-The common reason to set it is a mounted host directory: the guest writes as
-whatever account the workload runs under, so matching the mount's owner keeps
-the files editable on the host afterwards.
+A mounted host directory does not need it. A non-root workload sees a mounted host directory as
+owned by itself and can write to it, and the files it creates belong to the host user, so they
+stay editable on the host.
 
 Init commands are the exception. They provision the machine, so they run as root
 regardless of `--user` or the image's `USER`.

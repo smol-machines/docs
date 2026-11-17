@@ -106,7 +106,7 @@ CPU and memory are assigned when the machine is configured. The local CLI defaul
 
 `--cpus` and `--mem` on the command line beat a Smolfile or a packed artifact's baked values, including when the value given equals the default. Passing `--cpus 4` to a machine whose Smolfile asks for 8 gets 4, not 8.
 
-Memory uses virtio ballooning. The configured amount is the guest-visible capacity; the host can reclaim unused guest memory. A high configured limit does not mean the host permanently commits that full amount. Once a machine that is not a branch source has used under about 1% of a core for 10 minutes, the balloon is pulsed once so the guest hands its page cache back to the host. `SMOLVM_IDLE_RECLAIM` sets the minutes, and `0` or `off` turns it off.
+Memory uses virtio ballooning. The configured amount is the guest-visible capacity; the host can reclaim unused guest memory. A high configured limit does not mean the host permanently commits that full amount. Once a machine that is not a branch source has used under about 1% of a core for 2 minutes, the balloon is pulsed once so the guest hands its page cache back to the host. `SMOLVM_IDLE_RECLAIM` sets the minutes, and `0` or `off` turns it off.
 
 Available cloud sizes and limits are service-specific. Do not infer hosted limits from local defaults.
 

@@ -98,7 +98,7 @@ Packing does not preserve live RAM or running processes, but `machine checkpoint
 agent rootfs, the disk templates and the server database. It works by pointing `HOME` at that
 root before any path is computed, so everything derived from the home directory follows it. That
 is what lets a node run machines under a system-owned root rather than an operator's home.
-`--state-dir PATH`, a global flag, is its flag form; it is accepted on Linux only.
+`--state-dir PATH`, a global flag, is its flag form. Both work on Linux and, from smolvm v1.35.1, on macOS; Windows refuses `--state-dir`.
 
 ```bash
 SMOLVM_DATA_DIR=/var/lib/smolvm smolvm machine ls
@@ -111,8 +111,7 @@ install is unaffected. An install that relies on the data-directory copy is not:
 `SMOLVM_AGENT_ROOTFS` at the rootfs, or copy it into the new root. A machine that cannot find it
 fails to start with `could not find agent rootfs at <path>; set SMOLVM_AGENT_ROOTFS or reinstall`.
 
-`SMOLVM_DATA_DIR` is read on Linux only. On macOS it is ignored and state stays where the
-installer put it.
+On macOS a machine's sockets live under the data directory too, and a Unix socket path holds at most 103 bytes there, so a long data directory path stops `machine start` with `socket path is N bytes, over the 103-byte limit for Unix sockets on this host`. Keep the path short, about 45 characters or fewer.
 
 Test host failure, node replacement, and version upgrades before using a self-hosted deployment for production workloads.
 
