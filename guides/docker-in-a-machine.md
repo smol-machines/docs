@@ -84,7 +84,7 @@ The vsock-backed Unix socket is the preferred host endpoint. If a client require
 
 ```bash
 smolvm machine stop --name docker
-smolvm machine delete --name docker
+smolvm machine delete --name docker --force
 ```
 
 ## The Docker Engine API

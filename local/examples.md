@@ -155,8 +155,8 @@ The service is reachable through host port 8000 while the ephemeral machine is r
 
 ```bash
 smolvm machine stop --name pydev
-smolvm machine delete --name pydev
-smolvm machine delete --name job
+smolvm machine delete --name pydev --force
+smolvm machine delete --name job --force
 ```
 
 Use `machine stop` when you want to keep disk state. Use `machine delete` when you want to remove the named machine.

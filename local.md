@@ -84,7 +84,7 @@ This machine keeps filesystem changes across `exec` sessions and stop/start cycl
 Delete the machine when you no longer need it:
 
 ```bash
-smolvm machine delete --name dev
+smolvm machine delete --name dev --force
 ```
 
 See [Machine Lifecycle and CLI Reference](/docs/local/machine-lifecycle-cli-reference) for the selected command reference and [Examples](/docs/local/examples) for more local workflows.

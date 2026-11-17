@@ -36,7 +36,7 @@ smolvm machine stop --name node-dev
 Installed packages and filesystem changes survive stop and start. Delete the machine when it is no longer needed:
 
 ```bash
-smolvm machine delete --name node-dev
+smolvm machine delete --name node-dev --force
 ```
 
 ## Run Node.js from the SDK

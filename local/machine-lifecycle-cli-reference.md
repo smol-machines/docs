@@ -72,6 +72,8 @@ smolvm machine exec --name dev -- python3 --version
 
 Package installs, file writes, and configuration changes made through `machine exec` survive stop/start cycles. `machine stop` preserves disk state. `machine delete` removes the named machine.
 
+`machine delete` asks for confirmation first, and when there is no terminal to ask, as in a script or an agent's shell, it fails with `needs confirmation but stdin is not a terminal; pass --force to delete it`. Pass `--force` to skip the question, or `--cascade` to delete the machines branched from it as well.
+
 ## Core lifecycle commands
 
 | Goal | Command |
@@ -82,7 +84,7 @@ Package installs, file writes, and configuration changes made through `machine e
 | Execute a command | `smolvm machine exec --name NAME -- COMMAND` |
 | Open a persistent shell | `smolvm machine shell --name NAME` |
 | Stop without deleting state | `smolvm machine stop --name NAME` |
-| Delete a machine | `smolvm machine delete --name NAME` |
+| Delete a machine | `smolvm machine delete --name NAME --force` |
 | Check one machine | `smolvm machine status --name NAME` |
 | List machines | `smolvm machine ls` |
 | List machine names only | `smolvm machine ls --quiet` |
