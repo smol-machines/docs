@@ -242,6 +242,43 @@ The Cloud API also provides endpoints for:
 
 [Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) puts every setting that changes on an existing machine in one table, with what applies at once and what waits for a restart.
 
+### Groups
+
+A group runs one image as several identical machines behind one name and rolls new versions out across them:
+
+```text
+GET    /v1/groups
+POST   /v1/groups
+GET    /v1/groups/{name}
+DELETE /v1/groups/{name}
+POST   /v1/groups/{name}/scale
+POST   /v1/groups/{name}/redeploy
+POST   /v1/groups/{name}/promote
+GET    /v1/groups/{name}/logs
+```
+
+`POST /v1/groups` deploys `image` under `name`, or rolls out a new deployment when the name exists:
+
+```json
+{
+  "name": "web",
+  "image": "nginx",
+  "port": 80,
+  "cpus": 1,
+  "memoryMb": 512,
+  "health": {"type": "http", "path": "/", "port": 80},
+  "strategy": {"type": "rolling", "batchSize": 1, "useHealthCheck": true}
+}
+```
+
+`port` is 8080, `cpus` 1 and `memoryMb` 512 when left out. The body also takes `env` as a list of `{"key", "value"}` pairs, `network` (a boolean), `domain`, `coLocateWith`, `stopGraceSecs` (10 by default) and `publicIngress`, which opens the group's port without a login and is `false` by default. `health` checks each instance by `http`, `tcp` or `exec`, every `intervalSecs` (10) with `timeoutSecs` (2) and `retries` (3). `strategy` is one of:
+
+- `rolling`, the default: replaces `batchSize` instances at a time (1), waiting `waitSeconds` (5) between batches, or for the health check with `useHealthCheck`.
+- `canary`: starts `canaryCount` new instances first and replaces the rest once they are healthy. With `autoPromote` false, `POST .../promote` does that step.
+- `blueGreen`: starts a complete new set, switches traffic to it at once, then removes the old one.
+
+`scale` takes `{"count": N}`, `redeploy` pulls the image again and rolls the instances, `logs` returns, as plain text, the last 200 lines of `/var/log/messages` (or `dmesg`) from one running instance, and `DELETE` stops and removes every instance. Deploy, scale, redeploy, promote and delete need the `group:write` scope, which an API key can carry; the reads need only a valid key.
+
 ### Usage and account
 
 Use `/v1/usage` for usage over a time range and `GET /v1/machines/{id}/usage` for one machine's totals and cost. The API also exposes account and billing-meter endpoints where enabled. Plan limits and pricing can change; use the [pricing page](/pricing) for current public rates.
