@@ -5,7 +5,9 @@ title: Rust SDK
 # Rust SDK
 
 The Rust SDK runs microVMs from a Rust program, locally or on smol cloud, through the same
-`Machine` API the Node and Python SDKs expose. On the local target the crate drives a `smolvm`
+`Machine` model the Node and Python SDKs expose, with fewer of their methods: it has no method to
+publish a port, and no jobs, port links or `keepMachineId`. For cloud routes it lacks, the crate re-exports
+the cloud client as `smolmachines::smol_cloud`. On the local target the crate drives a `smolvm`
 engine as a child process, fetching one on its own if the host has none.
 
 ## Install
@@ -16,9 +18,14 @@ The crate is named `smolmachines`.
 cargo add smolmachines
 ```
 
+The crate needs Rust 1.82 or newer.
+
 **The local target does not need the CLI installed.** crates.io serves source rather than
 binaries, so on the first call that asks for a local machine the crate downloads the engine
-release matching its own version and caches it; nothing is downloaded for a cloud machine. Point
+release matching its own version and caches it; nothing is downloaded for a cloud machine. It
+looks first at `SMOLVM`, then for the engine inside an installed `smol` CLI of the same minor release,
+then for an installed `smolvm` of that minor release, at the crate's patch or newer, and only then
+downloads. Point
 `SMOLVM` at a binary to use an installed engine instead, `SMOLMACHINES_CACHE_DIR` to move the
 cache, `SMOLMACHINES_ENGINE_VERSION` to pin a different engine, and `SMOLMACHINES_NO_DOWNLOAD=1`
 to refuse the fetch, which makes a host with no engine fail rather than reach the network. The
@@ -89,6 +96,11 @@ let remote = Machine::builder("there")
 
 `create_with` on the cloud target starts the machine and waits for its agent, so unlike the local
 path it does not need a separate `start()`.
+
+`Machine::connect` on a stopped local machine returns an error at once rather than starting it.
+`ConnectOptions::local().start_if_stopped()` with `connect_with` starts it, or resumes a paused
+one, as part of connecting; a cloud connect never starts anything. `copy_in` and `copy_out` move a
+file, or with `copy_in` a directory as `cp -r` does, between the host and a running local machine.
 
 ## Which SDK to reach for
 
