@@ -75,6 +75,7 @@ These settings change on a machine that already exists. Where no SDK method or `
 | Credential values | `PUT /v1/credentials/{name}`, [below](#credentials-the-machine-never-holds) | Node, Python and Rust store a credential's `value` when a create passes one | Running machines that bind it: from their next request |
 | Credential bindings | `PUT /v1/machines/{id}/credentials` | None | Only while the machine has no copy on a node and nothing to restore; otherwise `409` |
 | Public ingress | `POST` and `DELETE /v1/machines/{id}/public` | None | At once; needs a published port and a name of lowercase letters, digits and hyphens, else `422` |
+| Anonymous share link | `POST` and `DELETE /v1/machines/{id}/share`, [below](#ingress-and-published-ports) | `share()` and `unshare()` in Node, Python and Rust, `Share` and `Unshare` in Go; `smol cloud share` and `smol cloud unshare` | At once; needs a published port and a name of lowercase letters, digits and hyphens, else `422`. A new `POST` replaces the link |
 | Idle clock | `POST /v1/machines/{id}/keepalive` | None | Started machines only |
 
 Nothing changes `env`, `source`, `command`, `workdir`, `autoStopSeconds`, `idleAction`, `ttlSeconds`, `ephemeral`, `cacheDisk`, `remoteMounts` or `nestedVirt` on an existing machine. Create a new machine with the values you need, or checkpoint this one and restore it with new `env`, `autoStopSeconds`, `idleAction` or `labels`, as [Branches and checkpoints](#branches-and-checkpoints) describes.
@@ -191,8 +192,6 @@ Allow only selected hosts and CIDR ranges:
 
 An allow list must include every package host, API, and redirect target the workload needs at runtime. The image's own registry is folded in for the pull; see [Cloud Examples](/docs/cloud/examples). Prefer `blocked` or `allowCidrs` for untrusted workloads.
 
-To change the policy of a machine that already exists, see [Change an existing machine's network](#change-an-existing-machine-s-network).
-
 ### Change the network of an existing machine
 
 `PUT /v1/machines/{id}/network` replaces a machine's policy, with the same `network` object a create takes as its whole body:
@@ -271,45 +270,13 @@ A started machine serves new ports at once and stops serving removed ones, witho
 
 A client that cannot send an API key, such as a sandbox framework that calls its tunnel URLs directly, can use port links instead. `POST /v1/machines/{id}/port-links` returns a login-free URL for each published port, `https://p<port>-<token>.<appsDomain>`. Anyone holding a link reaches the port, so treat it as a credential. The machine keeps one token, so asking again returns the same links and a port published later is reached with the same token; `DELETE /v1/machines/{id}/port-links` revokes every link at once.
 
+`POST /v1/machines/{id}/public` serves the machine's app URL to anyone, with no smol cloud login and no token, and `DELETE` returns it to the login gate. `POST /v1/machines/{id}/share` mints (or rotates) an anonymous share token for the app URL instead, and `DELETE` revokes it. Either grants access only to the machine's published app port, never to the API, exec, or another machine.
+
 ### Custom domains
 
 To serve a machine or group on a domain you own, claim it with `POST /v1/custom-domains`, giving `domain`, `targetKind` (`machine` or `group`) and `targetId`, or from [Domains](/console/domains) in the console. The response lists the DNS records to create: a TXT record at `_smolmachines-challenge.<domain>` holding a token, and a CNAME target for a subdomain (an apex domain gets an A record target where one is offered). Then call `POST /v1/custom-domains/{domain}/verify`; the first account to pass the TXT check owns the name, and other claims on it are dropped. `DELETE /v1/custom-domains/{domain}` removes it.
 
 Traffic on a verified domain is public, with no smol cloud login. An account holds at most 10 unverified claims and sends at most 30 claims an hour, and an unverified claim lapses after 7 days.
-
-## Change an existing machine's network
-
-Egress, published ports and public access all change on a machine that already exists. There is no need to create a new one.
-
-| Change | API | SDK (Node / Python / Go) |
-|---|---|---|
-| What the machine may reach outbound | `PUT /v1/machines/{id}/network` | |
-| Which guest ports are published | `PUT /v1/machines/{id}/ports` | `publish`, `unpublish`, `ports` |
-| Public access with no login | `POST` / `DELETE /v1/machines/{id}/public` | |
-| An anonymous share token | `POST` / `DELETE /v1/machines/{id}/share` | |
-
-### Egress
-
-Send the machine's whole new policy as the body, in the same form as `network` on create:
-
-```bash
-curl -X PUT "https://api.smolmachines.com/v1/machines/$ID/network" \
-  -H "Authorization: Bearer $SMOL_API_KEY" -H "Content-Type: application/json" \
-  -d '{"mode": "allowCidrs", "hosts": ["api.github.com"], "cidrs": ["10.0.0.0/8"]}'
-```
-
-- A started machine whose policy is an allow list takes a new allow list at once, from its next connection or lookup.
-- Switching a started machine to or from `open` needs it stopped first. The call answers `409` until it is; stop it, set the policy, and start it.
-- A stopped machine takes any change at its next start.
-- A machine that has run cannot be switched to `blocked` (`422`), because its VM was made with networking on. Restrict it to an allow list instead. A machine that has never run takes `blocked` for its first start, unless it binds credentials.
-
-### Published ports
-
-`PUT /v1/machines/{id}/ports` takes the whole new list of guest ports, as described under [Ingress and published ports](#ingress-and-published-ports). A started machine serves new ports at once and stops serving removed ones, without a restart.
-
-### Public access
-
-`POST /v1/machines/{id}/public` serves the machine's app URL to anyone, with no smol cloud login and no token, and `DELETE` returns it to the login gate. `POST /v1/machines/{id}/share` mints (or rotates) an anonymous share token for the app URL instead, and `DELETE` revokes it. Either grants access only to the machine's published app port, never to the API, exec, or another machine.
 
 ## Running a command as a chosen user
 

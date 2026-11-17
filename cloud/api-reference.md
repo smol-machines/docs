@@ -225,7 +225,6 @@ The Cloud API also provides endpoints for:
 - Running Python or JavaScript through `/code`
 - Machine events and logs
 - Per-machine usage and cached images
-- Sharing a machine through scoped share links
 - Branching a branchable machine, `POST /v1/machines/{id}/branches`, below
 - Exporting a machine to a `.smolmachine` artifact
 - Resizing a machine's vCPUs, memory or disk, `POST /v1/machines/{id}/resize` with any of `cpus`, `memoryMb` and `diskGb`: in place on a started machine, and at the next start or resume on a stopped or paused one. Memory and disk only grow; any other state answers `409`
@@ -236,9 +235,6 @@ The Cloud API also provides endpoints for:
 - Replacing a machine's outbound network policy, `PUT /v1/machines/{id}/network` with the create's `network` object: live from one allow list to another on a started machine, otherwise at the next start
 - Replacing a machine's credential bindings before its first start, `PUT /v1/machines/{id}/credentials`
 - Opening a machine's published app to anyone without a login, and closing it again, `POST` and `DELETE /v1/machines/{id}/public`
-- Replacing a machine's published ports, live while it runs, `PUT /v1/machines/{id}/ports`
-- Replacing a machine's network policy (egress), live for a running machine's allow list, `PUT /v1/machines/{id}/network`
-- Making a machine's app URL public with no login, or reverting it, `POST` and `DELETE /v1/machines/{id}/public`
 - Minting or revoking an anonymous share token for a machine's app URL, `POST` and `DELETE /v1/machines/{id}/share`
 - Getting or revoking login-free port links, one URL per published port, `POST` and `DELETE /v1/machines/{id}/port-links`
 - Listing every checkpoint the account owns, `GET /v1/checkpoints`, and uploading a `.smolcheckpoint` file captured outside the cloud with `POST /v1/checkpoints` and then `POST /v1/checkpoints/{id}/complete`
