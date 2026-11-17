@@ -36,7 +36,9 @@ const machine = await Machine.connect(id, connection?);
 machine = Machine.connect(machine_id, conn=None)
 ```
 
-For local, pass the name of a persisted machine, a paused one included. For cloud, pass the `mach-...` machine ID. On cloud `connect()` does not wait for readiness; call `waitUntilReady()` or `wait_until_ready()` before use. Locally it starts a stopped machine and returns once it is ready.
+For local, pass the name of a persisted machine, a paused one included. For cloud, pass the `mach-...` machine ID. On cloud `connect()` does not wait for readiness and never starts a machine: a machine created through the REST API or the console stays stopped until something starts it, so call `start()`, which waits for readiness, or `waitUntilReady()` (`wait_until_ready()`) on one that already runs. Locally it starts a stopped machine and returns once it is ready.
+
+`Machine.open(id, connection?)` (`Machine.open` in Python) attaches without starting the machine or waiting for it, to describe, stop, resize or delete one, including a machine that can no longer boot. Locally, `waitForPorts: false` in the connection options makes `connect()` return once the guest agent answers rather than waiting for published ports, so `exec()` can start a service that is not listening yet. In Python the option is local only.
 
 `Machine.probe(connection?)` (`Machine.probe(conn)` in Python) checks a cloud connection before any machine exists: it throws unless the key is accepted and the base URL answers with a machine list.
 
@@ -132,7 +134,7 @@ for event in machine.exec_stream(["sh", "-lc", "make test"]):
 
 ### Jobs
 
-Cloud only. `startJob(command, options?)` (`start_job` in Python) runs a command detached and returns a `Job` at once; its output and exit code stay in the machine, so the caller can disconnect and come back. Unlike `exec`, a job survives a dropped connection, so prefer it for anything that runs longer than a few minutes. The machine does not auto-stop while a job runs.
+Cloud only. `startJob(command, options?)` (`start_job` in Python) runs a command detached and returns a `Job` at once; its output and exit code stay in the machine, so the caller can disconnect and come back. A cloud `exec` survives a dropped connection or a control plane restart while your process keeps running: the SDK reads its output again from where it left off, retrying for up to 10 minutes. A job also survives your process exiting, so prefer it for work you will come back to. The machine does not auto-stop while a job runs.
 
 ```ts
 const job = await machine.startJob(["sh", "-c", "make test"], { timeout: 3600 });
@@ -304,11 +306,13 @@ clone = source.branch(
 
 When ports are omitted, the control plane allocates fresh host ports so concurrent clones do not collide.
 
+`branch(name, { keepMachineId: true })` (`branch(name, keep_machine_id=True)` in Python) keeps the source's `/etc/machine-id` in the child, for tools that key a cache by it, such as Nx; the hostname and SSH host keys are still new. `branchBatch()` takes the same option. Go and Rust do not have it.
+
 Cloud branches are node-local and require a branchable source machine. They do not provide portable checkpoints or live migration between local and cloud.
 
 Local branching runs through the embedded engine, so it needs no CLI: a local source created
 `branchable` branches with the same call, and the child reads what the source wrote. `resize()`
-grows a machine in place (on smol cloud, `cpus`, `memoryMb` and `storageGb`, the machine's one disk; memory and disk only grow), and `branchBatch()` / `branch_batch()` makes several children at
+grows a machine in place (on smol cloud, `cpus`, `memoryMb` and `storageGb`, the machine's one disk; memory and disk only grow; Go's `Resize` works on the local target only), and `branchBatch()` / `branch_batch()` makes several children at
 once. `checkpoint()` works on both targets; locally it takes the output path of the
 `.checkpoint` file to write.
 
@@ -322,7 +326,12 @@ const all = await Machine.list({ target: "local" });
 
 A machine created with `detach` keeps running after the process that made it exits, and
 `restoreCheckpoint()` takes a `keepIdentity` flag with the same meaning as the CLI's
-`--keep-identity`.
+`--keep-identity`, on the local target only.
+
+`setNetworkPolicy(policy)` (Node; `SetNetworkPolicy` in Go) replaces a stopped local machine's network policy from its next start, with `"allow-all"`, `"deny-all"` or `{ allowHosts, allowCidrs }` (in Go, `smol.AllowAll()`, `smol.DenyAll()` or `smol.AllowList(hosts, cidrs)`). It is local only, and Python has no equivalent; a cloud machine's network changes through `PUT /v1/machines/{id}/network`, as [Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) shows.
+
+On smol cloud a machine restored with `restoreCheckpoint()` (`restore_checkpoint()` in Python)
+runs with the network its checkpoint was captured with.
 
 ## Configuration types
 

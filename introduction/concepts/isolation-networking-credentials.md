@@ -8,7 +8,7 @@ Each machine has its own Linux kernel and a hardware-virtualized boundary. The b
 
 ## Host isolation
 
-A guest can access only the host resources made available to it. Review every host directory mount and forwarded socket before running untrusted code. A mounted directory exposes its contents with provided permissions.
+A guest can access only the host resources made available to it. Review every host directory mount and forwarded socket before running untrusted code. A mounted directory exposes its contents with provided permissions. Host system paths such as `/etc` are refused as mount sources; `--allow-system-mounts` permits read-only `/etc` and `/var/log` below `/host`, and must not be used for untrusted workloads.
 
 The VM boundary does not make a deliberately shared host resource safe. Treat access to a Docker socket, SSH agent, source directory, or other host service as a security decision.
 
@@ -31,7 +31,7 @@ An explicitly set variable always wins, so `SMOLVM_SECCOMP=off` remains the esca
 
 ## Networking
 
-Local smolvm guest networking is off by default, and a machine usually does not need it for its image: `machine create` fetches a registry image on the host, and an ephemeral run starts from a shared seed unless seeding is turned off, as the [CLI reference](/docs/local/machine-lifecycle-cli-reference) describes. Beyond the image, enable guest networking only when the workload must resolve DNS, call an external service, or accept published traffic. A networked machine resolves names through the host's own resolver, so a VPN or corporate network that only answers DNS from its own resolver works without extra configuration; pass `--dns <IP>` to point the guest somewhere else, and `--dns-option` to add resolver options such as `timeout:1`. A cloud machine created without a `network` block gets open outbound access by default; set `network` explicitly when egress policy matters.
+Local smolvm guest networking is off by default, and a machine usually does not need it for its image: `machine create` fetches a registry image on the host, and an ephemeral run starts from a shared seed unless seeding is turned off, as the [CLI reference](/docs/local/machine-lifecycle-cli-reference) describes. Beyond the image, enable guest networking only when the workload must resolve DNS, call an external service, or accept published traffic. A networked machine resolves names through the host's own resolver, so a VPN or corporate network that only answers DNS from its own resolver works without extra configuration; pass `--dns <IP>` to point the guest somewhere else, and `--dns-option` to add resolver options such as `timeout:1`. A cloud machine created without a `network` block gets open outbound access by default; set `network` explicitly when egress policy matters, and change it later with `PUT /v1/machines/{id}/network`, as [Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) describes.
 
 Egress can be restricted with hostname and CIDR allow lists. A platform policy also blocks selected sensitive address ranges. To keep the public internet open while closing everything private, pass `--block-private`: it blocks the LAN, internal and link-local ranges, cloud metadata, carrier-grade NAT and the host's loopback. `--allow-private CIDR` reopens one private range under it, such as an internal registry, and cloud metadata stays blocked whatever it names. In a Smolfile these are `block_private` and `allow_private` under `[network]`. To refuse a range outright, pass `--deny-cidr CIDR` (Smolfile `deny_cidrs` under `[network]`): a deny is checked before any allow, so it wins over every allow list, and it implies `--net`.
 
@@ -58,6 +58,8 @@ SSH-agent forwarding follows a different model. Private keys remain in the host 
 
 A credential binding gives a workload the ability to *use* a secret at named hosts without ever holding it. The guest receives an opaque placeholder in the environment variable it expects; the host replaces the placeholder with the real value only on HTTPS requests to the binding's allowed hosts, and only inside a request header unless the binding also allows a form body.
 
+This section shows the local CLI. On smol cloud a credential is stored once with `PUT /v1/credentials/{name}` and bound by name at create, as [Credentials the machine never holds](/docs/cloud/lifecycle-storage-networking#credentials-the-machine-never-holds) describes.
+
 ```bash
 NOTION_API_KEY=secret_... smolvm machine create --name notes --image alpine:3.20 \
   --credential notion=NOTION_API_KEY@api.notion.com
@@ -69,6 +71,8 @@ smolvm machine exec --name notes -- sh -c \
 The first line of output is `SMOL_PLACEHOLDER_NOTION_...`, which is all the guest can read or exfiltrate. Notion receives the real key. The same placeholder sent to any other host travels as a literal string; a placeholder in a URL or query string is refused with a `403`, and so is one in a request body unless the binding opts in to form bodies, below.
 
 The value is read on the host for every request, from a `[secrets]` reference of the same variable name or, failing that, from the host environment variable of that name as `machine start` saw it. A file reference is read fresh, so rotating the file needs no restart; a value from the environment needs one. A machine created through `smolvm serve` takes its values from `PUT /api/v1/machines/:name/credential-values`, and from v1.34.0 a running machine uses new ones at once. The CLI refuses to start or branch such a machine, because it holds no values to add. Each binding lists exact hosts or a wildcard such as `*.example.com`, which matches every subdomain but not `example.com` itself and needs a parent of at least two labels. When the machine also has `allow_hosts` every credential host must fall under it, a wildcard by its whole subtree, so widening the network never widens a credential. An OAuth refresh grant carries its token in the body: end the binding with `:body` and the placeholder is also substituted in an `application/x-www-form-urlencoded` body to the bound hosts. Branched machines inherit placeholders and keep working; each branch is resolved under its own name, so one branch can be cut off without touching the others.
+
+Every response from a credential host is scrubbed of the values its bindings carry, so a host that echoes a request back hands the guest the placeholder, not the value. To keep that check complete, requests to those hosts go out with `Accept-Encoding: identity` and without `Range`; a response compressed anyway with gzip or deflate is decoded for the check, and any other encoding is refused.
 
 Clients that honor `SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`, `GIT_SSL_CAINFO`, `NODE_EXTRA_CA_CERTS` or `DENO_CERT` work unmodified; the guest is given a bundle of the image's own roots plus a per-machine CA at `/run/smolvm/ca-bundle.pem`. Substitution covers HTTPS on port 443 and a credential selects the `virtio-net` backend on its own.
 

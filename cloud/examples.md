@@ -170,6 +170,7 @@ curl --fail-with-body -X POST \
   -d '{
     "name": "restricted",
     "source": {"type": "image", "reference": "alpine"},
+    "resources": {"cpus": 1, "memoryMb": 256},
     "network": {
       "mode": "allowCidrs",
       "hosts": ["example.com"],

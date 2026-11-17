@@ -78,7 +78,7 @@ If the job fails, inspect it before cleanup:
 smolvm machine status --name failed-job
 smolvm machine shell --name failed-job
 smolvm machine stop --name failed-job
-smolvm machine delete --name failed-job
+smolvm machine delete --name failed-job --force
 ```
 
 Stopping preserves disk state but loses RAM. To retain RAM and process state,

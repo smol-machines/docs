@@ -72,6 +72,8 @@ smolvm machine exec --name dev -- python3 --version
 
 Package installs, file writes, and configuration changes made through `machine exec` survive stop/start cycles. `machine stop` preserves disk state. `machine delete` removes the named machine.
 
+`machine delete` asks for confirmation first, and when there is no terminal to ask, as in a script or an agent's shell, it fails with `needs confirmation but stdin is not a terminal; pass --force to delete it`. Pass `--force` to skip the question, or `--cascade` to delete the machines branched from it as well.
+
 ## Core lifecycle commands
 
 | Goal | Command |
@@ -82,7 +84,7 @@ Package installs, file writes, and configuration changes made through `machine e
 | Execute a command | `smolvm machine exec --name NAME -- COMMAND` |
 | Open a persistent shell | `smolvm machine shell --name NAME` |
 | Stop without deleting state | `smolvm machine stop --name NAME` |
-| Delete a machine | `smolvm machine delete --name NAME` |
+| Delete a machine | `smolvm machine delete --name NAME --force` |
 | Check one machine | `smolvm machine status --name NAME` |
 | List machines | `smolvm machine ls` |
 | List machine names only | `smolvm machine ls --quiet` |
@@ -101,6 +103,30 @@ trailing or doubled hyphen.
 ```bash
 smolvm machine exec --stream --name dev -- python3 train.py
 ```
+
+`--timeout` on `machine exec` and `machine run` kills the command after a duration such as `30s`,
+`5m` or `1h`, reporting `command timed out after 30000ms`, and exits `124`:
+
+```bash
+smolvm machine exec --name dev --timeout 5m -- python3 train.py
+```
+
+`machine stop -t SECONDS` gives the workload that long to exit after its stop signal, for this stop
+only, instead of the machine's stop timeout; `-t 0` kills it at once.
+
+### Watch a machine's health
+
+`machine monitor` runs a health check against a machine and applies a restart policy, in the
+foreground until you stop it, starting the machine first when it is stopped:
+
+```bash
+smolvm machine monitor --name web --health-cmd 'wget -q -O /dev/null http://127.0.0.1:8080/' --restart on-failure
+```
+
+`--health-cmd` runs inside the machine through `sh -c`. `--interval` and `--health-timeout` default
+to the Smolfile's `[health]` values, else 5 seconds each, and `--health-retries`, the failures that
+trigger a restart, to the Smolfile's, else 3. `--restart` takes `never`, `always`, `on-failure` or
+`unless-stopped` and overrides the Smolfile's `[restart]` policy.
 
 ### List machines for a script
 
@@ -268,9 +294,9 @@ It is accepted on `machine run`, `machine create`, and `machine exec`. On
 falling back to the image's `USER` when the machine has none. Passing `--user`
 to `exec` overrides both for that command.
 
-The common reason to set it is a mounted host directory: the guest writes as
-whatever account the workload runs under, so matching the mount's owner keeps
-the files editable on the host afterwards.
+A mounted host directory does not need it. A non-root workload sees a mounted host directory as
+owned by itself and can write to it, and the files it creates belong to the host user, so they
+stay editable on the host.
 
 Init commands are the exception. They provision the machine, so they run as root
 regardless of `--user` or the image's `USER`.
@@ -335,6 +361,23 @@ can only re-authorize the checkpoint's own`, followed by the binding as it was c
 given no `--credential` is created, but `machine start` refuses it, because it would intercept
 HTTPS to the bound hosts without adding a value.
 
+A restore runs with the network its checkpoint was captured with, allow list included. On a
+checkpoint captured on `virtio-net` the egress policy can change, because the host enforces it:
+`--allow-cidr`, `--block-private` and the egress rules each replace their own part of the captured
+policy, and a part not named stays as captured. `--allow-host` replaces the captured hosts and the
+captured CIDRs together, because each host is resolved to addresses that become the new CIDR list;
+pass `--allow-cidr` again for any range to keep. A checkpoint that allowed only
+`example.org`, restored with `--allow-host example.com`, allows only `example.com`; restored with
+`--allow-cidr 1.1.1.1/32`, it allows `example.org` and that address; restored with
+`--block-private` alone, it keeps its allow list. Networking itself, the backend, the DNS resolver
+and options, a named network and the guest subnet stay as captured, and asking to change one is
+refused:
+
+```text
+networking cannot be set when restoring a live checkpoint: the guest resumes with the devices and resources it was captured with
+an egress policy cannot be set when restoring a live checkpoint: the checkpoint was captured on the TSI backend, which cannot enforce one
+```
+
 Adding `--store DIR` writes an incremental checkpoint instead of one file. `--output` is still
 what names the result, and with `--store` it becomes a self-contained directory on the same
 filesystem as `DIR`, sharing unchanged chunks with the generations it keeps so history costs only
@@ -354,6 +397,22 @@ RAM; `--restore-cache-entries` sets how many checkpoints stay ready, three by de
 accepted on `machine create`.
 
 See [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots) for what a checkpoint preserves and where it can be restored.
+
+### Change a running machine
+
+These change a machine while it runs, without a restart. Everything else is `machine update` on a stopped machine, from its next start.
+
+| Setting | CLI | `smolvm serve` API | On a running machine |
+|---|---|---|---|
+| Published TCP ports | `machine update -p`, `--remove-port` | `PUT /api/v1/machines/:name/ports` | At once; a UDP port needs a stop |
+| Egress allow list | `machine update --allow-host`, `--allow-host-pattern`, `--allow-cidr`, `--allow-udp`, `--outbound-localhost-only`, `--remove-allow-host`, `--remove-allow-cidr`, `--remove-allow-udp` and `--reset-allow-list` | `POST /api/v1/machines/:name/egress` | At once on a machine started with an allow list; lifting the list, or adding one to a machine running without one, needs a stop |
+| Host directory mounts | `machine mount add`, `machine mount rm` | `/api/v1/machines/:name/mounts` | At once, until the machine stops |
+| CPUs, memory, disks | `machine resize` | `POST /api/v1/machines/:name/resize` | At once; memory and disks only grow |
+| Host CPU cap | None | `PUT /api/v1/machines/:name/cpu-limit` | At once, on Linux with a cgroup smolvm controls |
+| Credential values | None | `PUT /api/v1/machines/:name/credential-values` | At once |
+| Labels | `machine update --label`, `--remove-label` | None | Any state |
+
+Any other `machine update` setting, such as `--cpus`, is refused on a running machine with `invalid vm state: expected stopped, got Running`.
 
 ### Resize a running machine
 
@@ -382,6 +441,11 @@ and it says so rather than guessing: on a running machine the command fails with
 expected stopped, got Running`. Labels, the allow list and published TCP ports are the exceptions,
 when an update changes only them, and a host directory can be mounted into a running machine with `machine mount add`, below.
 
+On a stopped machine it also takes `--remove-env KEY`, `--remove-volume HOST:GUEST`, `--no-gpu`,
+`--no-rosetta` and `--no-egress-interceptor` to take a setting back out, and `--storage` and
+`--overlay` to grow the disks of a machine that has started at least once; on one that never
+started they fail with `open disk: No such file or directory`.
+
 It also edits the egress policy, which is otherwise fixed at create time. `--allow-host`,
 `--allow-host-pattern`, `--allow-cidr`, `--allow-udp` and `--outbound-localhost-only` add to the
 policy, and `--remove-allow-host`, `--remove-allow-cidr` and `--remove-allow-udp` take entries back out; `--net` and `--no-net` turn
@@ -395,12 +459,16 @@ smolvm machine update --name dev --allow-host example.com
 smolvm machine start --name dev
 ```
 
-On a running machine that was started with an allow list, an update that only adds or removes
-allowed hosts and CIDRs applies at once, from the machine's next connection or DNS lookup, and the
-command reports `running; applies now`. A change that would lift the list, or give one to a running
+On a running machine that was started with an allow list, an update that only changes the list and
+keeps one in force applies at once, from the machine's next connection or DNS lookup, and the
+command reports `running; applies now`. A machine left with no allowed host keeps reaching the
+addresses it already looked up until their DNS TTL expires; while a host stays on the list, a
+removed name's addresses are refused at once. That covers hosts, patterns, CIDRs, UDP allows,
+`--outbound-localhost-only` and `--reset-allow-list` with the entries to keep. A change that would lift the list, or give one to a running
 machine that has none, is refused until the machine is stopped. Removing a host leaves allowed the
 addresses `machine create` resolved it to; take those out with `--remove-allow-cidr`, or replace
-the whole list with `--reset-allow-list` and the entries to keep, which leaves exactly those. `machine
+the whole list with `--reset-allow-list` and the entries to keep, which leaves exactly those,
+within the DNS TTL caveat above. `machine
 status --json` and `machine ls --json` show the list as `allowed_hosts` and `allowed_cidrs`.
 
 Published TCP ports change the same way: on any running machine, including one on the default
@@ -452,6 +520,12 @@ smolvm machine run --net \
 The bucket is mounted by the machine's agent from inside the guest, so the image needs no S3 or FUSE tooling. Credentials are read from the machine's environment, and `AWS_ENDPOINT_URL` points at an S3-compatible service such as R2 or MinIO. A bucket with no credentials is read anonymously.
 
 Remote volumes need egress to reach the bucket, so an ephemeral run without `--net` is rejected rather than started. `machine run` and `machine create` accept an `s3://` source; `machine update` and `pack run` do not.
+
+A bucket mount is not a full POSIX filesystem:
+
+- Symlinks are not supported, and changes to ownership, permissions, executable bits and timestamps are not kept, so a copied Git repository can lose information even when every file's contents match.
+- A rename is a server-side copy followed by a delete of the source. It is not atomic, and when the delete fails both names can exist.
+- Writes are staged in the machine until a flush or `fsync` uploads them; writes lost with the machine before that are gone.
 
 ### Run a hypervisor inside the machine
 
@@ -575,7 +649,8 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--auto-ports-exclude` | A guest port auto ports never publish; repeatable, and implies `--auto-ports` |
 | `--user`, `-u` | Run the workload as a name or `uid[:gid]` |
 | `--max-image-size` | On `machine run` and `machine create`: the largest local image archive accepted, such as `16GiB`, `512M` or a byte count; 8 GiB by default. A larger archive is refused with its size, and `SMOLVM_MAX_IMAGE_BYTES` sets the same limit |
-| `--oci-platform` | On `machine run` and `pack create`: the platform to pull from a multi-platform image, such as `linux/amd64`; a platform the image does not have is refused |
+| `--oci-platform` | On `machine run`, `machine create` and `pack create`: the platform to pull from a multi-platform image, such as `linux/amd64`; a platform the image does not have is refused |
+| `--allow-system-mounts` | On `machine run`, `machine create`, `machine update` and `pack run`: allow read-only host `/etc` and `/var/log` mounts below `/host`, which are refused otherwise. It exposes sensitive host data to the guest, so never use it for untrusted workloads |
 | `--disk` | Attach a host disk image or block device as `/dev/vdc`, `/dev/vdd` and so on, in order; `:ro` makes it read-only. smolvm never formats or mounts it, and a missing path is refused |
 | `--workdir`, `-w` | The workload's working directory; also on `machine update` |
 | `--interactive`, `-i` | Keep stdin open |
@@ -585,7 +660,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--disk-durability` | `full` (the default): a guest `fsync` waits for the host's disk. `deferred`: guest writes reach it on the host's schedule, much faster for fsync-heavy work such as database commits, but a host crash can lose recent writes. Also on `machine update`, for the next start |
 | `--stop-signal` | On `machine create`: the signal the workload gets when the machine stops, so it can save its state and exit; a name such as `SIGINT` or a number, `SIGTERM` by default |
 | `--stop-timeout` | On `machine create`: seconds the workload gets to exit after that signal before it is killed, 10 by default and at most 300 |
-| `--stop-on-exit` | Stop the machine once its workload exits, whatever the status, flushing storage first |
+| `--stop-on-exit` | On `machine create`: stop the machine once its workload exits, whatever the status, flushing storage first |
 | `--seed-digest-ttl` | Reuse an image digest resolved at most this many seconds ago when seeding |
 | `--guest-subnet` | IPv4 subnet for the guest link, such as `10.200.0.0/30` |
 | `--net-backend` | Networking implementation, `tsi` (default) or `virtio-net` |
@@ -651,5 +726,20 @@ Choose `virtio-net` when the workload inspects its own interfaces, needs ICMP, o
 that expects a routable address — a VPN client, a container runtime, or a network test suite.
 Otherwise the default is the one to keep: it needs no interface configuration in the guest and
 carries the traffic most workloads actually make.
+
+### Connection limits
+
+Each guest TCP connection or UDP flow holds one socket in the machine's host process, on both
+backends, so the host's per-process open-file limit caps how many a guest can have open at once.
+smolvm raises the soft limit to the hard limit when a machine starts. macOS caps a process at
+`kern.maxfilesperproc` files, which only root can raise, so a machine on a Mac with 8 GB, where
+`kern.maxfilesperproc` is 10240, holds about 9,900 connections at once;
+`sysctl kern.maxfilesperproc` gives the host's limit. Past the limit a connect fails in the guest with `EMFILE` on `tsi`, and on
+`virtio-net` the connection is reset and the machine log names the limit. `virtio-net` also caps a
+machine at 65,536 open TCP connections, which `SMOLVM_TCP_RELAY_CAPACITY` changes.
+
+Outbound connections leave from the host's own local ports, which every machine on the host shares,
+and a closed connection keeps its port for the TCP TIME-WAIT. A guest that opens and closes
+connections faster than the host can recycle ports sees `EADDRNOTAVAIL`.
 
 Run `smolvm machine COMMAND --help` against your installed version for the complete flag set.

@@ -50,6 +50,7 @@ These fields describe the machine and its workload. All are optional.
 | `disk_durability` | string | `"full"` makes a guest `fsync` wait for the host disk; `"deferred"` lets writes reach it on the host's schedule, and a host crash can lose recent writes. Default: `"full"`. |
 | `stop_signal` | string | Signal the workload gets when the machine stops, as a name such as `"SIGINT"` or a number. Default: `"SIGTERM"`. |
 | `stop_timeout` | integer | Seconds the workload gets to exit after its stop signal before it is killed. Default: `10`. |
+| `stop_on_exit` | boolean | Stop the machine once its workload exits. Default: `false`. |
 | `net` | boolean | Enable outbound networking. Networking is off by default. |
 | `gpu` | boolean | Enable Vulkan GPU acceleration through virtio-gpu. |
 | `gpu_vram` | integer | GPU shared-memory size in MiB. Ignored unless `gpu = true`. |
@@ -85,9 +86,8 @@ machine built elsewhere.
 ### Choosing the workload user
 
 `user` sets the account the workload runs as, in the same form `docker run --user`
-takes. The usual reason to set it is a mounted host directory: an image built for
-`root` writes files the host user then cannot edit, and naming the mount's owner
-here avoids that.
+takes. A mounted host directory does not need it: a non-root workload sees the directory as its
+own, and the files it creates belong to the host user.
 
 ```toml
 image = "python:3.12-alpine"
@@ -260,9 +260,9 @@ Development mounts and development initialization belong in `[dev]`; they are no
 | Field | Type | Description |
 | --- | --- | --- |
 | `exec` | string array | Command to execute. |
-| `interval` | string | Time between checks, such as `"10s"`. |
-| `timeout` | string | Maximum duration of one check. |
-| `retries` | integer | Consecutive failures before the machine is unhealthy. |
+| `interval` | string | Time between checks, such as `"10s"`. `machine monitor` uses 5 seconds when it is unset. |
+| `timeout` | string | Maximum duration of one check; 5 seconds when unset. |
+| `retries` | integer | Consecutive failures before the machine is unhealthy; 3 when unset. |
 | `startup_grace` | string | Delay before the first check. |
 
 ```toml

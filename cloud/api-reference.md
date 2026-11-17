@@ -102,6 +102,20 @@ stops running, and an output read until there is output past `offset` or the job
 30 seconds (a larger value is treated as 30). Past 4 waits at once per machine, 64 per account or 128
 per node, a read can answer a retryable `429`.
 
+A resumable exec is owned by the machine's node rather than by the connection that started it, so a dropped connection or a control plane restart does not end it. It suits long commands an agent runs and reads back:
+
+```text
+POST   /v1/machines/{id}/execs
+GET    /v1/machines/{id}/execs
+GET    /v1/machines/{id}/execs/{execId}?after=<next>&wait=<seconds>
+POST   /v1/machines/{id}/execs/{execId}/stdin
+POST   /v1/machines/{id}/execs/{execId}/resize
+GET    /v1/machines/{id}/execs/{execId}/attach   (WebSocket upgrade)
+DELETE /v1/machines/{id}/execs/{execId}
+```
+
+`POST` takes `command` and optionally `execId`, `cwd`, `env`, `user`, `stdin`, `timeoutSeconds` (600 by default, none for an `interactive` or `tty` exec), `interactive`, `tty` and `waitSeconds`. Choose `execId` (8 to 64 of `A-Z`, `a-z`, `0-9`, `_` and `-`) before the first try: a retry with the same id answers `200` with the exec the first try started, never running the command twice. With `waitSeconds`, at most 25, the answer carries the first output, so a short command takes one request. Read the rest with `?after=` set to the last answer's `next` until `done`, which carries `exitCode`, then `DELETE` it. A read answering `503` means the control plane is restarting: read again. A machine whose node has no resumable execs answers `501`; use `exec`. They need the `machine:exec` scope.
+
 ### Interactive terminal
 
 The console's terminal is a WebSocket you can open yourself, to give your own product a real shell in a machine: full-screen programs, colors, prompts, and resizing all work.
@@ -188,7 +202,17 @@ For command output without a terminal, such as an agent running a build, `POST /
 
 ### Files
 
-The API supports file upload and download for a machine. Use the current OpenAPI or API Explorer for the path shape and request encoding.
+`PUT /v1/machines/{id}/files/{path}` uploads the request body as a file, and `GET` on the same path downloads one. `{path}` is the absolute guest path without its leading slash, so `/workspace/data.csv` is `files/workspace/data.csv`. Both need the `machine:files` scope:
+
+```bash
+curl --fail-with-body -X PUT --data-binary @data.csv \
+  "$SMOL_CLOUD_URL/v1/machines/$MACHINE_ID/files/workspace/data.csv?mode=0644" \
+  -H "Authorization: Bearer $SMOL_CLOUD_TOKEN"
+curl --fail -o data.csv "$SMOL_CLOUD_URL/v1/machines/$MACHINE_ID/files/workspace/data.csv" \
+  -H "Authorization: Bearer $SMOL_CLOUD_TOKEN"
+```
+
+An upload answers `204` and creates the parent directories. Any path in the machine's filesystem can be written, `/etc` included; the file gets mode `0644` and belongs to the user the image's workload runs as, unless `mode`, `uid` or `gid` in the query say otherwise. `/proc`, `/sys` and `/dev` are refused with `422`, and so are `/etc/resolv.conf` and `/etc/smolvm-host-trust`, which the node manages.
 
 Request bodies are capped: 1 MiB on the JSON API, 1 GiB on a file upload to `/v1/machines/{id}/files/...` that declares its `Content-Length` and 100 MiB on one that does not (100 MiB either way on a node whose engine is older than smolvm 1.31.0), and 10 MiB per request through the connect route. A larger body is refused.
 
@@ -202,16 +226,92 @@ The Cloud API also provides endpoints for:
 - Machine events and logs
 - Per-machine usage and cached images
 - Sharing a machine through scoped share links
-- Branching a branchable machine
+- Branching a branchable machine, `POST /v1/machines/{id}/branches`, below
 - Exporting a machine to a `.smolmachine` artifact
-- Resizing a running machine's vCPUs, memory or disk in place, `POST /v1/machines/{id}/resize`
+- Resizing a machine's vCPUs, memory or disk, `POST /v1/machines/{id}/resize` with any of `cpus`, `memoryMb` and `diskGb`: in place on a started machine, and at the next start or resume on a stopped or paused one. Memory and disk only grow; any other state answers `409`
+- Resetting the idle clock without running anything, `POST /v1/machines/{id}/keepalive`
+- Changing labels in any state, `PATCH /v1/machines/{id}/labels`, and finding machines by them with `GET /v1/machines?label=key=value`
 - Minting a short-lived token that opens only one machine's connect bridge, `POST /v1/machines/{id}/connect-token`
-- Replacing a machine's published ports, live while it runs, `PUT /v1/machines/{id}/ports`
+- Replacing a machine's published ports, live while it runs, `PUT /v1/machines/{id}/ports` with `{"ports": [{"port": 8080}]}`
+- Replacing a machine's outbound network policy, `PUT /v1/machines/{id}/network` with the create's `network` object: live from one allow list to another on a started machine, otherwise at the next start
+- Replacing a machine's credential bindings before its first start, `PUT /v1/machines/{id}/credentials`
+- Opening a machine's published app to anyone without a login, and closing it again, `POST` and `DELETE /v1/machines/{id}/public`
 - Getting or revoking login-free port links, one URL per published port, `POST` and `DELETE /v1/machines/{id}/port-links`
 - Listing every checkpoint the account owns, `GET /v1/checkpoints`, and uploading a `.smolcheckpoint` file captured outside the cloud with `POST /v1/checkpoints` and then `POST /v1/checkpoints/{id}/complete`
 - Rolling a machine back in place to its newest or a named checkpoint, keeping its id and name, `POST /v1/machines/{id}/rollback`
 
-Use the OpenAPI document or Explorer to inspect the exact routes, request bodies, and feature availability for your account.
+[Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) puts every setting that changes on an existing machine in one table, with what applies at once and what waits for a restart.
+
+### Groups
+
+A group runs one image as several identical machines behind one name and rolls new versions out across them:
+
+```text
+GET    /v1/groups
+POST   /v1/groups
+GET    /v1/groups/{name}
+DELETE /v1/groups/{name}
+POST   /v1/groups/{name}/scale
+POST   /v1/groups/{name}/redeploy
+POST   /v1/groups/{name}/promote
+GET    /v1/groups/{name}/logs
+```
+
+`POST /v1/groups` deploys `image` under `name`, or rolls out a new deployment when the name exists:
+
+```json
+{
+  "name": "web",
+  "image": "nginx",
+  "port": 80,
+  "cpus": 1,
+  "memoryMb": 512,
+  "health": {"type": "http", "path": "/", "port": 80},
+  "strategy": {"type": "rolling", "batchSize": 1, "useHealthCheck": true}
+}
+```
+
+`port` is 8080, `cpus` 1 and `memoryMb` 512 when left out. The body also takes `env` as a list of `{"key", "value"}` pairs, `network` (a boolean), `domain`, `coLocateWith`, `stopGraceSecs` (10 by default) and `publicIngress`, which opens the group's port without a login and is `false` by default. `health` checks each instance by `http`, `tcp` or `exec`, every `intervalSecs` (10) with `timeoutSecs` (2) and `retries` (3). `strategy` is one of:
+
+- `rolling`, the default: replaces `batchSize` instances at a time (1), waiting `waitSeconds` (5) between batches, or for the health check with `useHealthCheck`.
+- `canary`: starts `canaryCount` new instances first and replaces the rest once they are healthy. With `autoPromote` false, `POST .../promote` does that step.
+- `blueGreen`: starts a complete new set, switches traffic to it at once, then removes the old one.
+
+`scale` takes `{"count": N}`, `redeploy` pulls the image again and rolls the instances, `logs` returns, as plain text, the last 200 lines of `/var/log/messages` (or `dmesg`) from one running instance, and `DELETE` stops and removes every instance. Deploy, scale, redeploy, promote and delete need the `group:write` scope, which an API key can carry; the reads need only a valid key.
+
+### Managed agents
+
+A managed agent is a coding agent that smol cloud runs in a machine of its own. You send it turns, read what it did, and rewind or branch it to the state after any turn:
+
+```text
+GET    /v1/agents
+POST   /v1/agents
+GET    /v1/agents/{name}
+DELETE /v1/agents/{name}
+POST   /v1/agents/{name}/turns
+GET    /v1/agents/{name}/turns/{turn}/events
+POST   /v1/agents/{name}/turns/{turn}/cancel
+POST   /v1/agents/{name}/rewind
+POST   /v1/agents/{name}/branch
+POST   /v1/agents/{name}/pause
+POST   /v1/agents/{name}/resume
+```
+
+`POST /v1/agents` (`machine:create`) answers `202` and sets the machine and harness up in the background: `status` reads `starting`, then `ready` or `failed`. The body takes `name` and optionally:
+
+| Field | Meaning |
+|---|---|
+| `harness` | `claude-code` (the default), `codex`, `opencode` or `command` |
+| `model` | Optional for `codex`; required as `provider/model` for `opencode` |
+| `image`, `program` | For the `command` harness: the image (`alpine:3.20` by default) and the program, which gets the prompt appended |
+| `credential` | A stored credential holding the model API key, so the machine never holds it. Its variable must be the one the harness reads, such as `ANTHROPIC_API_KEY`, and its hosts must include the provider's |
+| `allowHosts`, `openNetwork` | Hosts the agent may reach beyond its model provider and package registry, or `true` for unrestricted outbound access. The `command` harness needs one of them, or the create answers `422` |
+| `checkpoints` | Checkpoint after every turn so the agent can be rewound or branched; `true` by default |
+| `cpus`, `memoryMb`, `arch` | 2 vCPUs and 2048 MiB by default; an agent with checkpoints runs on `amd64` unless `arch` says otherwise |
+
+`POST .../turns` (`machine:exec`) takes `prompt`, and optionally `env` for this turn's process and `timeoutSeconds`, 1800 by default; it answers `202` with the turn number, and the turn runs whether or not a client stays connected. An `Idempotency-Key` header makes a retry safe. Values in `env` reach the machine and any checkpoint taken during or after the turn, so pass a model key through `credential` instead. `GET .../turns/{turn}/events` streams the turn's events as server-sent events, then `done`; `?after=` replays only the events numbered above it. A second turn while one runs answers `409`.
+
+`rewind` takes `{"turn": N}` and restores the agent to the state right after that turn; `branch` takes `{"turn": N, "name": "..."}` and starts a new agent from it (`fork` is the same route under its older name). `pause` checkpoints and stops the agent's machine, and the next turn or `resume` starts it again. `DELETE` removes the agent, its machine and the checkpoints no other agent shares. Reads need `machine:read`, `DELETE` needs `machine:delete`, `turns` needs `machine:exec`, `cancel` needs both `machine:create` and `machine:exec`, and the rest `machine:create`.
 
 ### Usage and account
 
@@ -233,6 +333,20 @@ Metering semantics to build billing on:
 When the prepaid balance runs out, running work continues for 48 hours, with an email at the start and before the end. Then running machines are stopped, and requests that start or create work are refused with `402` (`payment_required`, detail "balance exhausted"). Reads, stop and delete still work. A plan with a monthly budget, or the egress budget, refuses the same way when reached. `PATCH /v1/account` from a signed-in session, with `lowBalanceThresholdMicros`, sets the low-balance email (`0` turns it off), and auto-recharge, set from [billing](/console/billing), charges the card on file a chosen amount when the balance falls to a threshold.
 
 The [cloud-usage](/docs/guides/skills/cloud-usage) skill packet reads these totals and reconciles one machine's bill against its uptime and the published rate.
+
+### Metrics export
+
+smol cloud can push every running machine's metrics to an OpenTelemetry collector you name, as OTLP over HTTP with JSON encoding, every 30 seconds. `PUT /v1/account/telemetry` sets the destination:
+
+```json
+{"otlpEndpoint": "https://otlp.example.com", "headers": {"Authorization": "Bearer <collector token>"}}
+```
+
+Exports go to `<otlpEndpoint>/v1/metrics` with those headers, at most 16. Header values are stored sealed and never returned. The endpoint must be an `http://` or `https://` URL with no query, and one that names a loopback, link-local, private, carrier-grade NAT or cloud metadata address is refused with `400`.
+
+Setting or removing the destination needs the `billing:write` scope, which no API key can carry, and the console has no control for it yet, so today only a signed-in session can set it. It is refused from inside a sub-organization, whose provider sets it. `GET /v1/account/telemetry` (`machine:read` or `usage:read`) shows the endpoint, the header names, the interval, when the collector last accepted an export and, after a failure, why the last one failed; it answers `404` when no destination is set. `DELETE` stops the exports.
+
+Each running machine is one OTLP resource with `service.name` `smol-machine`, `service.namespace` and `smol.account` set to the account, `service.instance.id`, and its id, name, node, the machine it was branched from and each of its labels as `smol.machine.label.<key>`. Its metrics, under the scope `smolmachines.cloud`, are CPU time and CPU limit, host memory (`smol.machine.memory.pss` and `.rss`), disk used and disk size, bytes sent out, open connections, and the guest's CPU, memory and IO pressure stalls. A reading a node does not report is left out rather than sent as zero, and an account with no running machine still gets an empty export each interval. Each node that hosts one of the account's machines is a resource of its own, `service.name` `smol-node`, carrying the host's CPU pressure as `smol.node.cpu.pressure`.
 
 ### API keys
 
@@ -333,8 +447,18 @@ Every response includes `x-request-id`. A safe client-provided ID is echoed; oth
 
 ## Checkpoints and branches
 
-Checkpoints capture any running machine, guest RAM and processes included, into durable storage: `POST /v1/machines/{id}/checkpoints` captures one, `GET /v1/machines/{id}/checkpoints` lists them, `POST /v1/checkpoints/{id}/restore` creates a stopped machine from one, with networking blocked unless the request names a `network` (start it to resume it), and `DELETE /v1/checkpoints/{id}` (`machine:delete`) deletes one, answering `409` while a machine still references it. A checkpoint whose contents do not match its checksum is refused with `422` ("the checkpoint is corrupt"), which a retry cannot help, so capture or upload it again. Starting a restored machine checks this, and so does `POST /v1/checkpoints/{id}/complete` for an upload of up to 32 MiB. See [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) for the lifecycle and the CLI equivalents.
+Checkpoints capture any running machine, guest RAM and processes included, into durable storage: `POST /v1/machines/{id}/checkpoints` captures one, `GET /v1/machines/{id}/checkpoints` lists them, `POST /v1/checkpoints/{id}/restore` creates a stopped machine from one, which runs with the network its checkpoint was captured with (start it to resume it); the body takes `name` and optionally `labels`, `env`, `autoStopSeconds`, `idleAction` and `ports`, as [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) describes, and `DELETE /v1/checkpoints/{id}` (`machine:delete`) deletes one, answering `409` while a machine still references it. A checkpoint whose contents do not match its checksum is refused with `422` ("the checkpoint is corrupt"), which a retry cannot help, so capture or upload it again. Starting a restored machine checks this, and so does `POST /v1/checkpoints/{id}/complete` for an upload of up to 32 MiB. See [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) for the lifecycle and the CLI equivalents.
+
+A machine is branchable when it is created with `"branchable": true` or started with `POST /v1/machines/{id}/start?branchable=true`. `POST /v1/machines/{id}/branches` (`machine:create`) creates a running copy-on-write child of it:
+
+```bash
+curl --fail-with-body -X POST "$SMOL_CLOUD_URL/v1/machines/$MACHINE_ID/branches" \
+  -H "Authorization: Bearer $SMOL_CLOUD_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name": "try-1"}'
+```
+
+The body takes `name` and optionally `ports` (the source's guest ports when empty), `branchable` to let the child branch again, `freezeSource`, `keepMachineId` to keep the source's `/etc/machine-id` in the child, `labels` (the source's when left out), `expectedBusyCpus`, and `waitForCapacitySeconds`, at most 300, to keep retrying a branch refused for capacity. `POST /v1/machines/{id}/branches/batch` takes `count` or `names`, at most 64 children, with the same options; it is all or nothing, and a refusal for capacity may carry `childrenFit`.
 
 Branch routes are specialized cloud operations. They do not move a running local VM into cloud or provide a portable cross-architecture restore format. `POST /v1/machines/{id}/snapshot` is not implemented and returns `501`; use a checkpoint to capture a running machine, or export a stopped machine's disk to a `.smolmachine` artifact (`POST /v1/machines/{id}/export`, or `smol cloud export`).
 
-`GET /v1/capacity` (`machine:read`) sizes a fan-out before it starts: it returns how many machines you have and how many are started, the memory configured across started machines, and, for each running branchable machine, its memory and its node's branch headroom (`nodeHeadroomMib`). A branch its source's node cannot hold is refused with a retryable `503` `insufficient_capacity`, whose body carries `node.requiredMib`, `node.headroomMib` and `retryAfterSeconds`.
+`GET /v1/capacity` (`machine:read`) sizes a fan-out before it starts: it returns how many machines you have and how many are started, the memory configured across started machines, and, for each running branchable machine, its memory and, when its node reports it, the node's branch headroom (`nodeHeadroomMib`). A branch its source's node cannot hold is refused with a retryable `503` `insufficient_capacity`, whose body carries `node.requiredMib`, `node.headroomMib` and `retryAfterSeconds`.

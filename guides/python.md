@@ -35,7 +35,7 @@ smolvm machine stop --name py-dev
 Installed packages and filesystem changes survive stop and start. Delete the machine when you no longer need it:
 
 ```bash
-smolvm machine delete --name py-dev
+smolvm machine delete --name py-dev --force
 ```
 
 ## Run Python from the SDK

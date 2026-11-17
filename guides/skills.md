@@ -34,7 +34,7 @@ Find the task, then read the one page it names. Each packet was run end to end a
 | Pull or push an artifact and run a machine from it | [cloud-registry](/docs/guides/skills/cloud-registry) | Creating the artifact from a machine; removing a pushed artifact | smol v1.32.4 and API 0.1.0, macOS arm64 client, all but the push, which last ran on smol v1.14.3 |
 | Handle the API's failures, including the ones that return 200 | [cloud-errors](/docs/guides/skills/cloud-errors) | A normal machine lifecycle; billing suspension or rate limiting | smol v1.32.4 and API 0.1.0, macOS arm64 client |
 | Find out what a run cost | [cloud-usage](/docs/guides/skills/cloud-usage) | Tenant usage over an arbitrary window; a leak check | API 0.1.0, macOS arm64 client |
-| Scope a machine's egress, or publish a port | Not yet available, see [below](#what-has-no-packet-yet-and-why) | | |
+| Scope a machine's egress, or publish a port | No packet yet: the routes are in [Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) | | |
 
 ### Driving machines from code
 
@@ -61,7 +61,7 @@ A packet is written only when the procedure behind it can be run end to end and 
 
 | Task | Why there is no packet |
 |---|---|
-| Scoping egress, publishing ports | The behaviour a packet would have to route around is not resolved, so a packet would teach a workaround with no end date. Until then, prefer an explicit allow list over a blanket deny, and read `cloud-machine`'s notes on published ports |
+| Scoping egress, publishing ports | No packet has run them end to end yet. Both change on an existing machine, through `PUT /v1/machines/{id}/network` and `PUT /v1/machines/{id}/ports`, as [Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) shows |
 | Cloud volumes | The feature is not built. A create request carrying `mounts` is accepted and produces a machine silently missing its storage |
 | Empty folder to a deployed tool in three commands | The first two steps run locally, but the third, `smol cloud deploy` with no argument, stops with `a reference is required` |
 | Headless browsing on cloud | A browser in a cloud machine renders nothing, and the cause is narrowed rather than found |

@@ -134,4 +134,4 @@ DELETE /v1/registry/credentials/{registry}
 
 `docker.io` covers references with no host. The password is sent to the node for each start only and is never returned; the list shows the username. Without a credential the pull fails inside the guest with `401`.
 
-This artifact workflow does not move a running local VM into cloud; `smol machine move` does, as [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) describes.
+This artifact workflow does not move a running local VM into cloud; `smol machine move` does, within the limits [Move a local machine to the cloud](/docs/cloud/lifecycle-storage-networking#move-a-local-machine-to-the-cloud) lists.
