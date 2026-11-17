@@ -313,7 +313,15 @@ smol cloud checkpoint rm CHECKPOINT_ID
 
 To return the same machine to a checkpoint instead, `POST /v1/machines/{id}/rollback` replaces its running state with its newest checkpoint, or the one `checkpointId` names, and starts it again. It keeps the machine's id, name, network policy and credentials, discards the work done since, and is refused while the machine has live branches.
 
-`smol machine move --name NAME` moves a running local machine to the cloud, processes and all: it pauses the machine, uploads the saved execution as a checkpoint and resumes it as a cloud machine. Commands that name the machine then reach the cloud copy, and the paused one stays here as `local/NAME` until `smol machine resume` runs it again or `smol machine rm` removes it. `--keep-local` leaves the local machine running and sends a copy as of now, `--as` names the cloud machine, and `--net` or `--no-net` overrides the networking it had. When the upload fails, the local machine stays paused with its execution saved.
+### Move a local machine to the cloud
+
+`smol machine move --name NAME` moves a running local machine to the cloud, processes and all: it pauses the machine, uploads the saved execution as a checkpoint and resumes it as a cloud machine. Commands that name the machine then reach the cloud copy, and the paused one stays here as `local/NAME` until `smol machine resume` runs it again or `smol machine rm` removes it. `--keep-local` leaves the local machine running and sends a copy as of now, and `--as` names the cloud machine. The cloud copy keeps the networking the local machine had; it never gets an allow list it did not have. When a move without `--keep-local` fails, the local machine stays paused with its execution saved, and `smol machine resume --name NAME` continues it here.
+
+With `smol` 1.35, a move has these limits:
+
+- It moves a machine created with `--net` and no allow list. A machine created without networking, or with `--allow-host` or `--allow-cidr`, is refused with `source reference must name a registry image, not a path or local source on the node`.
+- When the machine publishes a port, the move waits for that port to accept connections in the cloud copy. If nothing listens within 10 minutes, it deletes the cloud copy; without `--keep-local` the local machine stays paused. Start the service before you move, or move a machine without published ports.
+- A move from a Linux host can be refused when the cloud node lacks a CPU feature the local guest was given, such as `FEAT_RPRES`.
 
 Branching creates a copy-on-write child from a running branchable cloud machine. It does not provide local-to-cloud live migration.
 

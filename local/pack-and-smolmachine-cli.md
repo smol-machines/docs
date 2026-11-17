@@ -164,7 +164,7 @@ A `.smolmachine` is a disk artifact. It packages the prepared filesystem and sto
 - A live migration stream
 - A way to move an active VM between hosts without stopping it
 
-For a local-to-cloud move, stop and pack the machine, then use an artifact deployment path supported by the destination. Live migration of a running local machine is not part of this workflow; `smol machine move` moves one to the cloud with its processes.
+To move a running local machine to the cloud with its processes, use [`smol machine move`](/docs/cloud/lifecycle-storage-networking#move-a-local-machine-to-the-cloud), which lists the machines it can move. This artifact workflow moves only a stopped machine's disks: stop and pack the machine, then use an artifact deployment path supported by the destination.
 
 ## Registry
 

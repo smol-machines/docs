@@ -59,7 +59,7 @@ smol machine exec --name dev -- uname -a
 smol machine rm --name dev --yes
 ```
 
-`smol machine move --name NAME` moves a running local machine to smol cloud, processes and memory included; see [Cloud Lifecycle, Storage, and Networking](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints).
+`smol machine move --name NAME` moves a running local machine to smol cloud, processes and memory included. It does not move every machine yet; [Move a local machine to the cloud](/docs/cloud/lifecycle-storage-networking#move-a-local-machine-to-the-cloud) lists which.
 
 ### `smol file up`
 
