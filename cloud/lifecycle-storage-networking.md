@@ -204,7 +204,8 @@ curl --fail-with-body -X PUT "$SMOL_CLOUD_URL/v1/machines/$MACHINE_ID/network" \
 
 It answers `200` with the machine. What it accepts depends on the machine's state:
 
-- On a started machine, an allow list replaces another allow list at once, without a restart, from the machine's next connection or DNS lookup; a new list of only CIDRs leaves names the machine already looked up reachable until their DNS TTL expires. Lifting the allow list (`open`), or adding one to a machine running with `open`, answers `409` until the machine is stopped.
+- On a started machine, an allow list replaces another allow list at once, without a restart, from the machine's next connection or DNS lookup, and a host taken off the list is refused at once. Lifting the allow list (`open`), or adding one to a machine running with `open`, answers `409` until the machine is stopped.
+- On a started machine given a new list that names no host, only CIDRs, the addresses it already looked up stay reachable until their DNS TTL runs out, at most an hour.
 - On a stopped machine, any change applies at its next start, except turning networking off. `blocked` on a machine that has run answers `422`; restrict it with `allowCidrs`, or create a new machine with `blocked`.
 - On a machine created with `POST /v1/machines` that has never started, any policy is recorded for its first start, `blocked` included. A machine restored from a checkpoint runs with the network its checkpoint was captured with.
 
