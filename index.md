@@ -60,6 +60,7 @@ The SDK is a control surface, not a prerequisite. Installing `smolvm` is enough 
 
 | Task | Where |
 |---|---|
+| Run GitHub Actions jobs on smol machines | [smol ci](/docs/cloud/ci) |
 | Change a running cloud machine's ports, network, size or labels | [Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) |
 | Change a running local machine's ports, allow list, mounts or size | [Change a running machine](/docs/local/machine-lifecycle-cli-reference#change-a-running-machine) |
 | Move a running local machine to smol cloud | [Move a local machine to the cloud](/docs/cloud/lifecycle-storage-networking#move-a-local-machine-to-the-cloud) |
