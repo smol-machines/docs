@@ -191,6 +191,8 @@ Allow only selected hosts and CIDR ranges:
 
 An allow list must include every package host, API, and redirect target the workload needs at runtime. The image's own registry is folded in for the pull; see [Cloud Examples](/docs/cloud/examples). Prefer `blocked` or `allowCidrs` for untrusted workloads.
 
+To change the policy of a machine that already exists, see [Change an existing machine's network](#change-an-existing-machine-s-network).
+
 ### Change the network of an existing machine
 
 `PUT /v1/machines/{id}/network` replaces a machine's policy, with the same `network` object a create takes as its whole body:
@@ -274,6 +276,42 @@ A client that cannot send an API key, such as a sandbox framework that calls its
 To serve a machine or group on a domain you own, claim it with `POST /v1/custom-domains`, giving `domain`, `targetKind` (`machine` or `group`) and `targetId`, or from [Domains](/console/domains) in the console. The response lists the DNS records to create: a TXT record at `_smolmachines-challenge.<domain>` holding a token, and a CNAME target for a subdomain (an apex domain gets an A record target where one is offered). Then call `POST /v1/custom-domains/{domain}/verify`; the first account to pass the TXT check owns the name, and other claims on it are dropped. `DELETE /v1/custom-domains/{domain}` removes it.
 
 Traffic on a verified domain is public, with no smol cloud login. An account holds at most 10 unverified claims and sends at most 30 claims an hour, and an unverified claim lapses after 7 days.
+
+## Change an existing machine's network
+
+Egress, published ports and public access all change on a machine that already exists. There is no need to create a new one.
+
+| Change | API | SDK (Node / Python / Go) | MCP tool |
+|---|---|---|---|
+| What the machine may reach outbound | `PUT /v1/machines/{id}/network` | `setNetworkPolicy(policy)` / `set_network_policy(policy)` / `SetNetworkPolicy(ctx, policy)` | `smol_set_network` |
+| Which guest ports are published | `PUT /v1/machines/{id}/ports` | `publish`, `unpublish`, `ports` | `smol_publish_port`, `smol_unpublish_port` |
+| Public access with no login | `POST` / `DELETE /v1/machines/{id}/public` | | |
+| An anonymous share token | `POST` / `DELETE /v1/machines/{id}/share` | | |
+
+### Egress
+
+Send the machine's whole new policy, in the same form as `network` on create:
+
+```bash
+curl -X PUT "https://api.smolmachines.com/v1/machines/$ID/network" \
+  -H "Authorization: Bearer $SMOL_API_KEY" -H "Content-Type: application/json" \
+  -d '{"network": {"mode": "allowCidrs", "hosts": ["api.github.com"], "cidrs": ["10.0.0.0/8"]}}'
+```
+
+- A started machine whose policy is an allow list takes a new allow list at once, from its next connection or lookup.
+- Switching a started machine to or from `open` needs it stopped first. The call answers `409` until it is; stop it, set the policy, and start it.
+- A stopped machine takes any change at its next start.
+- `blocked` on a machine that has run allows loopback only, so nothing beyond the machine is reachable. A machine that binds credentials cannot be `blocked`.
+
+In the SDKs the policy is `"allow-all"`, `"deny-all"`, or an allow list: `{ allowHosts, allowCidrs }` in Node, `{"allow_hosts": [...], "allow_cidrs": [...]}` in Python, and `AllowList(hosts, cidrs)` in Go.
+
+### Published ports
+
+`PUT /v1/machines/{id}/ports` takes the whole new list of guest ports, as described under [Ingress and published ports](#ingress-and-published-ports). A started machine serves new ports at once and stops serving removed ones, without a restart.
+
+### Public access
+
+`POST /v1/machines/{id}/public` serves the machine's app URL to anyone, with no smol cloud login and no token, and `DELETE` returns it to the login gate. `POST /v1/machines/{id}/share` mints (or rotates) an anonymous share token for the app URL instead, and `DELETE` revokes it. Either grants access only to the machine's published app port, never to the API, exec, or another machine.
 
 ## Running a command as a chosen user
 

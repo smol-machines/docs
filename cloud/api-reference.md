@@ -236,6 +236,10 @@ The Cloud API also provides endpoints for:
 - Replacing a machine's outbound network policy, `PUT /v1/machines/{id}/network` with the create's `network` object: live from one allow list to another on a started machine, otherwise at the next start
 - Replacing a machine's credential bindings before its first start, `PUT /v1/machines/{id}/credentials`
 - Opening a machine's published app to anyone without a login, and closing it again, `POST` and `DELETE /v1/machines/{id}/public`
+- Replacing a machine's published ports, live while it runs, `PUT /v1/machines/{id}/ports`
+- Replacing a machine's network policy (egress), live for a running machine's allow list, `PUT /v1/machines/{id}/network`
+- Making a machine's app URL public with no login, or reverting it, `POST` and `DELETE /v1/machines/{id}/public`
+- Minting or revoking an anonymous share token for a machine's app URL, `POST` and `DELETE /v1/machines/{id}/share`
 - Getting or revoking login-free port links, one URL per published port, `POST` and `DELETE /v1/machines/{id}/port-links`
 - Listing every checkpoint the account owns, `GET /v1/checkpoints`, and uploading a `.smolcheckpoint` file captured outside the cloud with `POST /v1/checkpoints` and then `POST /v1/checkpoints/{id}/complete`
 - Rolling a machine back in place to its newest or a named checkpoint, keeping its id and name, `POST /v1/machines/{id}/rollback`
