@@ -504,6 +504,12 @@ The bucket is mounted by the machine's agent from inside the guest, so the image
 
 Remote volumes need egress to reach the bucket, so an ephemeral run without `--net` is rejected rather than started. `machine run` and `machine create` accept an `s3://` source; `machine update` and `pack run` do not.
 
+A bucket mount is not a full POSIX filesystem:
+
+- Symlinks are not supported, and changes to ownership, permissions, executable bits and timestamps are not kept, so a copied Git repository can lose information even when every file's contents match.
+- A rename is a server-side copy followed by a delete of the source. It is not atomic, and when the delete fails both names can exist.
+- Writes are staged in the machine until a flush or `fsync` uploads them; writes lost with the machine before that are gone.
+
 ### Run a hypervisor inside the machine
 
 `--nested` exposes the host's virtualization extensions to the guest so it can run KVM, which is
@@ -703,5 +709,20 @@ Choose `virtio-net` when the workload inspects its own interfaces, needs ICMP, o
 that expects a routable address — a VPN client, a container runtime, or a network test suite.
 Otherwise the default is the one to keep: it needs no interface configuration in the guest and
 carries the traffic most workloads actually make.
+
+### Connection limits
+
+Each guest TCP connection or UDP flow holds one socket in the machine's host process, on both
+backends, so the host's per-process open-file limit caps how many a guest can have open at once.
+smolvm raises the soft limit to the hard limit when a machine starts. macOS caps a process at
+`kern.maxfilesperproc` files, which only root can raise, so a machine on a Mac with 8 GB, where
+`kern.maxfilesperproc` is 10240, holds about 9,900 connections at once;
+`sysctl kern.maxfilesperproc` gives the host's limit. Past the limit a connect fails in the guest with `EMFILE` on `tsi`, and on
+`virtio-net` the connection is reset and the machine log names the limit. `virtio-net` also caps a
+machine at 65,536 open TCP connections, which `SMOLVM_TCP_RELAY_CAPACITY` changes.
+
+Outbound connections leave from the host's own local ports, which every machine on the host shares,
+and a closed connection keeps its port for the TCP TIME-WAIT. A guest that opens and closes
+connections faster than the host can recycle ports sees `EADDRNOTAVAIL`.
 
 Run `smolvm machine COMMAND --help` against your installed version for the complete flag set.
