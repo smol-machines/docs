@@ -59,8 +59,12 @@ engine with `SMOLMACHINES_ENGINE_VERSION`.
 
 `update_network(&policy)` replaces a stopped local machine's network policy with exactly the one
 given (no network, every host, or an allow list that drops whatever the machine allowed before),
-from its next start, and `network()` reads the policy back. A cloud machine's network is set when it
-is created. `smolmachines::engine_cli()` returns the path of the engine binary the crate drives, for
+from its next start, and `network()` reads the policy back. It is local only: no Rust method changes
+a cloud machine's network, so send `PUT /v1/machines/{id}/network` as
+[Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create)
+shows. The Rust `Machine` has no method to publish a port either; the crate re-exports the cloud
+client as `smolmachines::smol_cloud`, whose `blocking::Client::set_ports(id, &[8080, 3000])`
+replaces a cloud machine's ports with the guest ports given. `smolmachines::engine_cli()` returns the path of the engine binary the crate drives, for
 a program that runs `smolvm machine exec -t` in its own terminal while the SDK manages the machine.
 
 ## Choose local or cloud

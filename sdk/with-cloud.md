@@ -152,6 +152,20 @@ body = machine.request(8080, "/healthz")
 
 `endpoint()` returns an authenticated HTTP URL, WebSocket URL, and request headers for clients that need direct control. `url()` returns the public ingress URL for the first published port when one is available.
 
+To publish a port on a machine that already runs, call `publish()`; the machine serves it at once, without a restart, and the node picks the host port. `ports()` lists what is published and `unpublish()` removes one:
+
+```ts
+await machine.publish({ guest: 3000 });
+console.log(await machine.ports());
+```
+
+```python
+machine.publish(3000)
+print(machine.ports())
+```
+
+In Go the same calls are `m.Publish(ctx, smol.PublishOptions{Guest: 3000})`, `m.Ports` and `m.Unpublish`. A cloud machine's network policy has no SDK method yet; change it with `PUT /v1/machines/{id}/network`, as [Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) shows, where every setting that changes after create is listed.
+
 ## Cloud-specific configuration
 
 Cloud `MachineConfig` fields are in [Machine API](/docs/sdk/machine-api#machineconfig).

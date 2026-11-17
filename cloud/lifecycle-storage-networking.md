@@ -62,6 +62,23 @@ The create request can include:
 
 Both timers take a final metering sample before acting, so an auto-stopped or expired machine's last window of CPU and memory is still billed and visible in `/usage`.
 
+## Change a machine after create
+
+These settings change on a machine that already exists. Where no SDK method or `smol` command is named, send the HTTP request; each needs the `machine:create` scope.
+
+| Setting | Route | SDK and CLI | When it applies |
+|---|---|---|---|
+| Published ports | `PUT /v1/machines/{id}/ports`, [below](#ingress-and-published-ports) | `publish()` and `unpublish()` in Node and Python, `Publish` and `Unpublish` in Go; no Rust `Machine` method and no `smol` command | Started: at once, no restart. Stopped: at the next start |
+| Outbound network | `PUT /v1/machines/{id}/network`, [below](#change-the-network-of-an-existing-machine) | None | Started: one allow list for another, at once; to or from `open` needs a stop first. Stopped: at the next start. A restored machine runs with the network its checkpoint was captured with |
+| vCPUs, memory, disk | `POST /v1/machines/{id}/resize` | `resize()` in Node, Python and Rust; not in Go, and not `smol machine resize` | Started: in place. Stopped or paused: at the next start or resume. Memory and disk only grow |
+| Labels | `PATCH /v1/machines/{id}/labels`, [above](#find-a-machine-again) | None | Any state, at once |
+| Credential values | `PUT /v1/credentials/{name}`, [below](#credentials-the-machine-never-holds) | Node, Python and Rust store a credential's `value` when a create passes one | Running machines that bind it: from their next request |
+| Credential bindings | `PUT /v1/machines/{id}/credentials` | None | Only while the machine has no copy on a node and nothing to restore; otherwise `409` |
+| Public ingress | `POST` and `DELETE /v1/machines/{id}/public` | None | At once; needs a published port and a name of lowercase letters, digits and hyphens, else `422` |
+| Idle clock | `POST /v1/machines/{id}/keepalive` | None | Started machines only |
+
+Nothing changes `env`, `source`, `command`, `workdir`, `autoStopSeconds`, `idleAction`, `ttlSeconds`, `ephemeral`, `cacheDisk` or `nestedVirt` on an existing machine. Create a new machine with the values you need, or checkpoint this one and restore it with new `env`, `autoStopSeconds`, `idleAction` or `labels`, as [Branches and checkpoints](#branches-and-checkpoints) describes.
+
 ## Machine storage
 
 The machine filesystem persists across exec and stop/start. It is appropriate for packages, caches, checked-out repositories, and other state tied to one machine.
@@ -160,6 +177,24 @@ Allow only selected hosts and CIDR ranges:
 
 An allow list must include every package host, API, and redirect target the workload needs at runtime. The image's own registry is folded in for the pull; see [Cloud Examples](/docs/cloud/examples). Prefer `blocked` or `allowCidrs` for untrusted workloads.
 
+### Change the network of an existing machine
+
+`PUT /v1/machines/{id}/network` replaces a machine's policy, with the same `network` object a create takes as its whole body:
+
+```bash
+curl --fail-with-body -X PUT "$SMOL_CLOUD_URL/v1/machines/$MACHINE_ID/network" \
+  -H "Authorization: Bearer $SMOL_CLOUD_TOKEN" -H "Content-Type: application/json" \
+  -d '{"mode": "allowCidrs", "hosts": ["api.example.com"], "cidrs": []}'
+```
+
+It answers `200` with the machine. What it accepts depends on the machine's state:
+
+- On a started machine, an allow list replaces another allow list at once, without a restart, from the machine's next connection or DNS lookup; a new list of only CIDRs leaves names the machine already looked up reachable until their DNS TTL expires. Lifting the allow list (`open`), or adding one to a machine running with `open`, answers `409` until the machine is stopped.
+- On a stopped machine, any change applies at its next start, except turning networking off. `blocked` on a machine that has run answers `422`; restrict it with `allowCidrs`, or create a new machine with `blocked`.
+- On a machine created with `POST /v1/machines` that has never started, any policy is recorded for its first start, `blocked` included. A machine restored from a checkpoint runs with the network its checkpoint was captured with.
+
+An allow list with no host and no CIDR answers `400`, and so does a malformed CIDR or host. `blocked` on a machine that binds credentials answers `422`. A frozen branch base, or a machine in any other state, such as `creating` or `paused`, answers `409`. No SDK method or `smol` command changes a cloud machine's network yet.
+
 ### Credentials the machine never holds
 
 Store a secret once with `PUT /v1/credentials/github`, giving the variable a machine sees, the hosts the value may go to, and the value:
@@ -208,7 +243,15 @@ The connect route also accepts WebSocket upgrades for clients that need a bidire
 
 Set `public: true` only when the service should be reachable without the caller's API authorization. Public ingress exposes application traffic, so the application must provide any authentication and authorization it needs.
 
-To change the ports of a machine that already exists, send the whole new list to `PUT /v1/machines/{id}/ports`. A started machine serves new ports at once and stops serving removed ones, without a restart; a stopped machine takes them at its next start. A port kept from before keeps its host port.
+To change the ports of a machine that already exists, send the whole new list to `PUT /v1/machines/{id}/ports`:
+
+```bash
+curl --fail-with-body -X PUT "$SMOL_CLOUD_URL/v1/machines/$MACHINE_ID/ports" \
+  -H "Authorization: Bearer $SMOL_CLOUD_TOKEN" -H "Content-Type: application/json" \
+  -d '{"ports": [{"port": 8080}, {"port": 3000}]}'
+```
+
+A started machine serves new ports at once and stops serving removed ones, without a restart; a stopped machine takes them at its next start. A port kept from before keeps its host port, and a `hostPort` in the request is ignored. An empty list removes every port, and more than 16 answers `422`. In the SDKs, `machine.publish({ guest: 3000 })` (`machine.publish(3000)` in Python) adds one port and `unpublish()` removes one; the `smol` CLI has no command for it.
 
 A client that cannot send an API key, such as a sandbox framework that calls its tunnel URLs directly, can use port links instead. `POST /v1/machines/{id}/port-links` returns a login-free URL for each published port, `https://p<port>-<token>.<appsDomain>`. Anyone holding a link reaches the port, so treat it as a credential. The machine keeps one token, so asking again returns the same links and a port published later is reached with the same token; `DELETE /v1/machines/{id}/port-links` revokes every link at once.
 
@@ -217,8 +260,6 @@ A client that cannot send an API key, such as a sandbox framework that calls its
 To serve a machine or group on a domain you own, claim it with `POST /v1/custom-domains`, giving `domain`, `targetKind` (`machine` or `group`) and `targetId`, or from [Domains](/console/domains) in the console. The response lists the DNS records to create: a TXT record at `_smolmachines-challenge.<domain>` holding a token, and a CNAME target for a subdomain (an apex domain gets an A record target where one is offered). Then call `POST /v1/custom-domains/{domain}/verify`; the first account to pass the TXT check owns the name, and other claims on it are dropped. `DELETE /v1/custom-domains/{domain}` removes it.
 
 Traffic on a verified domain is public, with no smol cloud login. An account holds at most 10 unverified claims and sends at most 30 claims an hour, and an unverified claim lapses after 7 days.
-
-Verify port and ingress fields in the API Explorer for the deployment you use.
 
 ## Running a command as a chosen user
 

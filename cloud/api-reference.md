@@ -208,12 +208,15 @@ The Cloud API also provides endpoints for:
 - Resetting the idle clock without running anything, `POST /v1/machines/{id}/keepalive`
 - Changing labels in any state, `PATCH /v1/machines/{id}/labels`, and finding machines by them with `GET /v1/machines?label=key=value`
 - Minting a short-lived token that opens only one machine's connect bridge, `POST /v1/machines/{id}/connect-token`
-- Replacing a machine's published ports, live while it runs, `PUT /v1/machines/{id}/ports`
+- Replacing a machine's published ports, live while it runs, `PUT /v1/machines/{id}/ports` with `{"ports": [{"port": 8080}]}`
+- Replacing a machine's outbound network policy, `PUT /v1/machines/{id}/network` with the create's `network` object: live from one allow list to another on a started machine, otherwise at the next start
+- Replacing a machine's credential bindings before its first start, `PUT /v1/machines/{id}/credentials`
+- Opening a machine's published app to anyone without a login, and closing it again, `POST` and `DELETE /v1/machines/{id}/public`
 - Getting or revoking login-free port links, one URL per published port, `POST` and `DELETE /v1/machines/{id}/port-links`
 - Listing every checkpoint the account owns, `GET /v1/checkpoints`, and uploading a `.smolcheckpoint` file captured outside the cloud with `POST /v1/checkpoints` and then `POST /v1/checkpoints/{id}/complete`
 - Rolling a machine back in place to its newest or a named checkpoint, keeping its id and name, `POST /v1/machines/{id}/rollback`
 
-Use the OpenAPI document or Explorer to inspect the exact routes, request bodies, and feature availability for your account.
+[Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) puts every setting that changes on an existing machine in one table, with what applies at once and what waits for a restart.
 
 ### Usage and account
 
