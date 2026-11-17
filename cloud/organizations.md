@@ -38,7 +38,7 @@ Only the person it belongs to can turn a converted account back, with `DELETE /v
 
 An organization keeps at least one owner: removing or demoting the last one is refused with `409` until someone else is promoted. Only an owner can make someone an owner.
 
-Owners and admins create the organization's API keys. Each key is for one member, named with `personId` when it is created, and holds no more than that member's role allows. Removing a person revokes their keys on the organization and its sub-organizations; the machines they started keep running.
+Owners and admins create the organization's API keys. Each key is for one member, named with `personId` when it is created, and holds no more than that member's role allows. A key carries only machine and volume scopes, `usage:read` and `group:write`, so reading the member list, inviting, changing roles, managing keys and billing are done signed in, never with a key. Removing a person revokes their keys on the organization and its sub-organizations; the machines they started keep running.
 
 ## Invite people
 
@@ -59,7 +59,7 @@ Content-Type: application/json
 
 ## Act in an organization
 
-An API key created in the organization's account acts there. A signed-in session names the account with the `Smol-Tenant` header, set to the organization's id; without the header it acts in your own account. The console sets the header for the account you pick.
+An API key created in the organization's account acts there, and only there: a key sent with a `Smol-Tenant` header naming another account is refused with `400`. A signed-in session names the account with the `Smol-Tenant` header, set to the organization's id; without the header it acts in your own account. The console sets the header for the account you pick.
 
 ## Billing
 
