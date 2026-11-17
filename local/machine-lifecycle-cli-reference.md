@@ -104,6 +104,30 @@ trailing or doubled hyphen.
 smolvm machine exec --stream --name dev -- python3 train.py
 ```
 
+`--timeout` on `machine exec` and `machine run` kills the command after a duration such as `30s`,
+`5m` or `1h`, reporting `command timed out after 30000ms`, and exits `124`:
+
+```bash
+smolvm machine exec --name dev --timeout 5m -- python3 train.py
+```
+
+`machine stop -t SECONDS` gives the workload that long to exit after its stop signal, for this stop
+only, instead of the machine's stop timeout; `-t 0` kills it at once.
+
+### Watch a machine's health
+
+`machine monitor` runs a health check against a machine and applies a restart policy, in the
+foreground until you stop it, starting the machine first when it is stopped:
+
+```bash
+smolvm machine monitor --name web --health-cmd 'wget -q -O /dev/null http://127.0.0.1:8080/' --restart on-failure
+```
+
+`--health-cmd` runs inside the machine through `sh -c`. `--interval` and `--health-timeout` default
+to the Smolfile's `[health]` values, else 5 seconds each, and `--health-retries`, the failures that
+trigger a restart, to the Smolfile's, else 3. `--restart` takes `never`, `always`, `on-failure` or
+`unless-stopped` and overrides the Smolfile's `[restart]` policy.
+
 ### List machines for a script
 
 `machine ls` prints machine names in full; long names are not truncated. For
@@ -400,6 +424,11 @@ and it says so rather than guessing: on a running machine the command fails with
 expected stopped, got Running`. Labels, the allow list and published TCP ports are the exceptions,
 when an update changes only them, and a host directory can be mounted into a running machine with `machine mount add`, below.
 
+On a stopped machine it also takes `--remove-env KEY`, `--remove-volume HOST:GUEST`, `--no-gpu`,
+`--no-rosetta` and `--no-egress-interceptor` to take a setting back out, and `--storage` and
+`--overlay` to grow the disks of a machine that has started at least once; on one that never
+started they fail with `open disk: No such file or directory`.
+
 It also edits the egress policy, which is otherwise fixed at create time. `--allow-host`,
 `--allow-host-pattern`, `--allow-cidr`, `--allow-udp` and `--outbound-localhost-only` add to the
 policy, and `--remove-allow-host`, `--remove-allow-cidr` and `--remove-allow-udp` take entries back out; `--net` and `--no-net` turn
@@ -597,7 +626,8 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--auto-ports-exclude` | A guest port auto ports never publish; repeatable, and implies `--auto-ports` |
 | `--user`, `-u` | Run the workload as a name or `uid[:gid]` |
 | `--max-image-size` | On `machine run` and `machine create`: the largest local image archive accepted, such as `16GiB`, `512M` or a byte count; 8 GiB by default. A larger archive is refused with its size, and `SMOLVM_MAX_IMAGE_BYTES` sets the same limit |
-| `--oci-platform` | On `machine run` and `pack create`: the platform to pull from a multi-platform image, such as `linux/amd64`; a platform the image does not have is refused |
+| `--oci-platform` | On `machine run`, `machine create` and `pack create`: the platform to pull from a multi-platform image, such as `linux/amd64`; a platform the image does not have is refused |
+| `--allow-system-mounts` | On `machine run`, `machine create`, `machine update` and `pack run`: allow read-only host `/etc` and `/var/log` mounts below `/host`, which are refused otherwise. It exposes sensitive host data to the guest, so never use it for untrusted workloads |
 | `--disk` | Attach a host disk image or block device as `/dev/vdc`, `/dev/vdd` and so on, in order; `:ro` makes it read-only. smolvm never formats or mounts it, and a missing path is refused |
 | `--workdir`, `-w` | The workload's working directory; also on `machine update` |
 | `--interactive`, `-i` | Keep stdin open |
@@ -607,7 +637,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--disk-durability` | `full` (the default): a guest `fsync` waits for the host's disk. `deferred`: guest writes reach it on the host's schedule, much faster for fsync-heavy work such as database commits, but a host crash can lose recent writes. Also on `machine update`, for the next start |
 | `--stop-signal` | On `machine create`: the signal the workload gets when the machine stops, so it can save its state and exit; a name such as `SIGINT` or a number, `SIGTERM` by default |
 | `--stop-timeout` | On `machine create`: seconds the workload gets to exit after that signal before it is killed, 10 by default and at most 300 |
-| `--stop-on-exit` | Stop the machine once its workload exits, whatever the status, flushing storage first |
+| `--stop-on-exit` | On `machine create`: stop the machine once its workload exits, whatever the status, flushing storage first |
 | `--seed-digest-ttl` | Reuse an image digest resolved at most this many seconds ago when seeding |
 | `--guest-subnet` | IPv4 subnet for the guest link, such as `10.200.0.0/30` |
 | `--net-backend` | Networking implementation, `tsi` (default) or `virtio-net` |

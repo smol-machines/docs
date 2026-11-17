@@ -8,7 +8,7 @@ Each machine has its own Linux kernel and a hardware-virtualized boundary. The b
 
 ## Host isolation
 
-A guest can access only the host resources made available to it. Review every host directory mount and forwarded socket before running untrusted code. A mounted directory exposes its contents with provided permissions.
+A guest can access only the host resources made available to it. Review every host directory mount and forwarded socket before running untrusted code. A mounted directory exposes its contents with provided permissions. Host system paths such as `/etc` are refused as mount sources; `--allow-system-mounts` permits read-only `/etc` and `/var/log` below `/host`, and must not be used for untrusted workloads.
 
 The VM boundary does not make a deliberately shared host resource safe. Treat access to a Docker socket, SSH agent, source directory, or other host service as a security decision.
 
