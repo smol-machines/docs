@@ -2,7 +2,7 @@
 
 This repository is the documentation source for
 [smol machines](https://smolmachines.com) — the `smolvm` local runtime, the
-Node and Python SDKs, and smol cloud. It is plain Markdown, kept in sync with
+Node, Python, Go and Rust SDKs, and smol cloud. It is plain Markdown, kept in sync with
 shipped product behavior.
 
 **If you are an agent working with smol machines, read from this repository
