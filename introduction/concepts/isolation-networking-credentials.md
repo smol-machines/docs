@@ -58,6 +58,8 @@ SSH-agent forwarding follows a different model. Private keys remain in the host 
 
 A credential binding gives a workload the ability to *use* a secret at named hosts without ever holding it. The guest receives an opaque placeholder in the environment variable it expects; the host replaces the placeholder with the real value only on HTTPS requests to the binding's allowed hosts, and only inside a request header unless the binding also allows a form body.
 
+This section shows the local CLI. On smol cloud a credential is stored once with `PUT /v1/credentials/{name}` and bound by name at create, as [Credentials the machine never holds](/docs/cloud/lifecycle-storage-networking#credentials-the-machine-never-holds) describes.
+
 ```bash
 NOTION_API_KEY=secret_... smolvm machine create --name notes --image alpine:3.20 \
   --credential notion=NOTION_API_KEY@api.notion.com

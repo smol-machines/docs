@@ -153,7 +153,17 @@ Store a secret once with `PUT /v1/credentials/github`, giving the variable a mac
 {"envVar": "GITHUB_TOKEN", "hosts": ["api.github.com"], "value": "ghp_..."}
 ```
 
-A machine created with `"credentials": ["github"]` sees a placeholder in `GITHUB_TOKEN`. Its node replaces the placeholder with the value only on HTTPS requests to the listed hosts, which are exact names: no wildcards or IP addresses. The value is never returned: `GET /v1/credentials` lists names, variables and hosts. Replacing a credential reaches bound machines at their next boot, and after `DELETE /v1/credentials/{name}` a bound machine fails to start until the credential is stored again.
+A machine created with `"credentials": ["github"]` sees a placeholder in `GITHUB_TOKEN`. Its node replaces the placeholder with the value only on HTTPS requests to the listed hosts, which are exact names: no wildcards or IP addresses. The value is never returned: `GET /v1/credentials` lists names, variables and hosts. After `DELETE /v1/credentials/{name}` a bound machine fails to start until the credential is stored again.
+
+Storing a new value under the same name hands it to the running machines that bind it at once, from their next request. The response says where it went: `runningMachines.live` lists the machines using it now, and `runningMachines.nextStart` the ones that keep the old value until they next start, each with a `reason`: `engine_too_old` for a node older than smolvm 1.34.0, or `node_error`. Stopped machines are not listed, because every start hands a machine the current value.
+
+A credential can set a whole request header instead of filling a placeholder. With `setHeader`, the node sets that header to the value on every HTTPS request to the hosts, replacing whatever the machine sent, so the value carries its own scheme and `envVar` can be left out:
+
+```json
+{"hosts": ["api.example.com"], "value": "Bearer sk_...", "setHeader": "authorization"}
+```
+
+A machine's bindings are fixed when its node first boots it. `PUT /v1/machines/{id}/credentials` with `{"credentials": ["github"]}` replaces them only while the machine has no copy on a node: before its first start, or after it lost its node copy with nothing to restore. Any other machine answers `409` and keeps its bindings, so a started machine that needs a new binding is a new machine. Naming the bindings a machine already has succeeds in any state. An unknown name answers `422`, and so does a binding on a machine whose network is `blocked`.
 
 ## Ingress and published ports
 
