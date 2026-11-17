@@ -355,6 +355,22 @@ accepted on `machine create`.
 
 See [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots) for what a checkpoint preserves and where it can be restored.
 
+### Change a running machine
+
+These change a machine while it runs, without a restart. Everything else is `machine update` on a stopped machine, from its next start.
+
+| Setting | CLI | `smolvm serve` API | On a running machine |
+|---|---|---|---|
+| Published TCP ports | `machine update -p`, `--remove-port` | `PUT /api/v1/machines/:name/ports` | At once; a UDP port needs a stop |
+| Egress allow list | `machine update --allow-host`, `--allow-host-pattern`, `--allow-cidr`, `--allow-udp`, `--outbound-localhost-only`, `--remove-allow-host`, `--remove-allow-cidr`, `--remove-allow-udp` and `--reset-allow-list` | `POST /api/v1/machines/:name/egress` | At once on a machine started with an allow list; lifting the list, or adding one to a machine running without one, needs a stop |
+| Host directory mounts | `machine mount add`, `machine mount rm` | `/api/v1/machines/:name/mounts` | At once, until the machine stops |
+| CPUs, memory, disks | `machine resize` | `POST /api/v1/machines/:name/resize` | At once; memory and disks only grow |
+| Host CPU cap | None | `PUT /api/v1/machines/:name/cpu-limit` | At once, on Linux with a cgroup smolvm controls |
+| Credential values | None | `PUT /api/v1/machines/:name/credential-values` | At once |
+| Labels | `machine update --label`, `--remove-label` | None | Any state |
+
+Any other `machine update` setting, such as `--cpus`, is refused on a running machine with `invalid vm state: expected stopped, got Running`.
+
 ### Resize a running machine
 
 ```bash
@@ -395,12 +411,16 @@ smolvm machine update --name dev --allow-host example.com
 smolvm machine start --name dev
 ```
 
-On a running machine that was started with an allow list, an update that only adds or removes
-allowed hosts and CIDRs applies at once, from the machine's next connection or DNS lookup, and the
-command reports `running; applies now`. A change that would lift the list, or give one to a running
+On a running machine that was started with an allow list, an update that only changes the list and
+keeps one in force applies at once, from the machine's next connection or DNS lookup, and the
+command reports `running; applies now`. A machine left with no allowed host keeps reaching the
+addresses it already looked up until their DNS TTL expires; while a host stays on the list, a
+removed name's addresses are refused at once. That covers hosts, patterns, CIDRs, UDP allows,
+`--outbound-localhost-only` and `--reset-allow-list` with the entries to keep. A change that would lift the list, or give one to a running
 machine that has none, is refused until the machine is stopped. Removing a host leaves allowed the
 addresses `machine create` resolved it to; take those out with `--remove-allow-cidr`, or replace
-the whole list with `--reset-allow-list` and the entries to keep, which leaves exactly those. `machine
+the whole list with `--reset-allow-list` and the entries to keep, which leaves exactly those,
+within the DNS TTL caveat above. `machine
 status --json` and `machine ls --json` show the list as `allowed_hosts` and `allowed_cidrs`.
 
 Published TCP ports change the same way: on any running machine, including one on the default
