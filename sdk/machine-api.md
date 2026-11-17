@@ -322,7 +322,10 @@ const all = await Machine.list({ target: "local" });
 
 A machine created with `detach` keeps running after the process that made it exits, and
 `restoreCheckpoint()` takes a `keepIdentity` flag with the same meaning as the CLI's
-`--keep-identity`.
+`--keep-identity`, on the local target only.
+
+On smol cloud a machine restored with `restoreCheckpoint()` (`restore_checkpoint()` in Python)
+runs with the network its checkpoint was captured with.
 
 ## Configuration types
 
