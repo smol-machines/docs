@@ -25,6 +25,8 @@ smol auth login
 
 One login covers the cloud API and the registry. Without it, commands work on local machines only, and `smol machine ls` says that cloud machines were left out.
 
+For CI, `smol auth login --token-stdin` saves a key read from stdin, or set `SMOL_CLOUD_TOKEN`: the CLI reads it only when no key is saved, so a key saved by `smol auth login` takes precedence. The CLI does not read `SMOL_CLOUD_URL`; it uses its configured endpoint.
+
 ## Local or cloud
 
 `smol machine` commands find a machine wherever it lives, so `smol machine ls` lists both sides. To pick one, pass `--local` or `--cloud`, or prefix the name with `local/` or `cloud/`. A machine id that starts with `mach-` is always a cloud machine. `create`, `update`, `resize`, `images`, `prune`, `monitor` and `data-dir` act on local machines only; `smol cloud deploy` creates a cloud one.

@@ -6,7 +6,7 @@ title: Cloud Lifecycle, Storage, and Networking
 
 Cloud machines keep their filesystem across commands and stop/start cycles. Network access and published ports are explicit parts of the machine configuration.
 
-The command examples assume `SMOL_CLOUD_TOKEN` and `SMOL_CLOUD_URL` are set as shown in [Cloud Quick Start](/docs/cloud). `smol` commands need the [`smol` CLI](/docs/local/smol-cli-reference).
+The `curl` examples assume `SMOL_CLOUD_TOKEN` and `SMOL_CLOUD_URL` are set as shown in [Cloud Quick Start](/docs/cloud). `smol` commands need the [`smol` CLI](/docs/local/smol-cli-reference), signed in, which uses its own configured endpoint.
 
 ## Lifecycle
 

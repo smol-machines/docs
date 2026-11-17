@@ -12,12 +12,14 @@ Sign in at [smolmachines.com/console](/console), open [API Keys](/console/keys),
 
 New accounts get a one-time sign-up credit, no card needed to start. An email-and-password sign-up holds it until the address is verified, and creates nothing until then unless credit is added or auto-recharge is turned on. Without a card an account can run up to 4 machines at once of up to 4 vCPU each. Adding a card in [billing](/console/billing) lifts that to your plan's limits once the account has paid or is a day old; with a prepaid card, or one already on another account, only once it has paid. If many accounts sign up from the same email domain or network on one day, later ones create nothing until they add credit or turn on auto-recharge, and receive the credit later, once a payment has settled. A card already on another account keeps a held credit held. See [pricing](/pricing) for current limits and rates.
 
-Export the key. The SDK and the `smol` CLI read the same two variables:
+Export the key. The SDKs and `curl` examples read these two variables:
 
 ```bash
 export SMOL_CLOUD_TOKEN="smk_your_key_here"
 export SMOL_CLOUD_URL="https://api.smolmachines.com"
 ```
+
+The `smol` CLI reads `SMOL_CLOUD_TOKEN` only when it has no key saved, so a key saved by `smol auth login` wins over it, and it takes its endpoint from its own configuration, not from `SMOL_CLOUD_URL`. In CI, either set `SMOL_CLOUD_TOKEN` on a runner with no saved login, or save the key with `smol auth login --token-stdin`.
 
 Send the key as a bearer token. Do not put it in source control or client-side application code.
 
