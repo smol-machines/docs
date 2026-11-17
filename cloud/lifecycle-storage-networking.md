@@ -66,6 +66,8 @@ Both timers take a final metering sample before acting, so an auto-stopped or ex
 
 These settings change on a machine that already exists. Where no SDK method or `smol` command is named, send the HTTP request; each needs the `machine:create` scope.
 
+In a [sub-organization](/docs/cloud/organizations#who-does-what-in-a-sub-organization), its provider sets a machine's network and ports only in the create request, and can still resize it. Changing network, ports, credential values or bindings on an existing machine there, or making it public, takes a person with `admin` or `member` on the sub-organization, or a key created for one.
+
 | Setting | Route | SDK and CLI | When it applies |
 |---|---|---|---|
 | Published ports | `PUT /v1/machines/{id}/ports`, [below](#ingress-and-published-ports) | `publish()` and `unpublish()` in Node and Python, `Publish` and `Unpublish` in Go; no Rust `Machine` method and no `smol` command | Started: at once, no restart. Stopped: at the next start |
