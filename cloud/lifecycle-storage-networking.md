@@ -281,12 +281,12 @@ Traffic on a verified domain is public, with no smol cloud login. An account hol
 
 Egress, published ports and public access all change on a machine that already exists. There is no need to create a new one.
 
-| Change | API | SDK (Node / Python / Go) | MCP tool |
-|---|---|---|---|
-| What the machine may reach outbound | `PUT /v1/machines/{id}/network` | `setNetworkPolicy(policy)` / `set_network_policy(policy)` / `SetNetworkPolicy(ctx, policy)` | `smol_set_network` |
-| Which guest ports are published | `PUT /v1/machines/{id}/ports` | `publish`, `unpublish`, `ports` | `smol_publish_port`, `smol_unpublish_port` |
-| Public access with no login | `POST` / `DELETE /v1/machines/{id}/public` | | |
-| An anonymous share token | `POST` / `DELETE /v1/machines/{id}/share` | | |
+| Change | API | SDK (Node / Python / Go) |
+|---|---|---|
+| What the machine may reach outbound | `PUT /v1/machines/{id}/network` | |
+| Which guest ports are published | `PUT /v1/machines/{id}/ports` | `publish`, `unpublish`, `ports` |
+| Public access with no login | `POST` / `DELETE /v1/machines/{id}/public` | |
+| An anonymous share token | `POST` / `DELETE /v1/machines/{id}/share` | |
 
 ### Egress
 
@@ -302,8 +302,6 @@ curl -X PUT "https://api.smolmachines.com/v1/machines/$ID/network" \
 - Switching a started machine to or from `open` needs it stopped first. The call answers `409` until it is; stop it, set the policy, and start it.
 - A stopped machine takes any change at its next start.
 - A machine that has run cannot be switched to `blocked` (`422`), because its VM was made with networking on. Restrict it to an allow list instead. A machine that has never run takes `blocked` for its first start, unless it binds credentials.
-
-In the SDKs the policy is `"allow-all"`, `"deny-all"`, or an allow list: `{ allowHosts, allowCidrs }` in Node, `{"allow_hosts": [...], "allow_cidrs": [...]}` in Python, and `AllowList(hosts, cidrs)` in Go.
 
 ### Published ports
 
