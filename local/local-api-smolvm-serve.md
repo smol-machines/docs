@@ -69,13 +69,22 @@ started with.
 | `GET` | `/api/v1/machines/:name` | Get one machine |
 | `POST` | `/api/v1/machines/:name/start` | Start a machine |
 | `POST` | `/api/v1/machines/:name/stop` | Stop a machine |
-| `PUT` | `/api/v1/machines/:name/cpu-limit` | Cap the host CPU a running machine's VMM may use, as `{"millicpus": N}` across all its vCPUs (`200` is a fifth of one CPU), or `{"millicpus": null}` to clear it; the guest still sees every vCPU, and the limit holds across restarts until cleared. A stopped machine answers `409`. It needs the VMM in a cgroup smolvm controls, so the request is refused with `400` on macOS, and on Linux unless `serve` runs as root on systemd or can write its own cgroup, as in a systemd unit with `Delegate=yes` |
+| `POST` | `/api/v1/machines/:name/pause`, `/resume` | Save a running machine's execution durably and stop it; resume it under the same name |
+| `POST` | `/api/v1/machines/:name/resize` | Grow a running machine's CPUs, memory or disks: `cpus`, `memoryMb`, `storageGb` or `overlayGb`, one kind per request. Asking for two together answers `400` `resize CPUs, RAM, and disks in separate requests`, although `machine resize` takes them together. CPUs or memory on a stopped machine answer `400`; change those with `machine update` |
+| `POST` | `/api/v1/machines/:name/egress` | Change the egress allow list, the API form of `machine update --allow-host` and its siblings, below |
+| `GET` | `/api/v1/machines/:name/egress-events` | Outbound connections and lookups the egress policy refused; `?limit=` keeps the newest that many, 200 by default |
+| `POST` | `/api/v1/machines/:name/sync` | Copy a running machine's staged mounts back to the host without stopping it |
+| `POST` | `/api/v1/machines/:name/branches` | Branch a running source started `branchable` into a new running child; any other source is refused |
+| `PUT` | `/api/v1/machines/:name/cpu-limit` | Cap the host CPU a running machine's VMM may use, as `{"millicpus": N}` across all its vCPUs (`200` is a fifth of one CPU), or `{"millicpus": null}` to clear it; the guest still sees every vCPU, and the limit holds across restarts until cleared. A stopped machine answers `409`. It needs the VMM in a cgroup smolvm controls, so the request is refused with `400` on macOS, and on Linux unless `serve` runs as root on systemd or can write its own cgroup, as in a systemd unit with `Delegate=yes`. The CLI has no equivalent |
 | `PUT` | `/api/v1/machines/:name/credential-values` | Supply the values for a machine's credential bindings as `{"values": {"<binding>": "<value>"}}`, `204`; a running machine uses them at once, and a name with no binding answers `400` |
 | `DELETE` | `/api/v1/machines/:name` | Delete a machine |
-| `PUT` | `/api/v1/machines/:name/ports` | Replace a machine's published ports, live while it runs; a taken host port answers `409` `PORT_IN_USE` |
+| `PUT` | `/api/v1/machines/:name/ports` | Replace a machine's published ports with the whole set, as `{"ports": [{"host": 8080, "guest": 80}]}`; an empty list removes them all. TCP changes apply live while it runs; a UDP change on a running machine answers `409`, and so does a taken host port, with `PORT_IN_USE` |
 | `GET`, `POST`, `DELETE` | `/api/v1/machines/:name/mounts` | List, add or remove host directories mounted into a running machine; `POST` takes `source`, `target` and `readonly`, `DELETE` takes `?target=`, and a stopped machine answers `409` |
 | `POST` | `/api/v1/machines/:name/exec` | Execute a command |
 | `POST` | `/api/v1/machines/:name/exec/stream` | Stream execution over SSE |
+| `POST`, `GET` | `/api/v1/machines/:name/execs` | Start an exec session, or list them |
+| `GET`, `DELETE` | `/api/v1/machines/:name/execs/:exec` | Read a session's output after `?after=`, or end it |
+| `POST` | `/api/v1/machines/:name/execs/:exec/stdin`, `/resize` | Send numbered stdin frames, or resize its terminal |
 | `PUT` | `/api/v1/machines/:name/files/*path` | Upload a file: up to 1 GiB with a `Content-Length`, 100 MiB without, `413` beyond. `?uid=`, `?gid=` and `?mode=` (octal) set its owner and permissions; with no owner it belongs to the workload's user |
 | `GET` | `/api/v1/machines/:name/files/*path` | Download a file |
 | `GET` | `/api/v1/machines/:name/logs` | Stream logs over SSE |
@@ -86,6 +95,17 @@ started with.
 | `POST` | `/api/v1/pools/:name/leases` | Lease one clean worker |
 | `POST` | `/api/v1/pools/:name/leases/:lease/heartbeat` | Extend a lease |
 | `POST` | `/api/v1/pools/:name/leases/:lease/complete` | Finish a lease; the pool replaces its worker |
+
+`POST /egress` adds to or takes from the allow list rather than replacing the whole policy:
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/machines/dev/egress \
+  -H 'content-type: application/json' -d '{"allowHosts": ["pypi.org"]}'
+```
+
+Its body takes `allowHosts`, `allowHostPatterns`, `allowCidrs`, `allowUdp`, `removeAllowHosts`, `removeAllowCidrs`, `removeAllowUdp`, `outboundLocalhostOnly`, `resetAllowList` and `allowAll`, and refuses any other field with `422`. `allowAll` permits a removal or reset that leaves no entry. A stopped machine takes any change from its next start. A running machine takes, from its next connection or lookup, any change that keeps an allow list in force; one that lifts the list, or gives one to a machine running without one, answers `409` until the machine is stopped. A request that names no change, such as an empty body or `allowAll` alone, answers `400` `request contains no egress changes`. A host that `machine create --allow-host` added also put its resolved addresses in the allowed CIDRs, and removing the host leaves them; take them out with `removeAllowCidrs`. A host added through this route is kept as a name only. `resetAllowList` with the entries to keep leaves exactly those, except that on a running machine left with no allowed host, addresses the guest already looked up stay reachable until their DNS TTL expires.
+
+An exec session belongs to the machine rather than the connection that started it, so a client can drop off and read the rest later. Choose its `execId`, 8 to 64 of `A-Z`, `a-z`, `0-9`, `_` and `-`, before the first try, and a retried start finds the session the first one made instead of running the command twice. Read output with `?after=` set to the last answer's `next` until `done`, then `DELETE` it. `smolvm serve openapi` gives the frame format.
 
 A warm pool keeps `desiredReady` workers branched from a source machine and ready to hand out. The source must be started `branchable` and its workload must reach its branch point by running under `smolvm-branch-ready`; until it does, the pool stays provisioning. A lease takes an `idempotencyKey`: repeating a request with the same key and the same body returns the same lease, and the same key with a different body is refused with `409`. A lease expires unless heartbeated, 300 seconds by default, and completing it retires the worker while the pool branches a fresh one.
 
