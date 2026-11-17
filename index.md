@@ -55,3 +55,16 @@ The SDK is a control surface, not a prerequisite. Installing `smolvm` is enough 
 | smolvm | Your computer or infrastructure | `smolvm` CLI and local engine |
 | smol cloud | smol machines infrastructure | Cloud API, SDK, or CLI |
 | smol SDK / CLI | Local engine or smol cloud | TypeScript, Python, Go, Rust, or `smol` |
+
+## Common tasks
+
+| Task | Where |
+|---|---|
+| Change a running cloud machine's ports, network, size or labels | [Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) |
+| Change a running local machine's ports, allow list, mounts or size | [Change a running machine](/docs/local/machine-lifecycle-cli-reference#change-a-running-machine) |
+| Move a running local machine to smol cloud | [Move a local machine to the cloud](/docs/cloud/lifecycle-storage-networking#move-a-local-machine-to-the-cloud) |
+| Checkpoint a cloud machine and restore it | [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) |
+| Give a cloud machine a secret it never holds | [Credentials the machine never holds](/docs/cloud/lifecycle-storage-networking#credentials-the-machine-never-holds) |
+| Publish a cloud port and get its URL | [Ingress and published ports](/docs/cloud/lifecycle-storage-networking#ingress-and-published-ports) |
+| Authenticate the CLI and SDKs in CI | [Cloud Quick Start](/docs/cloud) |
+| Run a long command an agent can come back to | [Commands and sessions](/docs/cloud/api-reference#commands-and-sessions) |
