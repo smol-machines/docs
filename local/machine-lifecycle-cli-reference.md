@@ -361,6 +361,23 @@ can only re-authorize the checkpoint's own`, followed by the binding as it was c
 given no `--credential` is created, but `machine start` refuses it, because it would intercept
 HTTPS to the bound hosts without adding a value.
 
+A restore runs with the network its checkpoint was captured with, allow list included. On a
+checkpoint captured on `virtio-net` the egress policy can change, because the host enforces it:
+`--allow-cidr`, `--block-private` and the egress rules each replace their own part of the captured
+policy, and a part not named stays as captured. `--allow-host` replaces the captured hosts and the
+captured CIDRs together, because each host is resolved to addresses that become the new CIDR list;
+pass `--allow-cidr` again for any range to keep. A checkpoint that allowed only
+`example.org`, restored with `--allow-host example.com`, allows only `example.com`; restored with
+`--allow-cidr 1.1.1.1/32`, it allows `example.org` and that address; restored with
+`--block-private` alone, it keeps its allow list. Networking itself, the backend, the DNS resolver
+and options, a named network and the guest subnet stay as captured, and asking to change one is
+refused:
+
+```text
+networking cannot be set when restoring a live checkpoint: the guest resumes with the devices and resources it was captured with
+an egress policy cannot be set when restoring a live checkpoint: the checkpoint was captured on the TSI backend, which cannot enforce one
+```
+
 Adding `--store DIR` writes an incremental checkpoint instead of one file. `--output` is still
 what names the result, and with `--store` it becomes a self-contained directory on the same
 filesystem as `DIR`, sharing unchanged chunks with the generations it keeps so history costs only
