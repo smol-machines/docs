@@ -6,8 +6,8 @@ title: Your first internal tool
 
 This guide is for the person replacing a spreadsheet with a small web tool —
 whether you write the code yourself or an AI assistant writes it for you. No
-containers, no servers, no CI. Three commands take you from an empty folder to
-a deployed tool your teammates can use.
+containers, no servers, no CI. Two commands take you from an empty folder to a
+working tool on your own machine; putting it online is a separate step.
 
 ## 1. Scaffold a working app
 
@@ -54,11 +54,12 @@ Edit the code, refresh the page. When you're done for the day, `smol file down`.
 
 ## 3. Put it online
 
-```bash
-smol cloud deploy
-```
+This guide ends on your own machine for now. `smol cloud deploy` deploys a published
+`.smolmachine` artifact, not a project folder: run with no argument, it stops with
+`a reference is required`, and this guide does not yet give a tested way to publish the project as
+one. [Registry](/docs/cloud/registry) covers publishing artifacts.
 
-You get a URL — and here is the part that matters for anyone who has ever
+Once an app is deployed, you get a URL. Here is the part that matters for anyone who has ever
 worried about accidentally publishing something internal:
 
 **The deployed app is private by default.** Nobody can open that URL without
