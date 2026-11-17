@@ -14,9 +14,21 @@ The command examples assume `SMOL_CLOUD_TOKEN` and `SMOL_CLOUD_URL` are set as s
 
 `POST /v1/machines` creates a machine record. New machines begin stopped.
 
+Add `"start": true` to create it running instead: the create goes through the same checks as a start and answers `201` with the started machine, and `"waitReady": true` with it also waits for the machine to be ready. When that start fails, the machine the request created is deleted and the error says so; only then is the same create safe to retry. Such a request lasts a whole boot, so a client with a short timeout should set `name` and, when a retry answers `409`, find the machine with `GET /v1/machines?name=<name>` rather than create it again.
+
+### Find a machine again
+
+`labels` on the create, at most 32 key and value pairs, tag a machine for finding later. `GET /v1/machines?label=team=docs` lists the machines carrying that label; repeat `label` to require several. `GET /v1/machines?name=<name>` returns the one machine with that name, or an empty list. `PATCH /v1/machines/{id}/labels` changes them in any state: a string sets or replaces a key, `null` removes it, and keys left out keep their values:
+
+```bash
+curl --fail -X PATCH "$SMOL_CLOUD_URL/v1/machines/$MACHINE_ID/labels" \
+  -H "Authorization: Bearer $SMOL_CLOUD_TOKEN" -H "Content-Type: application/json" \
+  -d '{"labels": {"team": "docs", "tier": null}}'
+```
+
 ### Start
 
-`POST /v1/machines/{id}/start` starts a stopped machine. An exec request also starts a stopped machine automatically.
+`POST /v1/machines/{id}/start` starts a stopped machine. An exec request also starts a stopped machine automatically. `?waitReady=true` holds the start's answer until the machine is ready, so the response already carries a working URL.
 
 Starting and ready are separate conditions:
 
@@ -41,9 +53,12 @@ The create request can include:
 
 - `autoStopSeconds`: stop the machine after this many seconds of inactivity. Activity is anything dispatched to the machine (exec, sessions, file transfers, ingress traffic), and an in-flight exec keeps the machine alive even past the timeout. The timer is checked by a sweep that runs every 15 seconds, and each machine's deadline carries a fixed offset of up to a quarter of the timeout, at most 60 seconds, so expect the stop up to about 75 seconds after the idle deadline.
   A machine that publishes a port and sets no `autoStopSeconds` can still be stopped when idle by the platform's default timeout, unless its plan includes always-on. Set `autoStopSeconds` yourself to choose the timeout; a machine with no published port is not stopped this way.
-  `0` means never auto-stop.
+  `0` means never auto-stop. On a plan without always-on, `0` together with `ports` is refused with `422` while an idle default is in force.
+- `idleAction`: what the idle timeout does. `stop`, the default, ends the machine's processes. `pause` saves the machine, memory included, so its processes carry on when it resumes, and a paused machine with a published port resumes on its next request. Records show it as `idleAction`.
 - `ttlSeconds`: hard lifetime limit: the machine is deleted this many seconds after creation regardless of activity, on the same sweep and offset.
 - `ephemeral`: the machine is deleted (not kept as stopped) once it stops.
+
+`POST /v1/machines/{id}/keepalive` counts as activity without running anything, and answers with `idleDeadline`, when the machine will idle out if nothing else touches it, or `null` when it never auto-stops. Only a started machine can be kept alive; any other answers `409`.
 
 Both timers take a final metering sample before acting, so an auto-stopped or expired machine's last window of CPU and memory is still billed and visible in `/usage`.
 
@@ -177,7 +192,7 @@ Publish a guest port in the create request:
 }
 ```
 
-Each cloud machine can publish up to 16 guest ports. A published port is a guest port declaration; use the returned URL or authenticated connect route to reach it.
+Each cloud machine can publish up to 16 guest ports. A published port is a guest port declaration; use the returned URL or authenticated connect route to reach it. The machine record's `url` is the ingress URL of its first published port, `null` until the machine is started and its port answers; port links, below, give one URL for each port.
 
 The service must listen on `0.0.0.0` inside the machine, not `127.0.0.1`. A service listening only on the machine's localhost cannot be reached through a published port.
 

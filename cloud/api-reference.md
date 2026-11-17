@@ -204,7 +204,9 @@ The Cloud API also provides endpoints for:
 - Sharing a machine through scoped share links
 - Branching a branchable machine
 - Exporting a machine to a `.smolmachine` artifact
-- Resizing a running machine's vCPUs, memory or disk in place, `POST /v1/machines/{id}/resize`
+- Resizing a machine's vCPUs, memory or disk, `POST /v1/machines/{id}/resize` with any of `cpus`, `memoryMb` and `diskGb`: in place on a started machine, and at the next start or resume on a stopped or paused one. Memory and disk only grow; any other state answers `409`
+- Resetting the idle clock without running anything, `POST /v1/machines/{id}/keepalive`
+- Changing labels in any state, `PATCH /v1/machines/{id}/labels`, and finding machines by them with `GET /v1/machines?label=key=value`
 - Minting a short-lived token that opens only one machine's connect bridge, `POST /v1/machines/{id}/connect-token`
 - Replacing a machine's published ports, live while it runs, `PUT /v1/machines/{id}/ports`
 - Getting or revoking login-free port links, one URL per published port, `POST` and `DELETE /v1/machines/{id}/port-links`
@@ -337,4 +339,4 @@ Checkpoints capture any running machine, guest RAM and processes included, into 
 
 Branch routes are specialized cloud operations. They do not move a running local VM into cloud or provide a portable cross-architecture restore format. `POST /v1/machines/{id}/snapshot` is not implemented and returns `501`; use a checkpoint to capture a running machine, or export a stopped machine's disk to a `.smolmachine` artifact (`POST /v1/machines/{id}/export`, or `smol cloud export`).
 
-`GET /v1/capacity` (`machine:read`) sizes a fan-out before it starts: it returns how many machines you have and how many are started, the memory configured across started machines, and, for each running branchable machine, its memory and its node's branch headroom (`nodeHeadroomMib`). A branch its source's node cannot hold is refused with a retryable `503` `insufficient_capacity`, whose body carries `node.requiredMib`, `node.headroomMib` and `retryAfterSeconds`.
+`GET /v1/capacity` (`machine:read`) sizes a fan-out before it starts: it returns how many machines you have and how many are started, the memory configured across started machines, and, for each running branchable machine, its memory and, when its node reports it, the node's branch headroom (`nodeHeadroomMib`). A branch its source's node cannot hold is refused with a retryable `503` `insufficient_capacity`, whose body carries `node.requiredMib`, `node.headroomMib` and `retryAfterSeconds`.
