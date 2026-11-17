@@ -279,6 +279,40 @@ GET    /v1/groups/{name}/logs
 
 `scale` takes `{"count": N}`, `redeploy` pulls the image again and rolls the instances, `logs` returns, as plain text, the last 200 lines of `/var/log/messages` (or `dmesg`) from one running instance, and `DELETE` stops and removes every instance. Deploy, scale, redeploy, promote and delete need the `group:write` scope, which an API key can carry; the reads need only a valid key.
 
+### Managed agents
+
+A managed agent is a coding agent that smol cloud runs in a machine of its own. You send it turns, read what it did, and rewind or branch it to the state after any turn:
+
+```text
+GET    /v1/agents
+POST   /v1/agents
+GET    /v1/agents/{name}
+DELETE /v1/agents/{name}
+POST   /v1/agents/{name}/turns
+GET    /v1/agents/{name}/turns/{turn}/events
+POST   /v1/agents/{name}/turns/{turn}/cancel
+POST   /v1/agents/{name}/rewind
+POST   /v1/agents/{name}/branch
+POST   /v1/agents/{name}/pause
+POST   /v1/agents/{name}/resume
+```
+
+`POST /v1/agents` (`machine:create`) answers `202` and sets the machine and harness up in the background: `status` reads `starting`, then `ready` or `failed`. The body takes `name` and optionally:
+
+| Field | Meaning |
+|---|---|
+| `harness` | `claude-code` (the default), `codex`, `opencode` or `command` |
+| `model` | Optional for `codex`; required as `provider/model` for `opencode` |
+| `image`, `program` | For the `command` harness: the image (`alpine:3.20` by default) and the program, which gets the prompt appended |
+| `credential` | A stored credential holding the model API key, so the machine never holds it. Its variable must be the one the harness reads, such as `ANTHROPIC_API_KEY`, and its hosts must include the provider's |
+| `allowHosts`, `openNetwork` | Hosts the agent may reach beyond its model provider and package registry, or `true` for unrestricted outbound access. The `command` harness needs one of them, or the create answers `422` |
+| `checkpoints` | Checkpoint after every turn so the agent can be rewound or branched; `true` by default |
+| `cpus`, `memoryMb`, `arch` | 2 vCPUs and 2048 MiB by default; an agent with checkpoints runs on `amd64` unless `arch` says otherwise |
+
+`POST .../turns` (`machine:exec`) takes `prompt`, and optionally `env` for this turn's process and `timeoutSeconds`, 1800 by default; it answers `202` with the turn number, and the turn runs whether or not a client stays connected. An `Idempotency-Key` header makes a retry safe. Values in `env` reach the machine and any checkpoint taken during or after the turn, so pass a model key through `credential` instead. `GET .../turns/{turn}/events` streams the turn's events as server-sent events, then `done`; `?after=` replays only the events numbered above it. A second turn while one runs answers `409`.
+
+`rewind` takes `{"turn": N}` and restores the agent to the state right after that turn; `branch` takes `{"turn": N, "name": "..."}` and starts a new agent from it (`fork` is the same route under its older name). `pause` checkpoints and stops the agent's machine, and the next turn or `resume` starts it again. `DELETE` removes the agent, its machine and the checkpoints no other agent shares. Reads need `machine:read`, `DELETE` needs `machine:delete`, `turns` needs `machine:exec`, `cancel` needs both `machine:create` and `machine:exec`, and the rest `machine:create`.
+
 ### Usage and account
 
 Use `/v1/usage` for usage over a time range and `GET /v1/machines/{id}/usage` for one machine's totals and cost. The API also exposes account and billing-meter endpoints where enabled. Plan limits and pricing can change; use the [pricing page](/pricing) for current public rates.
