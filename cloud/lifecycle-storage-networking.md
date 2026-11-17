@@ -77,7 +77,7 @@ These settings change on a machine that already exists. Where no SDK method or `
 | Public ingress | `POST` and `DELETE /v1/machines/{id}/public` | None | At once; needs a published port and a name of lowercase letters, digits and hyphens, else `422` |
 | Idle clock | `POST /v1/machines/{id}/keepalive` | None | Started machines only |
 
-Nothing changes `env`, `source`, `command`, `workdir`, `autoStopSeconds`, `idleAction`, `ttlSeconds`, `ephemeral`, `cacheDisk` or `nestedVirt` on an existing machine. Create a new machine with the values you need, or checkpoint this one and restore it with new `env`, `autoStopSeconds`, `idleAction` or `labels`, as [Branches and checkpoints](#branches-and-checkpoints) describes.
+Nothing changes `env`, `source`, `command`, `workdir`, `autoStopSeconds`, `idleAction`, `ttlSeconds`, `ephemeral`, `cacheDisk`, `remoteMounts` or `nestedVirt` on an existing machine. Create a new machine with the values you need, or checkpoint this one and restore it with new `env`, `autoStopSeconds`, `idleAction` or `labels`, as [Branches and checkpoints](#branches-and-checkpoints) describes.
 
 ## Machine storage
 
@@ -99,6 +99,20 @@ Write anything that must survive a restart to `/workspace` or another path on th
 Credentials and configuration are a common case. A configuration path that is a symlink into `/tmp` is emptied whenever the machine stops, so a long-running agent that re-reads it after an idle stop finds nothing there. Keep those files on the machine filesystem instead.
 
 Stopping is not a backup. Delete removes the machine, and a recovery point only brings a machine back after its node is lost, so keep important source data and outputs in an external system of record.
+
+### Mount an S3 bucket
+
+`remoteMounts` on the create mounts S3-compatible buckets inside the machine. A bucket is reachable from any node, so it does not tie the machine to one:
+
+```json
+{
+  "source": {"type": "image", "reference": "python:3.12-alpine"},
+  "env": {"AWS_ACCESS_KEY_ID": "...", "AWS_SECRET_ACCESS_KEY": "..."},
+  "remoteMounts": [{"source": "s3://my-bucket/prefix", "mountPath": "/data", "readonly": true}]
+}
+```
+
+Credentials come from the machine's `env`: `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, and optionally `AWS_ENDPOINT_URL` for a service such as R2 or MinIO and `AWS_REGION`. Without them the bucket is read anonymously, which suits public datasets. The machine's agent mounts the bucket from inside the guest, as on a [local machine](/docs/local/machine-lifecycle-cli-reference#mount-an-s3-bucket), so the machine's network must reach the bucket's endpoint. A source that is not an `s3://` URL with a bucket name, or a `mountPath` that is not absolute, is refused with `400`.
 
 ### Recovery points
 
