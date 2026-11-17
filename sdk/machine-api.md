@@ -232,6 +232,10 @@ The port must be declared in `MachineConfig.ports`, and the service must listen 
 
 `publish({ guest })` (`publish(guest)` in Python) publishes a guest port without a restart and returns the mapping in effect; without `host`, a free host port is picked. `unpublish({ guest })` stops publishing it, and connections already open carry on. `ports()` lists what is published. A running local machine takes a TCP port at once; a UDP port, or a machine not on virtio-net networking, needs it stopped. On cloud the node picks the host port and ports are TCP.
 
+### Change the network policy
+
+`setNetworkPolicy(policy)` (`set_network_policy(policy)` in Python, `SetNetworkPolicy(ctx, policy)` in Go) replaces what an existing machine may reach outbound. The policy is `"allow-all"`, `"deny-all"`, or an allow list of hosts and CIDRs: `{ allowHosts, allowCidrs }` in Node, `{"allow_hosts": [...], "allow_cidrs": [...]}` in Python, `AllowList(hosts, cidrs)` in Go. Host names are exact (`api.github.com`) or `*.domain` for subdomains only. Locally the machine must be stopped. On cloud a running machine takes a new allow list at once; switching it to or from `"allow-all"` needs it stopped first, and `"deny-all"` is refused once the machine has run. See [Change an existing machine's network](/docs/cloud/lifecycle-storage-networking#change-an-existing-machine-s-network).
+
 ### Port links
 
 Cloud only. `portLinks()` (`port_links()`) returns a login-free URL for each published port, keyed by guest port, for a client that cannot send an API key. Anyone holding a link reaches the port, so treat it as a credential. `revokePortLinks()` (`revoke_port_links()`) revokes them all, and the next call issues new ones.
