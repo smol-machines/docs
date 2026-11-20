@@ -318,6 +318,40 @@ A host directory is uploaded recursively, like `cp -r`: into an existing guest d
 
 On an upload, `--uid`, `--gid` and `--mode` (octal) set the file's owner and permissions; a download refuses them. With no owner given, the file belongs to the user the workload runs as, which is root for most images.
 
+`machine files` does the same transfers one kind at a time, for a script or a file browser, on a
+running machine:
+
+```bash
+smolvm machine files --name dev list --json /workspace
+smolvm machine files --name dev upload ./config.toml /workspace/config.toml
+smolvm machine files --name dev upload-folder ./src /workspace/src
+smolvm machine files --name dev download /workspace/result.json ./result.json
+smolvm machine files --name dev archive /workspace ./workspace.tar
+```
+
+`list` does not follow the directory's symlinks and reports each entry's kind, name and size.
+`upload` and `download` move one regular file and replace the destination in one step, so a
+reader never sees half a file; a directory on either side is refused. `upload-folder` merges into
+the destination directory, keeping files already there, and `archive` writes a directory as a tar
+file without following its symlinks.
+
+### Connect over SSH
+
+`machine ssh-config` writes a standard OpenSSH client configuration for a machine and prints its
+path and host name as JSON. Any SSH client that reads a config file, `scp`, `sftp` and editors with
+a remote SSH mode included, can then use the machine, and connecting starts a stopped machine
+first:
+
+```bash
+cfg=$(smolvm machine ssh-config --name dev)
+ssh -F "$(echo "$cfg" | jq -r .config)" "$(echo "$cfg" | jq -r .host)"
+```
+
+The configuration reaches the machine through a smolvm `ProxyCommand` rather than a network port,
+so the machine needs no networking. Port forwarding with `ssh -L` works through it. The
+host name, such as `dev-f7061f783ec3b91d.smol`, resolves only through that config, and the file
+and its keys live in the machine's data directory and are removed with the machine.
+
 ### Checkpoint and restore a running machine
 
 `machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.checkpoint` file; the earlier `.smolcheckpoint` name is still accepted. The machine keeps running.
