@@ -108,7 +108,7 @@ Avoid hard-coding keys in source control.
 
 `Machine.create()` waits until the cloud machine is ready before returning. A state of `"started"` only means the VM process launched. It does not mean the guest agent or a published service is ready.
 
-`Machine.connect()` attaches without waiting. Call the readiness method before sending work:
+`Machine.connect()` attaches without waiting, and it does not start a stopped machine. Call the readiness method before sending work to a running machine:
 
 ```ts
 const machine = await Machine.connect("mach-...", { target: "cloud" });
@@ -118,6 +118,18 @@ await machine.waitUntilReady();
 ```python
 machine = Machine.connect("mach-...", ConnectOptions(target="cloud"))
 machine.wait_until_ready()
+```
+
+A machine created through the REST API (`POST /v1/machines`) or the console is stopped until something starts it, and waiting on a stopped machine fails at once rather than waiting for it. Call `start()` instead, which boots the machine and waits for readiness:
+
+```ts
+const machine = await Machine.connect("mach-...", { target: "cloud" });
+await machine.start();
+```
+
+```python
+machine = Machine.connect("mach-...", ConnectOptions(target="cloud"))
+machine.start()
 ```
 
 Use `ready()` for the current readiness signal and `readyAt()` / `ready_at()` for the first ready timestamp.
