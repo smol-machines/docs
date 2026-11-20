@@ -409,10 +409,25 @@ These change a machine while it runs, without a restart. Everything else is `mac
 | Host directory mounts | `machine mount add`, `machine mount rm` | `/api/v1/machines/:name/mounts` | At once, until the machine stops |
 | CPUs, memory, disks | `machine resize` | `POST /api/v1/machines/:name/resize` | At once; memory and disks only grow |
 | Host CPU cap | None | `PUT /api/v1/machines/:name/cpu-limit` | At once, on Linux with a cgroup smolvm controls |
-| Credential values | None | `PUT /api/v1/machines/:name/credential-values` | At once |
+| Credential values | `machine credentials refresh` | `PUT /api/v1/machines/:name/credential-values` | At once |
 | Labels | `machine update --label`, `--remove-label` | None | Any state |
 
 Any other `machine update` setting, such as `--cpus`, is refused on a running machine with `invalid vm state: expected stopped, got Running`.
+
+`machine credentials refresh` rotates the values of a machine's `--credential` bindings. It reads
+each binding's variable from the shell that runs it, and the machine uses the new value from its
+next request:
+
+```bash
+NOTION_API_KEY=secret_new... smolvm machine credentials refresh --name notes
+```
+
+Name bindings, as in `machine credentials refresh --name notes notion`, to refresh only those;
+with none, every binding is read. A binding whose variable is unset or empty, an unknown binding,
+and a machine with no bindings are refused.
+On a stopped machine it changes nothing and says so, since the next `machine start` reads the
+values from its own environment. A machine created through `smolvm serve` takes its values from
+the API route instead, and the command refuses it with that route's path.
 
 ### Resize a running machine
 
