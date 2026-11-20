@@ -98,7 +98,7 @@ Packing does not preserve live RAM or running processes, but `machine checkpoint
 agent rootfs, the disk templates and the server database. It works by pointing `HOME` at that
 root before any path is computed, so everything derived from the home directory follows it. That
 is what lets a node run machines under a system-owned root rather than an operator's home.
-`--state-dir PATH`, a global flag, is its flag form. Both work on Linux and, from smolvm v1.35.1, on macOS; Windows refuses `--state-dir`.
+`--state-dir PATH`, a global flag, is its flag form. Both work on Linux and, from smolvm v1.35.1, on macOS.
 
 ```bash
 SMOLVM_DATA_DIR=/var/lib/smolvm smolvm machine ls

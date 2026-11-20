@@ -96,13 +96,15 @@ smolvm engine
 docker run --rm alpine echo hello
 ```
 
-`smolvm engine` registers a socket at `~/.smolvm/run/docker.sock` with launchd on macOS or a systemd user socket on Linux, creates and selects the `smol` Docker context, and writes `docker.host` to `~/.testcontainers.properties` unless that file already names another runtime. When it replaces a context it names it, and `docker context use <previous>` switches back. A tool that reads only `DOCKER_HOST` can use the same socket:
+`smolvm engine` registers a socket at `~/.smolvm/run/docker.sock` with launchd on macOS or a systemd user socket on Linux, creates and selects the `smol` Docker context, creates and selects the `smol-builder` Buildx builder, and writes `docker.host` to `~/.testcontainers.properties` unless that file already names another runtime. When it replaces a context it names it, and `docker context use <previous>` switches back. A tool that reads only `DOCKER_HOST` can use the same socket:
 
 ```bash
 export DOCKER_HOST=unix://$HOME/.smolvm/run/docker.sock
 ```
 
-For a client fixed to `/var/run/docker.sock`, `smolvm engine link-socket` links that path to the socket through `sudo`. `smolvm engine status` says whether the socket is registered and whether the adapter is running.
+For a client fixed to `/var/run/docker.sock`, `smolvm engine link-socket` links that path to the socket through `sudo`. `smolvm engine status` says whether the socket is registered and whether the adapter is running, and `smolvm engine unregister` removes the registration again, after which `engine status` reports `Docker socket is not registered`. It leaves all three in place, the context and the builder selected and `docker.host` naming the removed socket: `docker context use <previous>`, `docker buildx use default` and deleting that line from `~/.testcontainers.properties` switch each back.
+
+An engine given its own state directory, with `--state-dir` or `SMOLVM_DATA_DIR`, registers a socket under that directory and leaves the Docker context, the Buildx builder and the Testcontainers settings unchanged. It prints the `DOCKER_HOST` value to export and the `smolvm --state-dir PATH engine unregister` command that removes it.
 
 Nothing stays resident. A Docker connection starts the API adapter, which exits after ten seconds with no requests or open streams, and running containers carry on without it. Each container is a machine named `docker-` and the first 12 characters of its id, so `smolvm machine ls` lists it; stop it with `docker stop` or `docker compose down`. Published ports, user-defined networks, volumes, `docker save`, `load`, `push` and `commit` work, and images build through Buildx with its `docker-container` driver. The legacy builder (`DOCKER_BUILDKIT=0`) and network drivers other than `bridge` are not supported.
 

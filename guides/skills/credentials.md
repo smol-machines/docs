@@ -140,9 +140,11 @@ and send it anywhere the network allows; that is why the binding is the default 
 Full detail in `references/traps.md`.
 
 - **An environment value behaves as the one the machine started with**; `README.md` has the
-  v1.18.2 measurement. Rotate it with a restart, use a file reference, read per request, or, on a
-  machine `smolvm serve` created, `PUT /api/v1/machines/{name}/credential-values`, which a running
-  machine uses at once from v1.34.0.
+  v1.18.2 measurement. Rotate it with a restart or, from v1.35.4, with
+  `smolvm machine credentials refresh --name NAME`, which reads the variable again from the calling
+  shell and needs no restart; use a file reference, read per request; or, on a machine
+  `smolvm serve` created, `PUT /api/v1/machines/{name}/credential-values`, which a running machine
+  uses at once from v1.34.0.
 - **Never put the real value on an `exec` command line.** smolvm writes exec commands into the
   machine's console log on the host, so a check that interpolated the value into its own `grep`
   planted it in `agent-console.log` and failed itself. `verify-containment.sh` hands the value to
@@ -498,7 +500,8 @@ if [ "$blocked" -eq 0 ]; then emit result ready; else emit result blocked; fi
 #
 # The value is read from THIS process's environment when the machine starts, and
 # the interceptor keeps using that one: unsetting or changing the variable later
-# changes nothing until the next start. Set it in the environment of this script.
+# changes nothing until the next start or `smolvm machine credentials refresh`. Set it
+# in the environment of this script.
 
 set -uo pipefail
 
@@ -848,8 +851,9 @@ the host environment out of that process. So:
   with `smolvm credentials: credential unavailable` and a `502`, and forwarded nothing.
 
 `docs/credential-substitution.md` says an environment value is read at `machine start` and
-`machine exec` time; what was observed is start time. Rotate a value from the environment by restarting the machine, and use a
-file reference for a value that has to rotate under a running machine. On v1.34.0 on macOS arm64,
+`machine exec` time; what was observed is start time. Rotate a value from the environment by restarting the machine or,
+from v1.35.4, with `smolvm machine credentials refresh --name NAME`, which needs no restart; a
+file reference rotates under a running machine with no command at all. On v1.34.0 on macOS arm64,
 2026-11-09, both rotated under a running machine and reached an API that echoes the header it
 received, a dummy value: a `--secret-file` value on the next request, and a value supplied through
 `PUT /api/v1/machines/{name}/credential-values` on a machine `smolvm serve` created.

@@ -318,6 +318,40 @@ A host directory is uploaded recursively, like `cp -r`: into an existing guest d
 
 On an upload, `--uid`, `--gid` and `--mode` (octal) set the file's owner and permissions; a download refuses them. With no owner given, the file belongs to the user the workload runs as, which is root for most images.
 
+`machine files` does the same transfers one kind at a time, for a script or a file browser, on a
+running machine:
+
+```bash
+smolvm machine files --name dev list --json /workspace
+smolvm machine files --name dev upload ./config.toml /workspace/config.toml
+smolvm machine files --name dev upload-folder ./src /workspace/src
+smolvm machine files --name dev download /workspace/result.json ./result.json
+smolvm machine files --name dev archive /workspace ./workspace.tar
+```
+
+`list` does not follow the directory's symlinks and reports each entry's kind, name and size.
+`upload` and `download` move one regular file and replace the destination in one step, so a
+reader never sees half a file; a directory on either side is refused. `upload-folder` merges into
+the destination directory, keeping files already there, and `archive` writes a directory as a tar
+file without following its symlinks.
+
+### Connect over SSH
+
+`machine ssh-config` writes a standard OpenSSH client configuration for a machine and prints its
+path and host name as JSON. Any SSH client that reads a config file, `scp`, `sftp` and editors with
+a remote SSH mode included, can then use the machine, and connecting starts a stopped machine
+first:
+
+```bash
+cfg=$(smolvm machine ssh-config --name dev)
+ssh -F "$(echo "$cfg" | jq -r .config)" "$(echo "$cfg" | jq -r .host)"
+```
+
+The configuration reaches the machine through a smolvm `ProxyCommand` rather than a network port,
+so the machine needs no networking. Port forwarding with `ssh -L` works through it. The
+host name, such as `dev-f7061f783ec3b91d.smol`, resolves only through that config, and the file
+and its keys live in the machine's data directory and are removed with the machine.
+
 ### Checkpoint and restore a running machine
 
 `machine checkpoint` captures a running machine, guest RAM and processes included, into one portable `.checkpoint` file; the earlier `.smolcheckpoint` name is still accepted. The machine keeps running.
@@ -344,6 +378,11 @@ The restored machine resumes from the captured instant instead of booting, and i
 of its own: its hostname is the new machine's name. Add `--keep-identity` to keep the hostname and
 machine ID the checkpoint was saved with, which is what rewinding one machine to an earlier save
 point wants. Do not run two machines from one checkpoint with it.
+
+`machine checkpoint-requirements --name NAME` prints, as JSON and without pausing the machine, what
+a restore of it needs: the architecture, the engine version, the checkpoint format, the device
+profile, the CPUs and the memory. It refuses whatever `machine checkpoint` refuses without
+`--host-mounts`, so a machine with a host mount is refused too.
 
 Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`, naming the option: `cpus cannot be set when restoring a live checkpoint`. Its environment can still be set with `-e`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
 
@@ -409,10 +448,25 @@ These change a machine while it runs, without a restart. Everything else is `mac
 | Host directory mounts | `machine mount add`, `machine mount rm` | `/api/v1/machines/:name/mounts` | At once, until the machine stops |
 | CPUs, memory, disks | `machine resize` | `POST /api/v1/machines/:name/resize` | At once; memory and disks only grow |
 | Host CPU cap | None | `PUT /api/v1/machines/:name/cpu-limit` | At once, on Linux with a cgroup smolvm controls |
-| Credential values | None | `PUT /api/v1/machines/:name/credential-values` | At once |
+| Credential values | `machine credentials refresh` | `PUT /api/v1/machines/:name/credential-values` | At once |
 | Labels | `machine update --label`, `--remove-label` | None | Any state |
 
 Any other `machine update` setting, such as `--cpus`, is refused on a running machine with `invalid vm state: expected stopped, got Running`.
+
+`machine credentials refresh` rotates the values of a machine's `--credential` bindings. It reads
+each binding's variable from the shell that runs it, and the machine uses the new value from its
+next request:
+
+```bash
+NOTION_API_KEY=secret_new... smolvm machine credentials refresh --name notes
+```
+
+Name bindings, as in `machine credentials refresh --name notes notion`, to refresh only those;
+with none, every binding is read. A binding whose variable is unset or empty, an unknown binding,
+and a machine with no bindings are refused.
+On a stopped machine it changes nothing and says so, since the next `machine start` reads the
+values from its own environment. A machine created through `smolvm serve` takes its values from
+the API route instead, and the command refuses it with that route's path.
 
 ### Resize a running machine
 
@@ -461,14 +515,12 @@ smolvm machine start --name dev
 
 On a running machine that was started with an allow list, an update that only changes the list and
 keeps one in force applies at once, from the machine's next connection or DNS lookup, and the
-command reports `running; applies now`. A machine left with no allowed host keeps reaching the
-addresses it already looked up until their DNS TTL expires; while a host stays on the list, a
-removed name's addresses are refused at once. That covers hosts, patterns, CIDRs, UDP allows,
+command reports `running; applies now`. A removed name's addresses are refused at once, including
+when the new list names no host at all. That covers hosts, patterns, CIDRs, UDP allows,
 `--outbound-localhost-only` and `--reset-allow-list` with the entries to keep. A change that would lift the list, or give one to a running
 machine that has none, is refused until the machine is stopped. Removing a host leaves allowed the
 addresses `machine create` resolved it to; take those out with `--remove-allow-cidr`, or replace
-the whole list with `--reset-allow-list` and the entries to keep, which leaves exactly those,
-within the DNS TTL caveat above. `machine
+the whole list with `--reset-allow-list` and the entries to keep, which leaves exactly those. `machine
 status --json` and `machine ls --json` show the list as `allowed_hosts` and `allowed_cidrs`.
 
 Published TCP ports change the same way: on any running machine, including one on the default
@@ -486,6 +538,21 @@ smolvm machine run \
 ```
 
 A mounted host directory is deliberately visible to the guest. Do not mount sensitive host paths into untrusted workloads.
+
+Add `uid=N` and optionally `gid=N` after the guest path to choose the guest user that owns the
+mount's files, so they belong to the user the workload runs as without a `chown`. Without it, the
+guest sees the host's numeric owner:
+
+```bash
+smolvm machine create --name dev --image alpine -v "$PWD/data:/data:uid=1000"
+smolvm machine run --image alpine -v "$PWD/data:/data:ro:uid=1000,gid=1001" -- ls -ln /data
+```
+
+`gid` defaults to the `uid`. The owner covers every file that records none of its own, which is
+every file the host creates or replaces; a file the guest creates keeps the owner it was created
+with. The option is set when the machine boots, so `machine mount add` refuses it (add the mount
+with `machine update -v` on the stopped machine instead), and a `:staged` mount, `gid=` without
+`uid=`, a non-numeric value and `smolvm pack run` refuse it too.
 
 `machine mount add` mounts a host directory into a running machine without a restart, and
 `machine mount rm --target GUEST` takes it out again:
@@ -642,7 +709,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--cpus` | vCPU count |
 | `--mem` | Guest memory in MiB |
 | `--shm-size` | Size of `/dev/shm`, such as `512m`, `2g` or `25%`; half the guest memory by default. Also on `machine update` |
-| `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]`. A guest path alone, such as `-v /var/lib/docker`, is a directory on the machine's own disk that persists across stop and start |
+| `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]`, and for a host directory `[:uid=N[,gid=N]]` to set the guest owner of its files. A guest path alone, such as `-v /var/lib/docker`, is a directory on the machine's own disk that persists across stop and start |
 | `--cache-disk` | Mount a shared cache disk as `BASE:/guest/path`. `BASE` is a raw or qcow2 image that stays read-only and can back many machines; this machine writes only to its own layer, which its branches copy. A blank `BASE` gets an ext4 filesystem |
 | `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT`, with `/udp` appended for a UDP port |
 | `--auto-ports` | Publish every TCP port the guest listens on at the same host port on loopback, while it listens |
@@ -663,7 +730,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--stop-on-exit` | On `machine create`: stop the machine once its workload exits, whatever the status, flushing storage first |
 | `--seed-digest-ttl` | Reuse an image digest resolved at most this many seconds ago when seeding |
 | `--guest-subnet` | IPv4 subnet for the guest link, such as `10.200.0.0/30` |
-| `--net-backend` | Networking implementation, `tsi` (default) or `virtio-net` |
+| `--net-backend` | Networking implementation: `tsi` (default), `virtio-net`, or `host`, which shares the host's own addresses and ports |
 
 `--block-io` takes `sync`, which services one request at a time on the virtio block worker, or `async`, which submits queued raw-disk reads through a restricted Linux io_uring. `async` is worth reaching for when a workload is disk heavy on a Linux host. It is a Linux-only engine, and asking for it anywhere else does not quietly fall back: the machine refuses to start with `async block I/O is currently supported on Linux hosts only; use --block-io sync`. `machine run`, `machine create` and `smolvm pack run` all accept the flag.
 
@@ -726,6 +793,24 @@ Choose `virtio-net` when the workload inspects its own interfaces, needs ICMP, o
 that expects a routable address — a VPN client, a container runtime, or a network test suite.
 Otherwise the default is the one to keep: it needs no interface configuration in the guest and
 carries the traffic most workloads actually make.
+
+### Sharing the host's network
+
+`--net-backend host`, with `--net`, gives the guest the host's own network: a server in the
+guest listens on the host's port directly, with no `-p`, and the guest reaches services on the
+host's loopback as `127.0.0.1`. There is no boundary between the two on the network, so keep it
+for trusted local work.
+
+```bash
+smolvm machine create --name hostnet --image alpine --net --net-backend host
+```
+
+A port the guest listens on is bound on every host interface, not only loopback. The backend
+refuses what it cannot keep: published ports (`host networking binds host
+ports directly and cannot publish port mappings`), an egress policy such as `--allow-host` or
+`--block-private`, a named network or `--guest-subnet`, `--auto-ports`, `--credential` bindings,
+a machine created through `smolvm serve`, a host that sets `SMOLVM_PUBLISH_ADDR` or
+`SMOLVM_EGRESS_FLOOR=strict`, and `machine checkpoint`.
 
 ### Connection limits
 

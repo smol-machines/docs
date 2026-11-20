@@ -117,8 +117,9 @@ disk contents, including any credentials in them.
 
 Restore requires a compatible runtime, the same host OS and architecture, and
 compatible CPU features. The one exception: a checkpoint from an Apple Silicon
-Mac also restores on arm64 Linux when a current smolvm captured it, but not the
-other way round. Do not assume GPU state, external connections, and host
+Mac also restores on arm64 Linux when a current smolvm captured it, and from
+v1.35.3 that machine, checkpointed again on arm64 Linux, restores on a Mac. No
+other Linux checkpoint restores on a Mac. Do not assume GPU state, external connections, and host
 mounts are portable. See
 [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots).
 
