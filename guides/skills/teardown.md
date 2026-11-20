@@ -370,9 +370,10 @@ case "$kernel" in
         libs_dir="$HOME/Library/Caches/smolvm-libs"
         archives_dir="$HOME/Library/Caches/smolvm-image-archives"
         emit unsupported "cuda"
-        # There is no SMOLVM_DATA_DIR on macOS (it is Linux-only), but every path
-        # below is derived from HOME, so an install under a scratch HOME is
-        # self-contained. Windows is the platform where neither route works.
+        # From smolvm v1.35.1, SMOLVM_DATA_DIR (or --state-dir) moves these paths
+        # on macOS too, under that directory in place of HOME. This script reads
+        # them from HOME, so for such an install run it with HOME set to that
+        # directory.
         emit state_relocatable via_home
         ;;
     Linux)
