@@ -500,6 +500,21 @@ smolvm machine run \
 
 A mounted host directory is deliberately visible to the guest. Do not mount sensitive host paths into untrusted workloads.
 
+Add `uid=N` and optionally `gid=N` after the guest path to choose the guest user that owns the
+mount's files, so they belong to the user the workload runs as without a `chown`. Without it, the
+guest sees the host's numeric owner:
+
+```bash
+smolvm machine create --name dev --image alpine -v "$PWD/data:/data:uid=1000"
+smolvm machine run --image alpine -v "$PWD/data:/data:ro:uid=1000,gid=1001" -- ls -ln /data
+```
+
+`gid` defaults to the `uid`. The owner covers every file that records none of its own, which is
+every file the host creates or replaces; a file the guest creates keeps the owner it was created
+with. The option is set when the machine boots, so `machine mount add` refuses it (add the mount
+with `machine update -v` on the stopped machine instead), and a `:staged` mount, `gid=` without
+`uid=`, a non-numeric value and `smolvm pack run` refuse it too.
+
 `machine mount add` mounts a host directory into a running machine without a restart, and
 `machine mount rm --target GUEST` takes it out again:
 
@@ -655,7 +670,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--cpus` | vCPU count |
 | `--mem` | Guest memory in MiB |
 | `--shm-size` | Size of `/dev/shm`, such as `512m`, `2g` or `25%`; half the guest memory by default. Also on `machine update` |
-| `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]`. A guest path alone, such as `-v /var/lib/docker`, is a directory on the machine's own disk that persists across stop and start |
+| `--volume`, `-v` | Mount a host directory or an S3 bucket: `SOURCE:GUEST_PATH[:ro]`, and for a host directory `[:uid=N[,gid=N]]` to set the guest owner of its files. A guest path alone, such as `-v /var/lib/docker`, is a directory on the machine's own disk that persists across stop and start |
 | `--cache-disk` | Mount a shared cache disk as `BASE:/guest/path`. `BASE` is a raw or qcow2 image that stays read-only and can back many machines; this machine writes only to its own layer, which its branches copy. A blank `BASE` gets an ext4 filesystem |
 | `--port`, `-p` | Forward `HOST_PORT:GUEST_PORT`, with `/udp` appended for a UDP port |
 | `--auto-ports` | Publish every TCP port the guest listens on at the same host port on loopback, while it listens |
