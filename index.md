@@ -62,7 +62,11 @@ The SDK is a control surface, not a prerequisite. Installing `smolvm` is enough 
 |---|---|
 | Run GitHub Actions jobs on smol machines | [smol ci](/docs/cloud/ci) |
 | Change a running cloud machine's ports, network, size or labels | [Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) |
-| Change a running local machine's ports, allow list, mounts or size | [Change a running machine](/docs/local/machine-lifecycle-cli-reference#change-a-running-machine) |
+| Change a running local machine's ports, allow list, mounts, size or credential values | [Change a running machine](/docs/local/machine-lifecycle-cli-reference#change-a-running-machine) |
+| Restrict what a local machine can reach | [Networking](/docs/introduction/concepts/isolation-networking-credentials#networking) |
+| Give a local machine an API key it never holds | [Credential substitution](/docs/introduction/concepts/isolation-networking-credentials#credential-substitution) |
+| Open ssh, scp or an editor's remote session on a local machine | [Connect over SSH](/docs/local/machine-lifecycle-cli-reference#connect-over-ssh) |
+| Move a local machine to another host as a file | [Checkpoint and restore a running machine](/docs/local/machine-lifecycle-cli-reference#checkpoint-and-restore-a-running-machine) |
 | Move a running local machine to smol cloud | [Move a local machine to the cloud](/docs/cloud/lifecycle-storage-networking#move-a-local-machine-to-the-cloud) |
 | Checkpoint a cloud machine and restore it | [Branches and checkpoints](/docs/cloud/lifecycle-storage-networking#branches-and-checkpoints) |
 | Give a cloud machine a secret it never holds | [Credentials the machine never holds](/docs/cloud/lifecycle-storage-networking#credentials-the-machine-never-holds) |
