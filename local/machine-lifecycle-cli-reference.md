@@ -379,6 +379,11 @@ of its own: its hostname is the new machine's name. Add `--keep-identity` to kee
 machine ID the checkpoint was saved with, which is what rewinding one machine to an earlier save
 point wants. Do not run two machines from one checkpoint with it.
 
+`machine checkpoint-requirements --name NAME` prints, as JSON and without pausing the machine, what
+a restore of it needs: the architecture, the engine version, the checkpoint format, the device
+profile, the CPUs and the memory. It refuses whatever `machine checkpoint` refuses without
+`--host-mounts`, so a machine with a host mount is refused too.
+
 Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`, naming the option: `cpus cannot be set when restoring a live checkpoint`. Its environment can still be set with `-e`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
 
 A checkpoint carries the machine's `--credential` bindings, never their values. To have a restore
