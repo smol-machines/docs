@@ -461,14 +461,12 @@ smolvm machine start --name dev
 
 On a running machine that was started with an allow list, an update that only changes the list and
 keeps one in force applies at once, from the machine's next connection or DNS lookup, and the
-command reports `running; applies now`. A machine left with no allowed host keeps reaching the
-addresses it already looked up until their DNS TTL expires; while a host stays on the list, a
-removed name's addresses are refused at once. That covers hosts, patterns, CIDRs, UDP allows,
+command reports `running; applies now`. A removed name's addresses are refused at once, including
+when the new list names no host at all. That covers hosts, patterns, CIDRs, UDP allows,
 `--outbound-localhost-only` and `--reset-allow-list` with the entries to keep. A change that would lift the list, or give one to a running
 machine that has none, is refused until the machine is stopped. Removing a host leaves allowed the
 addresses `machine create` resolved it to; take those out with `--remove-allow-cidr`, or replace
-the whole list with `--reset-allow-list` and the entries to keep, which leaves exactly those,
-within the DNS TTL caveat above. `machine
+the whole list with `--reset-allow-list` and the entries to keep, which leaves exactly those. `machine
 status --json` and `machine ls --json` show the list as `allowed_hosts` and `allowed_cidrs`.
 
 Published TCP ports change the same way: on any running machine, including one on the default
