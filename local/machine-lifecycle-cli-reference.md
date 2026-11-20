@@ -725,7 +725,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--stop-on-exit` | On `machine create`: stop the machine once its workload exits, whatever the status, flushing storage first |
 | `--seed-digest-ttl` | Reuse an image digest resolved at most this many seconds ago when seeding |
 | `--guest-subnet` | IPv4 subnet for the guest link, such as `10.200.0.0/30` |
-| `--net-backend` | Networking implementation, `tsi` (default) or `virtio-net` |
+| `--net-backend` | Networking implementation: `tsi` (default), `virtio-net`, or `host`, which shares the host's own addresses and ports |
 
 `--block-io` takes `sync`, which services one request at a time on the virtio block worker, or `async`, which submits queued raw-disk reads through a restricted Linux io_uring. `async` is worth reaching for when a workload is disk heavy on a Linux host. It is a Linux-only engine, and asking for it anywhere else does not quietly fall back: the machine refuses to start with `async block I/O is currently supported on Linux hosts only; use --block-io sync`. `machine run`, `machine create` and `smolvm pack run` all accept the flag.
 
@@ -788,6 +788,24 @@ Choose `virtio-net` when the workload inspects its own interfaces, needs ICMP, o
 that expects a routable address — a VPN client, a container runtime, or a network test suite.
 Otherwise the default is the one to keep: it needs no interface configuration in the guest and
 carries the traffic most workloads actually make.
+
+### Sharing the host's network
+
+`--net-backend host`, with `--net`, gives the guest the host's own network: a server in the
+guest listens on the host's port directly, with no `-p`, and the guest reaches services on the
+host's loopback as `127.0.0.1`. There is no boundary between the two on the network, so keep it
+for trusted local work.
+
+```bash
+smolvm machine create --name hostnet --image alpine --net --net-backend host
+```
+
+A port the guest listens on is bound on every host interface, not only loopback. The backend
+refuses what it cannot keep: published ports (`host networking binds host
+ports directly and cannot publish port mappings`), an egress policy such as `--allow-host` or
+`--block-private`, a named network or `--guest-subnet`, `--auto-ports`, `--credential` bindings,
+a machine created through `smolvm serve`, a host that sets `SMOLVM_PUBLISH_ADDR` or
+`SMOLVM_EGRESS_FLOOR=strict`, and `machine checkpoint`.
 
 ### Connection limits
 

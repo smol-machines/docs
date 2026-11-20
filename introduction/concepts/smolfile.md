@@ -58,7 +58,7 @@ These fields describe the machine and its workload. All are optional.
 | `auto_graph` | boolean | Ask compatible CUDA frameworks to capture safe graph regions. Implies `cuda`. |
 | `rosetta` | boolean | Enable Rosetta 2 translation for x86_64 binaries on Apple Silicon macOS. |
 | `docker_socket` | boolean | Expose the guest Docker socket to the host as a Unix socket. |
-| `net_backend` | string | Networking backend: `"tsi"` or `"virtio-net"`. |
+| `net_backend` | string | Networking backend: `"tsi"`, `"virtio-net"` or `"host"`. |
 | `auto_ports` | boolean | Publish every TCP port the guest listens on at the same host port on loopback, as `--auto-ports` does. |
 | `auto_ports_exclude` | integer array | Guest ports `auto_ports` never publishes, such as `[5432]`. Setting it turns `auto_ports` on unless `auto_ports = false`. |
 
@@ -206,7 +206,7 @@ Hostnames are resolved when the VM starts. Use an allow list instead of unrestri
 
 ### Choosing a networking backend
 
-`net_backend` picks how the guest reaches the network. It takes the same two
+`net_backend` picks how the guest reaches the network. It takes the same three
 values as the `--net-backend` flag, and the flag and the field are parsed by the
 same code, so the spellings cannot drift apart.
 
@@ -214,6 +214,7 @@ same code, so the spellings cannot drift apart.
 | --- | --- |
 | `tsi` | libkrun's transparent socket layer. Outbound connections only. |
 | `virtio-net` | A virtual interface served by the host-side network stack. |
+| `host` | The host's own addresses and ports, shared with the guest. Needs `net = true`; see [Sharing the host's network](/docs/local/machine-lifecycle-cli-reference#sharing-the-hosts-network). |
 
 `tsi` is the default and is enough for a workload that only makes outbound
 connections. Choose `virtio-net` when the guest needs a real network interface

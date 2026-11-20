@@ -85,7 +85,7 @@ be restored. The initial profile refuses a machine with any of:
 - host secret references
 - image layers found only under a host path the image names; a machine created from a pack, or from an image the host fetched for it, is captured with its source
 - custom DNS
-- named inter-VM networking
+- named inter-VM networking, or the `host` network backend
 - Vulkan GPU state, CUDA state, or Rosetta
 - SSH agent forwarding or Docker socket forwarding
 
