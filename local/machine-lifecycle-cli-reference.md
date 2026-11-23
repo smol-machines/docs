@@ -526,7 +526,8 @@ started they fail with `open disk: No such file or directory`.
 It also edits the egress policy, which is otherwise fixed at create time. `--allow-host`,
 `--allow-host-pattern`, `--allow-cidr`, `--allow-udp` and `--outbound-localhost-only` add to the
 policy, and `--remove-allow-host`, `--remove-allow-cidr` and `--remove-allow-udp` take entries back out; `--net` and `--no-net` turn
-networking on and off. `--dns-option` and `--clear-dns-options` change the resolver options for the
+networking on and off, and from v1.36.0 `--no-net` also drops `--block-private`, a `--guest-subnet`, a
+named `--network` and the machine's credential bindings. `--dns-option` and `--clear-dns-options` change the resolver options for the
 next start; a checkpoint resumes with the options it was captured with, and `machine create --from`
 a checkpoint with a different set is refused. On a stopped machine the new policy applies from the next start, and only
 the named destinations answer afterwards:
