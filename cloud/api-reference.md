@@ -234,6 +234,7 @@ The Cloud API also provides endpoints for:
 - Minting a short-lived token that opens only one machine's connect bridge, `POST /v1/machines/{id}/connect-token`
 - Replacing a machine's published ports, live while it runs, `PUT /v1/machines/{id}/ports` with `{"ports": [{"port": 8080}]}`
 - Replacing a machine's outbound network policy, `PUT /v1/machines/{id}/network` with the create's `network` object: live from one allow list to another on a started machine, otherwise at the next start
+- Replacing a machine's environment, `PUT /v1/machines/{id}/env` with `{"env": {"NAME": "value"}}`: commands started after the call get it at once, and the workload at its next start
 - Replacing a machine's credential bindings before its first start, `PUT /v1/machines/{id}/credentials`
 - Opening a machine's published app to anyone without a login, and closing it again, `POST` and `DELETE /v1/machines/{id}/public`
 - Getting or revoking login-free port links, one URL per published port, `POST` and `DELETE /v1/machines/{id}/port-links`
