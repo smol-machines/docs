@@ -75,8 +75,8 @@ In a [sub-organization](/docs/cloud/organizations#who-does-what-in-a-sub-organiz
 | vCPUs, memory, disk | `POST /v1/machines/{id}/resize` | `resize()` in Node, Python and Rust; not in Go, and not `smol machine resize` | Started: in place. Stopped or paused: at the next start or resume. Memory and disk only grow |
 | Labels | `PATCH /v1/machines/{id}/labels`, [above](#find-a-machine-again) | None | Any state, at once |
 | Environment | `PUT /v1/machines/{id}/env` | None | Started: commands started from then on, at once; the workload itself at its next start. Stopped: at the next start. Starting, stopping, paused or a frozen branch base: `409` |
-| Credential values | `PUT /v1/credentials/{name}`, [below](#credentials-the-machine-never-holds) | Node, Python and Rust store a credential's `value` when a create passes one | Running machines that bind it: from their next request |
-| Credential bindings | `PUT /v1/machines/{id}/credentials` | None | Only while the machine has no copy on a node and nothing to restore; otherwise `409` |
+| Credential values | `PUT /v1/credentials/{name}`, [below](#credentials-the-machine-never-holds) | `updateCredentialValues()` in Node, `update_credential_values()` in Python and Rust, `UpdateCredentialValues` in Go; a `value` passed on create or to `setCredentials()` is stored the same way | Running machines that bind it: from their next request |
+| Credential bindings | `PUT /v1/machines/{id}/credentials` | `setCredentials()` in Node, `set_credentials()` in Python and Rust, `SetCredentials` in Go, which replace the whole set | Only while the machine has no copy on a node and nothing to restore; otherwise `409` |
 | Public ingress | `POST` and `DELETE /v1/machines/{id}/public` | None | At once; needs a published port and a name of lowercase letters, digits and hyphens, else `422` |
 | Idle clock | `POST /v1/machines/{id}/keepalive` | None | Started machines only |
 
@@ -224,7 +224,7 @@ Store a secret once with `PUT /v1/credentials/github`, giving the variable a mac
 
 A machine created with `"credentials": ["github"]` sees a placeholder in `GITHUB_TOKEN`. Its node replaces the placeholder with the value only on HTTPS requests to the listed hosts, which are exact names: no wildcards or IP addresses. The value is never returned: `GET /v1/credentials` lists names, variables and hosts. After `DELETE /v1/credentials/{name}` a bound machine fails to start until the credential is stored again.
 
-Storing a new value under the same name hands it to the running machines that bind it at once, from their next request. The response says where it went: `runningMachines.live` lists the machines using it now, and `runningMachines.nextStart` the ones that keep the old value until they next start, each with a `reason`: `engine_too_old` for a node older than smolvm 1.34.0, or `node_error`. Stopped machines are not listed, because every start hands a machine the current value.
+Storing a new value under the same name hands it to the running machines that bind it at once, from their next request. The response says where it went: `runningMachines.live` lists the machines using it now, and `runningMachines.nextStart` the ones that keep the old value until they next start, each with a `reason`: `engine_too_old` for a node older than smolvm 1.34.0, or `node_error`. Stopped machines are not listed, because every start hands a machine the current value. A value changed through the SDK is stored the same way, under the account's credential of that name, so it reaches every machine bound to it.
 
 A credential can set a whole request header instead of filling a placeholder. With `setHeader`, the node sets that header to the value on every HTTPS request to the hosts, replacing whatever the machine sent, so the value carries its own scheme and `envVar` can be left out:
 
