@@ -50,6 +50,8 @@ DELETE /v1/machines/{id}
 
 Machine creation accepts an OCI image or a `.smolmachine` registry reference as its source. Specify CPU, memory, network policy, environment, working directory, lifecycle limits, and other supported fields in the create request.
 
+`command` replaces the source's own entrypoint and command as what the machine runs when it starts. It takes an argument list, or, as an exec's `command` does, one string run with `sh -lc`; a blank string is refused.
+
 When `resources` is omitted, a machine currently defaults to 4 vCPUs and 8192 MB of memory. When `network` is omitted, outbound access defaults to **open**, so set `network.mode` explicitly (`blocked` or `allowCidrs`) when egress policy matters. Note a `blocked` machine also cannot pull its image, which runs in-guest, unless the image is already cached on its node. Larger machines cost more, so pass `resources` explicitly (for example `{"cpus": 1, "memoryMb": 256}`) rather than relying on the default. Disk per machine is capped by the plan, which `effectiveMaxDiskGb` shows; 16 TiB is the most any request can ask for. Check the OpenAPI document for the current request limits.
 
 `resources.diskDurability` is `full` (the default), where a guest `fsync` waits for the node's disk, or `deferred`, which is faster for fsync-heavy work and can lose recent writes if the node crashes; a branch keeps its source's.

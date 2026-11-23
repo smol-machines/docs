@@ -161,6 +161,12 @@ points at it, and `exec` still returns for a failed command. These changed:
   workload ran was not checked. Pass a list, as before.
 - `branch()` also takes `freeze_source`. `fork()` keeps the signature above.
 
+### 2026-11-23, the cloud API
+
+Not a re-run. The cloud API's create now takes a string `command` as well as a list and runs the
+string with `sh -lc`, as the cloud API reference describes, so the 422 described above no longer
+holds. What this SDK does with a string was not run again; pass a list, as before.
+
 ## Related packets
 
 - `cloud-auth` for the credential and its scopes.
