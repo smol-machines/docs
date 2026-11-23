@@ -62,7 +62,7 @@ The SDK is a control surface, not a prerequisite. Installing `smolvm` is enough 
 |---|---|
 | Run GitHub Actions jobs on smol machines | [smol ci](/docs/cloud/ci) |
 | Change a running cloud machine's ports, network, size, labels or environment | [Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) |
-| Change a running local machine's ports, allow list, mounts, size or credential values | [Change a running machine](/docs/local/machine-lifecycle-cli-reference#change-a-running-machine) |
+| Change a running local machine's ports, allow list, mounts, size or credentials | [Change a running machine](/docs/local/machine-lifecycle-cli-reference#change-a-running-machine) |
 | Restrict what a local machine can reach, your computer's loopback included | [Networking](/docs/introduction/concepts/isolation-networking-credentials#networking) |
 | Give a local machine an API key it never holds | [Credential substitution](/docs/introduction/concepts/isolation-networking-credentials#credential-substitution) |
 | Open ssh, scp or an editor's remote session on a local machine | [Connect over SSH](/docs/local/machine-lifecycle-cli-reference#connect-over-ssh) |

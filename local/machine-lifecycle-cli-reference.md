@@ -441,7 +441,7 @@ See [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots) 
 
 ### Change a running machine
 
-These change a machine while it runs, without a restart. Everything else is `machine update` on a stopped machine, from its next start.
+These change a machine while it runs; the last column says when each takes effect. Everything else is `machine update` on a stopped machine, from its next start.
 
 | Setting | CLI | `smolvm serve` API | On a running machine |
 |---|---|---|---|
@@ -451,6 +451,7 @@ These change a machine while it runs, without a restart. Everything else is `mac
 | CPUs, memory, disks | `machine resize` | `POST /api/v1/machines/:name/resize` | At once; memory and disks only grow |
 | Host CPU cap | None | `PUT /api/v1/machines/:name/cpu-limit` | At once, on Linux with a cgroup smolvm controls |
 | Credential values | `machine credentials refresh` | `PUT /api/v1/machines/:name/credential-values` | At once |
+| Credential bindings | `machine credentials add`, `machine credentials remove` | `PUT /api/v1/machines/:name/credential-bindings` | From its next request, if it started with at least one binding; otherwise from its next start |
 | Labels | `machine update --label`, `--remove-label` | None | Any state |
 
 Any other `machine update` setting, such as `--cpus`, is refused on a running machine with `invalid vm state: expected stopped, got Running`.
@@ -469,6 +470,26 @@ and a machine with no bindings are refused.
 On a stopped machine it changes nothing and says so, since the next `machine start` reads the
 values from its own environment. A machine created through `smolvm serve` takes its values from
 the API route instead, and the command refuses it with that route's path.
+
+From v1.36.0, `machine credentials add` and `remove` change which bindings a machine has:
+
+```bash
+GH_TOKEN=ghp_... smolvm machine credentials add --name web --credential gh=GH_TOKEN@api.github.com
+smolvm machine credentials remove --name web gh
+```
+
+`add` takes the same `--credential` form as `machine create`, needs each variable set in the shell
+that runs it, and replaces a binding of the same name. On a running machine that started with at
+least one binding it takes that value with no restart: new commands get the placeholder and the
+host substitutes it from the next request, and a new host is trusted by the guest at once on a
+machine started on v1.36.1 or later. A stopped machine, or a running one that started without
+bindings, takes the change at its next start, which reads the value from the environment of
+`machine start`. On a running machine that started without bindings, every HTTPS request from a
+command started after the change fails its certificate check until that restart, to a host with no
+binding too, so stop and start it right away. A host outside the machine's `--allow-host` list, a
+variable that is unset, an unknown binding and a missing machine are refused. From v1.36.1
+`machine ls --json` and `machine status --json` list each binding's `name`, `env_var` and `hosts`,
+never its value.
 
 ### Resize a running machine
 
