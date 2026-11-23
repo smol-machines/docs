@@ -701,7 +701,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--allow-udp` | Allow UDP to a CIDR, optionally on one port or a range, as `CIDR[:PORT[-END]]`; a `--deny-cidr` still wins; implies `--net` |
 | `--block-private` | Keep the public internet open and block private, internal and link-local destinations, cloud metadata and the host's loopback; implies `--net` |
 | `--allow-private` | Reopen one private CIDR under `--block-private`, which it implies; cloud metadata stays blocked |
-| `--allow-host-loopback` | On `machine run` only: let the guest reach services on the host's own `127.0.0.1` and `::1`, which are closed by default; cloud metadata stays blocked; implies `--net` |
+| `--allow-host-loopback` | On `machine run` only: let a machine on the default `tsi` backend reach services on the host's own `127.0.0.1` and `::1`, which `tsi` keeps closed. A `virtio-net` machine reaches them by default through `host.smolvm.internal`, as [Isolation, networking and credentials](/docs/introduction/concepts/isolation-networking-credentials#networking) describes with how to close it; cloud metadata stays blocked; implies `--net` |
 | `--deny-cidr` | Refuse egress to a CIDR before any allow is checked, so it wins over every allow list; on `machine run` and `machine create`, not `update`; implies `--net` |
 | `--dns` | Resolve guest names through this resolver IP instead of the host's own; implies `--net` |
 | `--dns-option` | Add a resolver option to the guest's `resolv.conf`, such as `timeout:1`; repeatable, written in order as one `options` line. musl images such as Alpine honor only `ndots`, `timeout` and `attempts` |

@@ -35,6 +35,8 @@ Local smolvm guest networking is off by default, and a machine usually does not 
 
 Egress can be restricted with hostname and CIDR allow lists. A platform policy also blocks selected sensitive address ranges. To keep the public internet open while closing everything private, pass `--block-private`: it blocks the LAN, internal and link-local ranges, cloud metadata, carrier-grade NAT and the host's loopback. `--allow-private CIDR` reopens one private range under it, such as an internal registry, and cloud metadata stays blocked whatever it names. In a Smolfile these are `block_private` and `allow_private` under `[network]`. To refuse a range outright, pass `--deny-cidr CIDR` (Smolfile `deny_cidrs` under `[network]`): a deny is checked before any allow, so it wins over every allow list, and it implies `--net`.
 
+Whether a local machine can reach the services on your own computer's loopback (`127.0.0.1`, such as a local database or a dev server) depends on its network backend. A machine on `virtio-net` with no allow list reaches them by default through `host.smolvm.internal` or `host.docker.internal`, as a container under Docker does. That includes a machine with `--net` that publishes a port, and any machine that binds a credential, since those select `virtio-net` (see [What moves a machine to virtio-net](/docs/local/machine-lifecycle-cli-reference#what-moves-a-machine-to-virtio-net)). To close it, pass `--deny-cidr 127.0.0.0/8` or `--block-private`, or set `SMOLVM_ALLOW_HOST_LOOPBACK=0` in the environment that starts the machine. `machine update` takes neither flag, so for a machine that already exists, set the variable on each `machine start`. An allow list reaches the host's loopback only when it names both a loopback CIDR and the gateway, `100.96.0.1` by default. A plain `--net` machine on the default `tsi` backend does not reach it unless `machine run` is given `--allow-host-loopback`, and then it dials `127.0.0.1` directly. A machine `smolvm serve` starts does not reach it either unless `SMOLVM_EGRESS_FLOOR` lowers the floor `serve` sets, as [Local API](/docs/local/local-api-smolvm-serve) describes, and a cloud worker never allows it. Cloud metadata stays blocked in each of these cases unless `SMOLVM_EGRESS_FLOOR=off` lifts the floor.
+
 Behind a corporate proxy or a TLS-inspecting firewall, two flags carry the host's setup into a machine. `--use-host-proxy` passes the host's `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` and `NO_PROXY`, or on macOS the system proxy, into the workload, rewriting a proxy on the host's loopback to an address the guest can reach; the run is refused when nothing answers there. `--trust-host-certs` mounts the certificates the host trusts at `/etc/smolvm-host-trust/ca-bundle.pem`, read-only, for image pulls and the workload, and points `SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE` and similar variables at it. Set `SMOLVM_HOST_CA_BUNDLE` to a PEM file when the host's trust store is not the system default.
 
 The image pull inside the machine uses `--proxy` and `--no-proxy`, or else the host's `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` and `NO_PROXY`. A proxy on the host's loopback is rewritten to the host's outbound address, so it must listen beyond loopback; when it does not, the pull is refused up front with what to change.
@@ -86,12 +88,15 @@ What actually exposes a host is what you shared on purpose. A host mount is the 
 access to that directory. A published port listens on the host's loopback unless the node widens it with `SMOLVM_PUBLISH_ADDR`, and then it is reachable from wherever that address is. An
 allow list one entry wider than you meant is egress you did not intend. And the code running
 inside the machine is code you chose to run. Every one of those is off by default, so the
-exposure a machine has is the exposure you gave it.
+exposure a machine has is the exposure you gave it. One reach is on by default: a local machine on
+`virtio-net` with no allow list reaches the services on the host's loopback, as
+[Networking](#networking) describes.
 
 For an untrusted workload:
 
 - Keep networking disabled unless it is required
 - Restrict egress to necessary hosts or networks
+- Close the host's loopback with `--deny-cidr 127.0.0.0/8` or `--block-private` on a `virtio-net` machine
 - Avoid mounting sensitive host paths
 - Inject only credentials the workload may read
 - Forward an SSH agent only when the workload may request signatures
