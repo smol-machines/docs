@@ -386,6 +386,8 @@ profile, the CPUs and the memory. It refuses whatever `machine checkpoint` refus
 
 Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`, naming the option: `cpus cannot be set when restoring a live checkpoint`. Its environment can still be set with `-e`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
 
+From v1.36.0 a checkpoint taken with `--host-mounts` attaches each host mount only where `machine create --from` names it again with `-v HOST:GUEST`, and without it the restore is refused with the `-v` to pass, as [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots) describes.
+
 A checkpoint carries the machine's `--credential` bindings, never their values. To have a restore
 read the values from this host, name every binding again on `machine create --from`, exactly as it
 was captured, with the same variable, hosts and options:
