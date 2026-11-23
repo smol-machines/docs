@@ -82,8 +82,9 @@ A capture also refuses a machine with resources bound to this host: a host mount
 published socket, a remote volume, a host secret reference, custom DNS, a named network, a GPU,
 CUDA, Rosetta, `--ssh-agent` or a Docker socket. The error, `the initial portable checkpoint
 profile does not support ...; stop or detach these resources before capture`, names which. From
-v1.29.0 `machine checkpoint --host-mounts` captures a machine with host mounts, and the checkpoint
-restores only on a host where the same paths exist.
+v1.29.0 `machine checkpoint --host-mounts` captures a machine with host mounts. From v1.36.0 a
+restore attaches each one only where `-v HOST:GUEST` names its host directory, and without it is
+refused with the `-v` to pass.
 
 **3. Capture, once or on a schedule.**
 

@@ -386,6 +386,8 @@ profile, the CPUs and the memory. It refuses whatever `machine checkpoint` refus
 
 Because a live checkpoint carries the topology it was captured with, `--from` on a checkpoint rejects flags that would change it, including `--cpus`, `--mem`, `--storage`, and `--overlay`, naming the option: `cpus cannot be set when restoring a live checkpoint`. Its environment can still be set with `-e`. Use `--staging-dir` on the capture when the default location has too little room for the temporary assets.
 
+From v1.36.0 a checkpoint taken with `--host-mounts` attaches each host mount only where `machine create --from` names it again with `-v HOST:GUEST`, and without it the restore is refused with the `-v` to pass, as [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots) describes.
+
 A checkpoint carries the machine's `--credential` bindings, never their values. To have a restore
 read the values from this host, name every binding again on `machine create --from`, exactly as it
 was captured, with the same variable, hosts and options:
@@ -439,7 +441,7 @@ See [Branches and Checkpoints](/docs/introduction/concepts/forks-and-snapshots) 
 
 ### Change a running machine
 
-These change a machine while it runs, without a restart. Everything else is `machine update` on a stopped machine, from its next start.
+These change a machine while it runs; the last column says when each takes effect. Everything else is `machine update` on a stopped machine, from its next start.
 
 | Setting | CLI | `smolvm serve` API | On a running machine |
 |---|---|---|---|
@@ -449,6 +451,7 @@ These change a machine while it runs, without a restart. Everything else is `mac
 | CPUs, memory, disks | `machine resize` | `POST /api/v1/machines/:name/resize` | At once; memory and disks only grow |
 | Host CPU cap | None | `PUT /api/v1/machines/:name/cpu-limit` | At once, on Linux with a cgroup smolvm controls |
 | Credential values | `machine credentials refresh` | `PUT /api/v1/machines/:name/credential-values` | At once |
+| Credential bindings | `machine credentials add`, `machine credentials remove` | `PUT /api/v1/machines/:name/credential-bindings` | From its next request, if it started with at least one binding; otherwise from its next start |
 | Labels | `machine update --label`, `--remove-label` | None | Any state |
 
 Any other `machine update` setting, such as `--cpus`, is refused on a running machine with `invalid vm state: expected stopped, got Running`.
@@ -467,6 +470,26 @@ and a machine with no bindings are refused.
 On a stopped machine it changes nothing and says so, since the next `machine start` reads the
 values from its own environment. A machine created through `smolvm serve` takes its values from
 the API route instead, and the command refuses it with that route's path.
+
+From v1.36.0, `machine credentials add` and `remove` change which bindings a machine has:
+
+```bash
+GH_TOKEN=ghp_... smolvm machine credentials add --name web --credential gh=GH_TOKEN@api.github.com
+smolvm machine credentials remove --name web gh
+```
+
+`add` takes the same `--credential` form as `machine create`, needs each variable set in the shell
+that runs it, and replaces a binding of the same name. On a running machine that started with at
+least one binding it takes that value with no restart: new commands get the placeholder and the
+host substitutes it from the next request, and a new host is trusted by the guest at once on a
+machine started on v1.36.1 or later. A stopped machine, or a running one that started without
+bindings, takes the change at its next start, which reads the value from the environment of
+`machine start`. On a running machine that started without bindings, every HTTPS request from a
+command started after the change fails its certificate check until that restart, to a host with no
+binding too, so stop and start it right away. A host outside the machine's `--allow-host` list, a
+variable that is unset, an unknown binding and a missing machine are refused. From v1.36.1
+`machine ls --json` and `machine status --json` list each binding's `name`, `env_var` and `hosts`,
+never its value.
 
 ### Resize a running machine
 
@@ -503,7 +526,8 @@ started they fail with `open disk: No such file or directory`.
 It also edits the egress policy, which is otherwise fixed at create time. `--allow-host`,
 `--allow-host-pattern`, `--allow-cidr`, `--allow-udp` and `--outbound-localhost-only` add to the
 policy, and `--remove-allow-host`, `--remove-allow-cidr` and `--remove-allow-udp` take entries back out; `--net` and `--no-net` turn
-networking on and off. `--dns-option` and `--clear-dns-options` change the resolver options for the
+networking on and off, and from v1.36.0 `--no-net` also drops `--block-private`, a `--guest-subnet`, a
+named `--network` and the machine's credential bindings. `--dns-option` and `--clear-dns-options` change the resolver options for the
 next start; a checkpoint resumes with the options it was captured with, and `machine create --from`
 a checkpoint with a different set is refused. On a stopped machine the new policy applies from the next start, and only
 the named destinations answer afterwards:
@@ -701,7 +725,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--allow-udp` | Allow UDP to a CIDR, optionally on one port or a range, as `CIDR[:PORT[-END]]`; a `--deny-cidr` still wins; implies `--net` |
 | `--block-private` | Keep the public internet open and block private, internal and link-local destinations, cloud metadata and the host's loopback; implies `--net` |
 | `--allow-private` | Reopen one private CIDR under `--block-private`, which it implies; cloud metadata stays blocked |
-| `--allow-host-loopback` | On `machine run` only: let the guest reach services on the host's own `127.0.0.1` and `::1`, which are closed by default; cloud metadata stays blocked; implies `--net` |
+| `--allow-host-loopback` | On `machine run` only: let a machine on the default `tsi` backend reach services on the host's own `127.0.0.1` and `::1`, which `tsi` keeps closed. A `virtio-net` machine reaches them by default through `host.smolvm.internal`, as [Isolation, networking and credentials](/docs/introduction/concepts/isolation-networking-credentials#networking) describes with how to close it; cloud metadata stays blocked; implies `--net` |
 | `--deny-cidr` | Refuse egress to a CIDR before any allow is checked, so it wins over every allow list; on `machine run` and `machine create`, not `update`; implies `--net` |
 | `--dns` | Resolve guest names through this resolver IP instead of the host's own; implies `--net` |
 | `--dns-option` | Add a resolver option to the guest's `resolv.conf`, such as `timeout:1`; repeatable, written in order as one `options` line. musl images such as Alpine honor only `ndots`, `timeout` and `attempts` |

@@ -149,6 +149,12 @@ changed:
   `npm install smolmachines` on this Mac installed the first beside it. It is no longer a package
   with no runtime dependencies.
 
+### 2026-11-23, the cloud API
+
+Not a re-run. The cloud API's create now takes a string `command` as well as an array and runs the
+string with `sh -lc`, as the cloud API reference describes, so the 422 in the trap below no
+longer holds. What this SDK does with a string was not run again; pass an array, as before.
+
 ## Related packets
 
 - `cloud-auth` for the credential and its scopes.

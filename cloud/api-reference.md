@@ -50,6 +50,8 @@ DELETE /v1/machines/{id}
 
 Machine creation accepts an OCI image or a `.smolmachine` registry reference as its source. Specify CPU, memory, network policy, environment, working directory, lifecycle limits, and other supported fields in the create request.
 
+`command` replaces the source's own entrypoint and command as what the machine runs when it starts. It takes an argument list, or, as an exec's `command` does, one string run with `sh -lc`; a blank string is refused.
+
 When `resources` is omitted, a machine currently defaults to 4 vCPUs and 8192 MB of memory. When `network` is omitted, outbound access defaults to **open**, so set `network.mode` explicitly (`blocked` or `allowCidrs`) when egress policy matters. Note a `blocked` machine also cannot pull its image, which runs in-guest, unless the image is already cached on its node. Larger machines cost more, so pass `resources` explicitly (for example `{"cpus": 1, "memoryMb": 256}`) rather than relying on the default. Disk per machine is capped by the plan, which `effectiveMaxDiskGb` shows; 16 TiB is the most any request can ask for. Check the OpenAPI document for the current request limits.
 
 `resources.diskDurability` is `full` (the default), where a guest `fsync` waits for the node's disk, or `deferred`, which is faster for fsync-heavy work and can lose recent writes if the node crashes; a branch keeps its source's.
@@ -234,6 +236,7 @@ The Cloud API also provides endpoints for:
 - Minting a short-lived token that opens only one machine's connect bridge, `POST /v1/machines/{id}/connect-token`
 - Replacing a machine's published ports, live while it runs, `PUT /v1/machines/{id}/ports` with `{"ports": [{"port": 8080}]}`
 - Replacing a machine's outbound network policy, `PUT /v1/machines/{id}/network` with the create's `network` object: live from one allow list to another on a started machine, otherwise at the next start
+- Replacing a machine's environment, `PUT /v1/machines/{id}/env` with `{"env": {"NAME": "value"}}`: commands started after the call get it at once, and the workload at its next start
 - Replacing a machine's credential bindings before its first start, `PUT /v1/machines/{id}/credentials`
 - Opening a machine's published app to anyone without a login, and closing it again, `POST` and `DELETE /v1/machines/{id}/public`
 - Getting or revoking login-free port links, one URL per published port, `POST` and `DELETE /v1/machines/{id}/port-links`
@@ -333,6 +336,21 @@ Metering semantics to build billing on:
 When the prepaid balance runs out, running work continues for 48 hours, with an email at the start and before the end. Then running machines are stopped, and requests that start or create work are refused with `402` (`payment_required`, detail "balance exhausted"). Reads, stop and delete still work. A plan with a monthly budget, or the egress budget, refuses the same way when reached. `PATCH /v1/account` from a signed-in session, with `lowBalanceThresholdMicros`, sets the low-balance email (`0` turns it off), and auto-recharge, set from [billing](/console/billing), charges the card on file a chosen amount when the balance falls to a threshold.
 
 The [cloud-usage](/docs/guides/skills/cloud-usage) skill packet reads these totals and reconciles one machine's bill against its uptime and the published rate.
+
+### Machine metrics
+
+`GET /v1/machines/{id}/metrics` (`machine:read`) reads one machine's resource use from its node at that moment. Nothing is stored, so poll it to draw a graph:
+
+```json
+{"machineId": "<id>", "at": "2026-11-23T20:00:00.000Z", "state": "started", "vcpus": 2, "memoryLimitMb": 2048,
+ "cpuMillis": 51230, "cpuLimitMillicpus": null, "memoryMb": 310, "rssMb": 402, "diskUsedMb": 1180, "diskGb": 10,
+ "egressBytes": 884213,
+ "pressure": {"cpu": {"someAvg10": 0.4, "someAvg60": 0.2, "fullAvg10": 0, "fullAvg60": 0},
+              "memory": {"someAvg10": 0, "someAvg60": 0, "fullAvg10": 0, "fullAvg60": 0},
+              "io": {"someAvg10": 0, "someAvg60": 0, "fullAvg10": 0, "fullAvg60": 0}}}
+```
+
+`cpuMillis` and `egressBytes` count from the VM's start and begin again at 0 when it restarts; CPU utilization over an interval is the change in `cpuMillis` divided by the elapsed milliseconds times `vcpus`. `memoryMb` splits pages shared with branches among them, the figure memory is billed on, and `rssMb` counts them in full. Each `pressure` reading gives `someAvg10`, `someAvg60`, `fullAvg10` and `fullAvg60`, the percent of recent time some or all guest tasks waited. `cpuLimitMillicpus` is a CPU limit in force at that moment, in thousandths of a CPU. While the machine is not `started` the readings are `null`, apart from `vcpus`, `memoryLimitMb` and `diskGb`, which give its size. For a started machine, the request answers `502` when its node cannot be read and `504` when the node does not answer in time.
 
 ### Metrics export
 

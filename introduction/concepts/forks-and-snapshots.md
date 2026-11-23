@@ -89,9 +89,9 @@ be restored. The initial profile refuses a machine with any of:
 - Vulkan GPU state, CUDA state, or Rosetta
 - SSH agent forwarding or Docker socket forwarding
 
-A checkpoint taken with `machine checkpoint --host-mounts` restores only on a host where the same host paths exist, and attaches each one again at its guest path. `machine pause` keeps a machine's host mounts without being asked.
+A checkpoint taken with `machine checkpoint --host-mounts` records each host mount. From smolvm v1.36.0 a restore attaches a recorded mount only where `-v HOST:GUEST` names its host directory (`:ro` for a read-only one); without it the restore is refused, and the error names the `-v` to pass. `machine pause` keeps a machine's host mounts without being asked.
 
-The error names the ones in the way and asks you to stop or detach them before capture. A machine
+The capture error names the ones in the way and asks you to stop or detach them before capture. A machine
 that needs a socket or a staged mount for its work is therefore a machine to pack, not to checkpoint.
 
 `machine branch` is the other way round: it takes no mount or socket flag at all, and children
