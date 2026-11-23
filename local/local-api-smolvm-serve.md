@@ -57,7 +57,7 @@ started with.
 | `--restore-cache-entries N` | Restored checkpoints kept extracted after their machines are gone, so restoring one again reuses it; 32 by default, `0` keeps none |
 | `--restore-cache-gib GiB` | Space those kept checkpoints may hold together, 256 GiB by default |
 | `--prepared-checkpoint-cache-gib GiB` | Space for captured checkpoints kept on this host, so restoring one here skips the download; 64 GiB by default, and `SMOLVM_PREPARED_CHECKPOINT_CACHE_MAX_BYTES` takes precedence when set |
-| `--cors-origin ORIGIN` | Allowed CORS origin, repeatable; `localhost:8080` and `localhost:3000` by default |
+| `--cors-origin ORIGIN` | An origin whose web pages may call the API, repeatable; `localhost:8080` and `localhost:3000` by default, and naming one replaces both. From v1.36.0 a request from any other page's origin answers `403`, and a loopback listener answers only a `Host` that is `localhost`, an IP address or a `--cors-origin` host, so a client or proxy that reaches it under another name, such as `host.docker.internal`, needs `--cors-origin http://NAME:PORT` |
 | `--json-logs` | Write logs as structured JSON for a log aggregator |
 
 ## Selected HTTP endpoints
