@@ -335,6 +335,21 @@ When the prepaid balance runs out, running work continues for 48 hours, with an 
 
 The [cloud-usage](/docs/guides/skills/cloud-usage) skill packet reads these totals and reconciles one machine's bill against its uptime and the published rate.
 
+### Machine metrics
+
+`GET /v1/machines/{id}/metrics` (`machine:read`) reads one machine's resource use from its node at that moment. Nothing is stored, so poll it to draw a graph:
+
+```json
+{"machineId": "<id>", "at": "2026-11-23T20:00:00.000Z", "state": "started", "vcpus": 2, "memoryLimitMb": 2048,
+ "cpuMillis": 51230, "cpuLimitMillicpus": null, "memoryMb": 310, "rssMb": 402, "diskUsedMb": 1180, "diskGb": 10,
+ "egressBytes": 884213,
+ "pressure": {"cpu": {"someAvg10": 0.4, "someAvg60": 0.2, "fullAvg10": 0, "fullAvg60": 0},
+              "memory": {"someAvg10": 0, "someAvg60": 0, "fullAvg10": 0, "fullAvg60": 0},
+              "io": {"someAvg10": 0, "someAvg60": 0, "fullAvg10": 0, "fullAvg60": 0}}}
+```
+
+`cpuMillis` and `egressBytes` count from the VM's start and begin again at 0 when it restarts; CPU utilization over an interval is the change in `cpuMillis` divided by the elapsed milliseconds times `vcpus`. `memoryMb` splits pages shared with branches among them, the figure memory is billed on, and `rssMb` counts them in full. Each `pressure` reading gives `someAvg10`, `someAvg60`, `fullAvg10` and `fullAvg60`, the percent of recent time some or all guest tasks waited. `cpuLimitMillicpus` is a CPU limit in force at that moment, in thousandths of a CPU. While the machine is not `started` the readings are `null`, apart from `vcpus`, `memoryLimitMb` and `diskGb`, which give its size. For a started machine, the request answers `502` when its node cannot be read and `504` when the node does not answer in time.
+
 ### Metrics export
 
 smol cloud can push every running machine's metrics to an OpenTelemetry collector you name, as OTLP over HTTP with JSON encoding, every 30 seconds. `PUT /v1/account/telemetry` sets the destination:
