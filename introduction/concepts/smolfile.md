@@ -219,7 +219,10 @@ same code, so the spellings cannot drift apart.
 `tsi` is the default and is enough for a workload that only makes outbound
 connections. Choose `virtio-net` when the guest needs a real network interface
 and a default route of its own, which is what anything doing its own routing
-requires: a kernel-mode VPN client such as Tailscale is the usual case.
+requires: a kernel-mode VPN client such as Tailscale is the usual case. The default `virtio-net`
+link is inside the range Tailscale claims, so also pass `--guest-subnet`, as
+[Moving the guest off the default range](/docs/local/machine-lifecycle-cli-reference#moving-the-guest-off-the-default-range)
+and [Use Tailscale in a smol machine](/docs/guides/tailscale) describe.
 
 ```toml
 image = "alpine"
