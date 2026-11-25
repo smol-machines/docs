@@ -129,6 +129,7 @@ page.
 | `guides/android-emulator.md` | Run the Android emulator headless inside a machine, on x86_64 Linux hosts |
 | `guides/headless-browser-computer-use.md` | Drive a browser or desktop inside a machine |
 | `guides/agent-sandboxes-ci.md` | Isolate agent-generated code and CI jobs |
+| `guides/infisical.md` | Keep an API key in Infisical and let local and cloud machines use it without holding it |
 | `guides/error-handling.md` | Error codes and how to handle them |
 | `guides/skills.md` | Which skill packet fits a task, what a packet page carries, and how to load one |
 | `guides/skills/install.md` | Install smolvm and prove the host boots a VM |
