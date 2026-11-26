@@ -328,7 +328,7 @@ A machine created with `detach` keeps running after the process that made it exi
 `restoreCheckpoint()` takes a `keepIdentity` flag with the same meaning as the CLI's
 `--keep-identity`, on the local target only.
 
-`setNetworkPolicy(policy)` (Node; `SetNetworkPolicy` in Go) replaces a stopped local machine's network policy from its next start, with `"allow-all"`, `"deny-all"` or `{ allowHosts, allowCidrs }` (in Go, `smol.AllowAll()`, `smol.DenyAll()` or `smol.AllowList(hosts, cidrs)`). It is local only, and Python has no equivalent; a cloud machine's network changes through `PUT /v1/machines/{id}/network`, as [Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) shows.
+`setNetworkPolicy(policy)` (Node; `set_network_policy(policy)` in Python, `SetNetworkPolicy` in Go) replaces a machine's network policy with `"allow-all"`, `"deny-all"` or `{ allowHosts, allowCidrs }` (in Python `{"allow_hosts": [...], "allow_cidrs": [...]}`, in Go `smol.AllowAll()`, `smol.DenyAll()` or `smol.AllowList(hosts, cidrs)`). A local machine must be stopped and takes it at its next start. On a cloud machine it sends `PUT /v1/machines/{id}/network`, so a running machine takes a new allow list at once and a switch to or from `"allow-all"` needs a stop first, and `"deny-all"` answers `422` on one that has run, as [Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) shows.
 
 On smol cloud a machine restored with `restoreCheckpoint()` (`restore_checkpoint()` in Python)
 runs with the network its checkpoint was captured with.

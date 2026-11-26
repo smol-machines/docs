@@ -110,7 +110,7 @@ need the privilege. Only the workload runs as `user`.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `volumes` | string array | Host bind mounts, such as `"./src:/app"`, or a guest path alone, such as `"/var/lib/docker"`, for a directory on the machine's own disk. |
+| `volumes` | string array | Host bind mounts, such as `"./src:/app"`, or a guest path alone, such as `"/var/lib/docker"`, for a directory on the machine's own disk. From v1.37.0, when `smolvm machine run` or `machine create` reads the Smolfile, a host path expands `$VAR` and `${VAR}` from that command's environment, as in `"$HOME/src:/app"`; a variable that is not set or is empty fails it, and `$$` is a literal `$`. `smol file up` does not expand them. |
 | `ports` | string array | Port mappings, such as `"8080:8080"`, or `"27015:27015/udp"` for UDP. |
 | `env` | string array | Development-only `KEY=VALUE` variables. |
 | `init` | string array | Commands run once, on first start. |
@@ -219,7 +219,10 @@ same code, so the spellings cannot drift apart.
 `tsi` is the default and is enough for a workload that only makes outbound
 connections. Choose `virtio-net` when the guest needs a real network interface
 and a default route of its own, which is what anything doing its own routing
-requires: a kernel-mode VPN client such as Tailscale is the usual case.
+requires: a kernel-mode VPN client such as Tailscale is the usual case. The default `virtio-net`
+link is inside the range Tailscale claims, so also pass `--guest-subnet`, as
+[Moving the guest off the default range](/docs/local/machine-lifecycle-cli-reference#moving-the-guest-off-the-default-range)
+and [Use Tailscale in a smol machine](/docs/guides/tailscale) describe.
 
 ```toml
 image = "alpine"

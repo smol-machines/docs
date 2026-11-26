@@ -99,6 +99,8 @@ Treat this as an integration to evaluate in a test cluster before production.
 
 This layout puts the control plane, kubelet, container runtime, and workloads inside one smolvm. The guest owns its kernel, cgroup v2 hierarchy, netfilter rules, mounts, and overlayfs.
 
+[`smol kubernetes create`](/docs/local/smol-cli-reference#smol-kubernetes) builds such a cluster with k3s in one command. The steps below build one by hand with k3d.
+
 Start from the maintained Docker-in-VM example:
 
 ```bash

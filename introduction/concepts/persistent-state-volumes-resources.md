@@ -26,7 +26,7 @@ A remote volume mounts S3-compatible object storage instead, using the same flag
 
 Credentials come from the machine's own environment: `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, with `AWS_ENDPOINT_URL` for S3-compatible services such as R2 or MinIO and `AWS_REGION` where it matters. Without them the bucket is read anonymously, which covers public datasets.
 
-A disk volume is a guest path with no host side, such as `-v /var/lib/docker`. It is a directory on the machine's own ext4 disk rather than its overlay root, bound into the workload on every start, and it persists across stop and start. Software that nests overlayfs, such as Docker, containerd or BuildKit, needs its data there, because overlayfs cannot use another overlay as its upper layer.
+A disk volume is a guest path with no host side, such as `-v /var/lib/docker`. It is a directory on the machine's own ext4 disk rather than its overlay root, bound into the workload on every start, and it persists across stop and start. Software that nests overlayfs, such as Docker, containerd or BuildKit, needs its data there, because overlayfs cannot use another overlay as its upper layer. From v1.35.5 the machine's disks keep POSIX ACLs: `setfacl` and `getfacl` work on a disk volume and on the root filesystem, and the entries survive stop and start.
 
 Volumes are runtime attachments. A `.smolmachine` artifact does not make its external volume bindings portable or persistent. Re-specify the required volumes each time a packed artifact runs.
 

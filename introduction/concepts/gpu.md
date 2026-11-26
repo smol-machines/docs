@@ -20,11 +20,11 @@ Enable it with `--gpu`, `gpu = true` in a Smolfile, or `gpu: true` / `gpu=True` 
 smolvm machine run --gpu --net --image alpine -- vulkaninfo --summary
 ```
 
-On macOS, the release bundles virglrenderer and MoltenVK. On Linux, install virglrenderer and the Vulkan driver for the host GPU; for example:
+On macOS, the release bundles virglrenderer and MoltenVK. From v1.37.0 the Linux release bundles virglrenderer too, so a Linux host needs only the Vulkan driver for its GPU, with the libEGL, libgbm and libdrm that come with it; for example:
 
 ```bash
 # Debian or Ubuntu
-sudo apt install libvirglrenderer1 mesa-vulkan-drivers
+sudo apt install mesa-vulkan-drivers libegl1 libgbm1
 ```
 
 The guest needs a Vulkan loader and the Venus virtio ICD, and on a glibc image it needs nothing
@@ -36,12 +36,14 @@ architecture.
 
 ### Nix and NixOS hosts
 
-The release tarball does not ship virglrenderer, and libkrun loads it at
-runtime rather than linking it, so the library has to be reachable by the
-dynamic loader. A Nix install of smolvm (`nix run github:smol-machines/smolvm`)
-sets the package's own library path only, and on NixOS there is no system-wide
-loader cache to fall back on, so `--gpu` cannot find virglrenderer unless you
-put it on the path yourself:
+libkrun loads virglrenderer at runtime rather than linking it, so the library
+has to be reachable by the dynamic loader. The Nix package
+(`nix run github:smol-machines/smolvm`) installs the release tarball, which
+from v1.37.0 carries virglrenderer in the package's own library directory. A
+release before v1.37.0 did not carry it. A Nix install sets the package's own
+library path only, and on NixOS there is no system-wide loader cache to fall
+back on, so with such a release `--gpu` cannot find virglrenderer unless you put
+it on the path yourself:
 
 ```bash
 export LD_LIBRARY_PATH="$(nix build --no-link --print-out-paths nixpkgs#virglrenderer)/lib:$(nix build --no-link --print-out-paths nixpkgs#libepoxy)/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -56,6 +58,11 @@ than the distribution's keeps it in one closure with the Mesa that nixGL
 provides, and nixpkgs ships a newer virglrenderer with Venus enabled than
 Debian does. This recipe was reported working on Debian 13 with an AMD GPU
 ([smolvm#907](https://github.com/smol-machines/smolvm/issues/907)).
+
+From v1.37.0 the package's virglrenderer still needs the host GPU driver's
+libEGL, libgbm and libdrm, which the package does not carry. On NixOS, put
+`/run/opengl-driver/lib` on `LD_LIBRARY_PATH`, and on another host wrap the
+command with nixGL.
 
 ### When virglrenderer is missing
 

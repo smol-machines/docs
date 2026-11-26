@@ -71,16 +71,18 @@ In a [sub-organization](/docs/cloud/organizations#who-does-what-in-a-sub-organiz
 | Setting | Route | SDK and CLI | When it applies |
 |---|---|---|---|
 | Published ports | `PUT /v1/machines/{id}/ports`, [below](#ingress-and-published-ports) | `publish()` and `unpublish()` in Node and Python, `Publish` and `Unpublish` in Go; no Rust `Machine` method and no `smol` command | Started: at once, no restart. Stopped: at the next start |
-| Outbound network | `PUT /v1/machines/{id}/network`, [below](#change-the-network-of-an-existing-machine) | None | Started: one allow list for another, at once; to or from `open` needs a stop first. Stopped: at the next start. A restored machine runs with the network its checkpoint was captured with |
+| Outbound network | `PUT /v1/machines/{id}/network`, [below](#change-the-network-of-an-existing-machine) | From smol v1.36.1, `setNetworkPolicy()` in Node, `set_network_policy()` in Python, `SetNetworkPolicy` in Go; Rust's `update_network()` is local only, and no `smol` command | Started: one allow list for another, at once; to or from `open` needs a stop first. Stopped: at the next start. A restored machine runs with the network its checkpoint was captured with |
 | vCPUs, memory, disk | `POST /v1/machines/{id}/resize` | `resize()` in Node, Python and Rust; not in Go, and not `smol machine resize` | Started: in place. Stopped or paused: at the next start or resume. Memory and disk only grow |
-| Labels | `PATCH /v1/machines/{id}/labels`, [above](#find-a-machine-again) | None | Any state, at once |
-| Environment | `PUT /v1/machines/{id}/env` | None | Started: commands started from then on, at once; the workload itself at its next start. Stopped: at the next start. Starting, stopping, paused or a frozen branch base: `409` |
+| Labels | `PATCH /v1/machines/{id}/labels`, [above](#find-a-machine-again) | From smol v1.37.3, `setLabels()` in Node, `set_labels()` in Python and Rust, `SetLabels` in Go; a `null`, `None` or `nil` value removes that label | Any state, at once |
+| Environment | `PUT /v1/machines/{id}/env` | From smol v1.37.3, `setEnv()` in Node, `set_env()` in Python and Rust, `SetEnv` in Go, which replace the whole set | Started: commands started from then on, at once; the workload itself at its next start. Stopped: at the next start. Starting, stopping, paused or a frozen branch base: `409` |
 | Credential values | `PUT /v1/credentials/{name}`, [below](#credentials-the-machine-never-holds) | `updateCredentialValues()` in Node, `update_credential_values()` in Python and Rust, `UpdateCredentialValues` in Go; a `value` passed on create or to `setCredentials()` is stored the same way | Running machines that bind it: from their next request |
 | Credential bindings | `PUT /v1/machines/{id}/credentials` | `setCredentials()` in Node, `set_credentials()` in Python and Rust, `SetCredentials` in Go, which replace the whole set | Only while the machine has no copy on a node and nothing to restore; otherwise `409` |
 | Public ingress | `POST` and `DELETE /v1/machines/{id}/public` | None | At once; needs a published port and a name of lowercase letters, digits and hyphens, else `422` |
 | Idle clock | `POST /v1/machines/{id}/keepalive` | None | Started machines only |
 
 `PUT /v1/machines/{id}/env` takes the machine's whole environment, `{"env": {"NAME": "value"}}`, and replaces the one it had; `{"env": {}}` removes every variable. It answers with the machine, its values redacted.
+
+The SDK label and environment methods work on cloud machines only. On a local machine they fail with a not-supported error; change a local machine's environment with `smolvm machine update -e`, as [Change a running machine](/docs/local/machine-lifecycle-cli-reference#change-a-running-machine) describes.
 
 Nothing changes `source`, `command`, `workdir`, `autoStopSeconds`, `idleAction`, `ttlSeconds`, `ephemeral`, `cacheDisk`, `remoteMounts` or `nestedVirt` on an existing machine. Create a new machine with the values you need, or checkpoint this one and restore it with new `env`, `autoStopSeconds`, `idleAction` or `labels`, as [Branches and checkpoints](#branches-and-checkpoints) describes.
 
@@ -212,7 +214,7 @@ It answers `200` with the machine. What it accepts depends on the machine's stat
 - On a stopped machine, any change applies at its next start, except turning networking off. `blocked` on a machine that has run answers `422`; restrict it with `allowCidrs`, or create a new machine with `blocked`.
 - On a machine created with `POST /v1/machines` that has never started, any policy is recorded for its first start, `blocked` included. A machine restored from a checkpoint runs with the network its checkpoint was captured with.
 
-An allow list with no host and no CIDR answers `400`, and so does a malformed CIDR or host. `blocked` on a machine that binds credentials answers `422`. A frozen branch base, or a machine in any other state, such as `creating` or `paused`, answers `409`. No SDK method or `smol` command changes a cloud machine's network yet.
+An allow list with no host and no CIDR answers `400`, and so does a malformed CIDR or host. `blocked` on a machine that binds credentials answers `422`. A frozen branch base, or a machine in any other state, such as `creating` or `paused`, answers `409`. The Node, Python and Go SDKs send this request with the methods the [table above](#change-a-machine-after-create) names; no Rust method or `smol` command changes a cloud machine's network yet.
 
 ### Credentials the machine never holds
 

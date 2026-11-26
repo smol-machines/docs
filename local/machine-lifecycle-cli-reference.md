@@ -114,6 +114,13 @@ smolvm machine exec --name dev --timeout 5m -- python3 train.py
 `machine stop -t SECONDS` gives the workload that long to exit after its stop signal, for this stop
 only, instead of the machine's stop timeout; `-t 0` kills it at once.
 
+From v1.37.0, `machine stop --force` (`-f`) stops the machine at once, without shutting the guest
+down or syncing its filesystems and staged folders: the disks are kept, and writes the guest had not
+synced are lost. It cannot be combined with `-t`. From v1.37.4, `--pid PID`, which needs `--force`, stops the
+machine only while that host process, the `pid` that `machine status --json` reports, still runs
+it. Any other PID, including one from a run that has ended, is refused with `machine execution
+changed; refresh before trying again`.
+
 ### Watch a machine's health
 
 `machine monitor` runs a health check against a machine and applies a restart policy, in the
@@ -446,15 +453,16 @@ These change a machine while it runs; the last column says when each takes effec
 | Setting | CLI | `smolvm serve` API | On a running machine |
 |---|---|---|---|
 | Published TCP ports | `machine update -p`, `--remove-port` | `PUT /api/v1/machines/:name/ports` | At once; a UDP port needs a stop |
-| Egress allow list | `machine update --allow-host`, `--allow-host-pattern`, `--allow-cidr`, `--allow-udp`, `--outbound-localhost-only`, `--remove-allow-host`, `--remove-allow-cidr`, `--remove-allow-udp` and `--reset-allow-list` | `POST /api/v1/machines/:name/egress` | At once on a machine started with an allow list; lifting the list, or adding one to a machine running without one, needs a stop |
+| Egress allow list | `machine update --allow-host`, `--allow-host-pattern`, `--allow-cidr`, `--allow-udp`, `--outbound-localhost-only`, `--remove-allow-host`, `--remove-allow-cidr`, `--remove-allow-udp` and `--reset-allow-list` | `POST /api/v1/machines/:name/egress`, or from v1.37.0 `PUT /api/v1/machines/:name/network` | At once on a machine started with an allow list; lifting the list, or adding one to a machine running without one, needs a stop |
 | Host directory mounts | `machine mount add`, `machine mount rm` | `/api/v1/machines/:name/mounts` | At once, until the machine stops |
 | CPUs, memory, disks | `machine resize` | `POST /api/v1/machines/:name/resize` | At once; memory and disks only grow |
 | Host CPU cap | None | `PUT /api/v1/machines/:name/cpu-limit` | At once, on Linux with a cgroup smolvm controls |
 | Credential values | `machine credentials refresh` | `PUT /api/v1/machines/:name/credential-values` | At once |
 | Credential bindings | `machine credentials add`, `machine credentials remove` | `PUT /api/v1/machines/:name/credential-bindings` | From its next request, if it started with at least one binding; otherwise from its next start |
-| Labels | `machine update --label`, `--remove-label` | None | Any state |
+| Environment variables | `machine update -e`, `--remove-env` | `PUT /api/v1/machines/:name/env` | From v1.37.0, for commands started from then on; a process already running keeps its own until it restarts |
+| Labels | `machine update --label`, `--remove-label` | From v1.37.0, `PATCH /api/v1/machines/:name/labels` | Any state |
 
-Any other `machine update` setting, such as `--cpus`, is refused on a running machine with `invalid vm state: expected stopped, got Running`.
+Any other `machine update` setting, such as `--cpus`, is refused on a running machine with `invalid vm state: expected stopped, got Running`, and so is an update that mixes one of these with anything else, such as `-e` with `--label`.
 
 `machine credentials refresh` rotates the values of a machine's `--credential` bindings. It reads
 each binding's variable from the shell that runs it, and the machine uses the new value from its
@@ -500,8 +508,9 @@ smolvm machine resize --name dev --cpus 4 --mem 2048
 `machine resize` grows a running machine without rebooting it, and the guest sees the change at
 once: `nproc` and `/proc/meminfo` report the new figures on the next command. It takes `--cpus`,
 `--mem`, `--storage` and `--overlay`, at least one of them. Memory, storage and overlay grow only,
-and platform alignment applies to a memory target; CPU shrinking works only on compatible Linux
-x86_64 runtimes. To make a smaller machine on any host, stop it and use `machine update`. A memory
+and platform alignment applies to a memory target. CPU shrinking works only on Linux, on compatible
+x86_64 runtimes and from v1.37.3 on arm64; a Mac refuses it with `live CPU shrink requires Linux
+with offline-CPU checkpoint support; no CPUs changed`. To make a smaller machine on any host, stop it and use `machine update`. A memory
 grow the host cannot back is refused with `insufficient host or VMM parent memory headroom for
 requested growth`, and the machine keeps running at its old size.
 
@@ -515,10 +524,18 @@ smolvm machine start --name dev
 
 `machine update` changes configuration for the next start, so the machine must be stopped first,
 and it says so rather than guessing: on a running machine the command fails with `invalid vm state:
-expected stopped, got Running`. Labels, the allow list and published TCP ports are the exceptions,
-when an update changes only them, and a host directory can be mounted into a running machine with `machine mount add`, below.
+expected stopped, got Running`. Labels, the allow list, published TCP ports and, from v1.37.0,
+environment variables are the exceptions, when an update changes only them, and a host directory can be mounted into a running machine with `machine mount add`, below.
 
-On a stopped machine it also takes `--remove-env KEY`, `--remove-volume HOST:GUEST`, `--no-gpu`,
+```bash
+smolvm machine update --name dev -e LOG_LEVEL=debug
+smolvm machine update --name dev --remove-env LOG_LEVEL
+```
+
+On a running machine each prints `running; new commands get it now, processes already running keep
+theirs until restarted`, and the change is kept for later starts.
+
+On a stopped machine it also takes `--remove-volume HOST:GUEST`, `--no-gpu`,
 `--no-rosetta` and `--no-egress-interceptor` to take a setting back out, and `--storage` and
 `--overlay` to grow the disks of a machine that has started at least once; on one that never
 started they fail with `open disk: No such file or directory`.
@@ -617,6 +634,23 @@ A bucket mount is not a full POSIX filesystem:
 - Symlinks are not supported, and changes to ownership, permissions, executable bits and timestamps are not kept, so a copied Git repository can lose information even when every file's contents match.
 - A rename is a server-side copy followed by a delete of the source. It is not atomic, and when the delete fails both names can exist.
 - Writes are staged in the machine until a flush or `fsync` uploads them; writes lost with the machine before that are gone.
+
+### Pass a serial device into a machine
+
+From v1.37.0, `--serial DEVICE[:BAUD]` on `machine run` and `machine create` passes a host serial
+device, such as a USB-serial adapter or a dev board, into the machine. The guest sees the first one
+as `/dev/ttySMOL0` and the next as `/dev/ttySMOL1`, in flag order, and any user in the guest may
+open it:
+
+```bash
+smolvm machine create --name bench --image alpine --serial /dev/cu.usbserial-0001:115200
+smolvm machine start --name bench
+smolvm machine exec --name bench -- sh -c 'printf "AT\r" > /dev/ttySMOL0'
+```
+
+`BAUD` defaults to 115200. On Linux it must be a standard rate, and another fails the start with
+`unsupported baud rate`. The device must exist when the machine starts; a missing one fails the
+start with `serial device /dev/...: No such file or directory`.
 
 ### Run a hypervisor inside the machine
 
@@ -742,6 +776,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--max-image-size` | On `machine run` and `machine create`: the largest local image archive accepted, such as `16GiB`, `512M` or a byte count; 8 GiB by default. A larger archive is refused with its size, and `SMOLVM_MAX_IMAGE_BYTES` sets the same limit |
 | `--oci-platform` | On `machine run`, `machine create` and `pack create`: the platform to pull from a multi-platform image, such as `linux/amd64`; a platform the image does not have is refused |
 | `--allow-system-mounts` | On `machine run`, `machine create`, `machine update` and `pack run`: allow read-only host `/etc` and `/var/log` mounts below `/host`, which are refused otherwise. It exposes sensitive host data to the guest, so never use it for untrusted workloads |
+| `--serial` | On `machine run` and `machine create`: pass a host serial device into the machine as `/dev/ttySMOL0`, `/dev/ttySMOL1` and so on, as `DEVICE[:BAUD]`, 115200 by default; repeatable |
 | `--disk` | Attach a host disk image or block device as `/dev/vdc`, `/dev/vdd` and so on, in order; `:ro` makes it read-only. smolvm never formats or mounts it, and a missing path is refused |
 | `--workdir`, `-w` | The workload's working directory; also on `machine update` |
 | `--interactive`, `-i` | Keep stdin open |

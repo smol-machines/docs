@@ -11,11 +11,11 @@ title: smol CLI Reference
 On macOS (Apple Silicon) and Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/smol-machines/smol/v1.36.1/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/smol-machines/smol/v1.37.4/scripts/install.sh | bash
 smol --version
 ```
 
-The script downloads the release bundle, checks its checksum, unpacks it under `~/.smol` and links `smol` into `~/.local/bin`. It installs the latest release; `SMOL_VERSION=v1.36.1` pins one, and `PREFIX` and `BIN_DIR` change those places. `smol --version` prints the CLI version and the engine version it carries, for example `smol 1.36.1 (engine smolvm 1.36.1)`.
+The script downloads the release bundle, checks its checksum, unpacks it under `~/.smol` and links `smol` into `~/.local/bin`. It installs the latest release; `SMOL_VERSION=v1.37.4` pins one, and `PREFIX` and `BIN_DIR` change those places. `smol --version` prints the CLI version and the engine version it carries, for example `smol 1.37.4 (engine smolvm 1.37.4)`.
 
 Sign in to reach smol cloud:
 
@@ -42,6 +42,7 @@ Run `smol <command> --help` for every flag of a command.
 | `smol run -I IMAGE -- CMD` | Run a command in a throwaway machine, print its output when it finishes, and exit with its code |
 | `smol new` | Scaffold a project: app code, a Smolfile and a README, from the `flask` or `node` template |
 | `smol machine ...` | A machine's whole lifecycle, below |
+| `smol kubernetes ...` | A local development Kubernetes cluster in one machine, below |
 | `smol file init`, `up`, `down` | Create a Smolfile, and bring its machine up or down |
 | `smol pack create`, `push`, `pull`, `inspect` | Build and publish `.smolmachine` artifacts |
 | `smol registry ls`, `catalog`, `tags`, `login`, `logout` | Browse registries and store their credentials |
@@ -52,7 +53,7 @@ Run `smol <command> --help` for every flag of a command.
 
 ### `smol machine`
 
-`create`, `start`, `stop`, `pause`, `resume`, `rm`, `ls`, `status`, `exec`, `shell`, `logs`, `cp`, `sync`, `branch`, `branch-batch`, `checkpoint`, `checkpoint-log`, `checkpoint-prune`, `checkpoint-warm`, `restore`, `move`, `images`, `prune`, `resize`, `update`, `monitor` and `data-dir`. A machine is named with `--name`:
+`create`, `start`, `stop`, `pause`, `resume`, `rm`, `ls`, `status`, `exec`, `shell`, `logs`, `cp`, `sync`, `branch`, `branch-batch`, `checkpoint`, `checkpoint-requirements`, `checkpoint-log`, `checkpoint-prune`, `checkpoint-warm`, `restore`, `move`, `images`, `prune`, `resize`, `update`, `monitor`, `data-dir`, `ssh` and `ssh-config`. A machine is named with `--name`:
 
 ```bash
 smol machine create --name dev --image alpine
@@ -62,6 +63,23 @@ smol machine rm --name dev --yes
 ```
 
 `smol machine move --name NAME` moves a running local machine to smol cloud, processes and memory included. It does not move every machine yet; [Move a local machine to the cloud](/docs/cloud/lifecycle-storage-networking#move-a-local-machine-to-the-cloud) lists which.
+
+`smol machine ssh --name NAME` opens SSH to a local machine, starting it first when it is stopped, and `smol machine ssh --name NAME -- COMMAND` runs one command; SSH joins the words of `COMMAND` into one line, as `ssh` does. `smol machine ssh-config --name NAME` prints the host name and the path of a generated SSH config as JSON, `{"host": ..., "config": ...}`, for an editor or `ssh -F`; [Connect over SSH](/docs/local/machine-lifecycle-cli-reference#connect-over-ssh) shows that config at work.
+
+### `smol kubernetes`
+
+`smol kubernetes create NAME` starts a k3s cluster in one local machine named `smol-k8s-NAME` and prints it as JSON once it is ready. `--cpus`, `--memory-mib` and `--storage-gib` size it, 2, 3072 and 8 by default:
+
+```bash
+smol kubernetes create dev
+smol kubernetes kubectl dev get nodes
+smol kubernetes kubeconfig dev --output dev-kubeconfig.yaml
+smol kubernetes stop dev
+smol kubernetes start dev
+smol kubernetes delete dev --yes
+```
+
+`kubectl` runs the cluster's own kubectl inside the machine, so file paths refer to the guest. `kubeconfig` writes a kubeconfig for the cluster's API on `127.0.0.1` to a new file that only you can read, refuses a file that already exists, and leaves `~/.kube` alone. `stop` keeps the cluster's data for `start`, and `delete` removes the cluster and its persistent volumes and needs `--yes`. `list` and `status` print JSON, and `logs` reads the server's recent logs.
 
 ### `smol file up`
 
