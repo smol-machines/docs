@@ -129,12 +129,14 @@ smolvm machine run --net --secret-env AGENT_TOKEN=API_TOKEN \
 
 Guest code can read `AGENT_TOKEN`. Use injection only when the whole guest workload is trusted with the value.
 
-SSH-agent forwarding keeps private key material on the host, but the guest can request signatures while the socket is connected:
+SSH-agent forwarding keeps private key material on the host, but the guest can list the agent's keys and request signatures while the socket is connected:
 
 ```bash
 smolvm machine run --ssh-agent --net --image alpine:3.20 -- \
   sh -c "apk add -q openssh-client && ssh-add -l"
 ```
+
+From v1.37.4 the guest cannot add, remove or lock the agent's keys.
 
 For an HTTPS credential the workload must use but never hold, `--credential NAME=ENV_VAR@HOST`
 binds one: the guest gets a placeholder in `ENV_VAR` and the host substitutes the real value only

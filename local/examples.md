@@ -137,7 +137,7 @@ smolvm machine run \
   -- sh -c "apk add -q openssh-client && ssh-add -l"
 ```
 
-Private key material stays in the host agent, but the guest can request signatures while the forwarded socket is available. Use this only with workloads you trust.
+Private key material stays in the host agent, but the guest can list its keys and request signatures while the forwarded socket is available. From v1.37.4 it cannot add, remove or lock the agent's keys. Use this only with workloads you trust.
 
 ## Publish a guest port
 
