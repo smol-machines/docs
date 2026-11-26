@@ -634,6 +634,23 @@ A bucket mount is not a full POSIX filesystem:
 - A rename is a server-side copy followed by a delete of the source. It is not atomic, and when the delete fails both names can exist.
 - Writes are staged in the machine until a flush or `fsync` uploads them; writes lost with the machine before that are gone.
 
+### Pass a serial device into a machine
+
+From v1.37.0, `--serial DEVICE[:BAUD]` on `machine run` and `machine create` passes a host serial
+device, such as a USB-serial adapter or a dev board, into the machine. The guest sees the first one
+as `/dev/ttySMOL0` and the next as `/dev/ttySMOL1`, in flag order, and any user in the guest may
+open it:
+
+```bash
+smolvm machine create --name bench --image alpine --serial /dev/cu.usbserial-0001:115200
+smolvm machine start --name bench
+smolvm machine exec --name bench -- sh -c 'printf "AT\r" > /dev/ttySMOL0'
+```
+
+`BAUD` defaults to 115200. On Linux it must be a standard rate, and another fails the start with
+`unsupported baud rate`. The device must exist when the machine starts; a missing one fails the
+start with `serial device /dev/...: No such file or directory`.
+
 ### Run a hypervisor inside the machine
 
 `--nested` exposes the host's virtualization extensions to the guest so it can run KVM, which is
@@ -758,6 +775,7 @@ egress: egress policy (--allow-cidr/--allow-host/--outbound-localhost-only/--blo
 | `--max-image-size` | On `machine run` and `machine create`: the largest local image archive accepted, such as `16GiB`, `512M` or a byte count; 8 GiB by default. A larger archive is refused with its size, and `SMOLVM_MAX_IMAGE_BYTES` sets the same limit |
 | `--oci-platform` | On `machine run`, `machine create` and `pack create`: the platform to pull from a multi-platform image, such as `linux/amd64`; a platform the image does not have is refused |
 | `--allow-system-mounts` | On `machine run`, `machine create`, `machine update` and `pack run`: allow read-only host `/etc` and `/var/log` mounts below `/host`, which are refused otherwise. It exposes sensitive host data to the guest, so never use it for untrusted workloads |
+| `--serial` | On `machine run` and `machine create`: pass a host serial device into the machine as `/dev/ttySMOL0`, `/dev/ttySMOL1` and so on, as `DEVICE[:BAUD]`, 115200 by default; repeatable |
 | `--disk` | Attach a host disk image or block device as `/dev/vdc`, `/dev/vdd` and so on, in order; `:ro` makes it read-only. smolvm never formats or mounts it, and a missing path is refused |
 | `--workdir`, `-w` | The workload's working directory; also on `machine update` |
 | `--interactive`, `-i` | Keep stdin open |
