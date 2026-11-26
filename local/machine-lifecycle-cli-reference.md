@@ -453,14 +453,14 @@ These change a machine while it runs; the last column says when each takes effec
 | Setting | CLI | `smolvm serve` API | On a running machine |
 |---|---|---|---|
 | Published TCP ports | `machine update -p`, `--remove-port` | `PUT /api/v1/machines/:name/ports` | At once; a UDP port needs a stop |
-| Egress allow list | `machine update --allow-host`, `--allow-host-pattern`, `--allow-cidr`, `--allow-udp`, `--outbound-localhost-only`, `--remove-allow-host`, `--remove-allow-cidr`, `--remove-allow-udp` and `--reset-allow-list` | `POST /api/v1/machines/:name/egress` | At once on a machine started with an allow list; lifting the list, or adding one to a machine running without one, needs a stop |
+| Egress allow list | `machine update --allow-host`, `--allow-host-pattern`, `--allow-cidr`, `--allow-udp`, `--outbound-localhost-only`, `--remove-allow-host`, `--remove-allow-cidr`, `--remove-allow-udp` and `--reset-allow-list` | `POST /api/v1/machines/:name/egress`, or from v1.37.0 `PUT /api/v1/machines/:name/network` | At once on a machine started with an allow list; lifting the list, or adding one to a machine running without one, needs a stop |
 | Host directory mounts | `machine mount add`, `machine mount rm` | `/api/v1/machines/:name/mounts` | At once, until the machine stops |
 | CPUs, memory, disks | `machine resize` | `POST /api/v1/machines/:name/resize` | At once; memory and disks only grow |
 | Host CPU cap | None | `PUT /api/v1/machines/:name/cpu-limit` | At once, on Linux with a cgroup smolvm controls |
 | Credential values | `machine credentials refresh` | `PUT /api/v1/machines/:name/credential-values` | At once |
 | Credential bindings | `machine credentials add`, `machine credentials remove` | `PUT /api/v1/machines/:name/credential-bindings` | From its next request, if it started with at least one binding; otherwise from its next start |
 | Environment variables | `machine update -e`, `--remove-env` | `PUT /api/v1/machines/:name/env` | From v1.37.0, for commands started from then on; a process already running keeps its own until it restarts |
-| Labels | `machine update --label`, `--remove-label` | None | Any state |
+| Labels | `machine update --label`, `--remove-label` | From v1.37.0, `PATCH /api/v1/machines/:name/labels` | Any state |
 
 Any other `machine update` setting, such as `--cpus`, is refused on a running machine with `invalid vm state: expected stopped, got Running`, and so is an update that mixes one of these with anything else, such as `-e` with `--label`.
 
