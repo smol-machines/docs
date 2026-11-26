@@ -114,6 +114,13 @@ smolvm machine exec --name dev --timeout 5m -- python3 train.py
 `machine stop -t SECONDS` gives the workload that long to exit after its stop signal, for this stop
 only, instead of the machine's stop timeout; `-t 0` kills it at once.
 
+From v1.37.0, `machine stop --force` (`-f`) stops the machine at once, without shutting the guest
+down or syncing its filesystems and staged folders: the disks are kept, and writes the guest had not
+synced are lost. It cannot be combined with `-t`. From v1.37.4, `--pid PID`, which needs `--force`, stops the
+machine only while that host process, the `pid` that `machine status --json` reports, still runs
+it. Any other PID, including one from a run that has ended, is refused with `machine execution
+changed; refresh before trying again`.
+
 ### Watch a machine's health
 
 `machine monitor` runs a health check against a machine and applies a restart policy, in the
