@@ -164,7 +164,7 @@ machine.publish(3000)
 print(machine.ports())
 ```
 
-In Go the same calls are `m.Publish(ctx, smol.PublishOptions{Guest: 3000})`, `m.Ports` and `m.Unpublish`. A cloud machine's network policy has no SDK method yet; change it with `PUT /v1/machines/{id}/network`, as [Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) shows, where every setting that changes after create is listed.
+In Go the same calls are `m.Publish(ctx, smol.PublishOptions{Guest: 3000})`, `m.Ports` and `m.Unpublish`. `setNetworkPolicy()` (`set_network_policy()` in Python, `m.SetNetworkPolicy` in Go) changes a cloud machine's network policy through `PUT /v1/machines/{id}/network`; [Change a machine after create](/docs/cloud/lifecycle-storage-networking#change-a-machine-after-create) lists it with every other setting that changes after create.
 
 ## Cloud-specific configuration
 
