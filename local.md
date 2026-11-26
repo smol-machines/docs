@@ -19,7 +19,7 @@ The same release is also published as `brew install smol-machines/tap/smolvm` on
 the apt, yum and pacman repositories at
 [smol-machines.github.io/smolvm](https://smol-machines.github.io/smolvm/), which list the commands
 for each. Nix installs the release named in the flake of the tag you pass, which can trail that
-tag: `nix profile install github:smol-machines/smolvm/v1.35.5` installs 1.35.4.
+tag: `nix profile install github:smol-machines/smolvm/v1.37.7` installs 1.37.5.
 
 The `smol` CLI drives the same engine and smol cloud from one command line; see the
 [smol CLI Reference](/docs/local/smol-cli-reference) for its install line.
