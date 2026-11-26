@@ -452,9 +452,10 @@ These change a machine while it runs; the last column says when each takes effec
 | Host CPU cap | None | `PUT /api/v1/machines/:name/cpu-limit` | At once, on Linux with a cgroup smolvm controls |
 | Credential values | `machine credentials refresh` | `PUT /api/v1/machines/:name/credential-values` | At once |
 | Credential bindings | `machine credentials add`, `machine credentials remove` | `PUT /api/v1/machines/:name/credential-bindings` | From its next request, if it started with at least one binding; otherwise from its next start |
+| Environment variables | `machine update -e`, `--remove-env` | `PUT /api/v1/machines/:name/env` | From v1.37.0, for commands started from then on; a process already running keeps its own until it restarts |
 | Labels | `machine update --label`, `--remove-label` | None | Any state |
 
-Any other `machine update` setting, such as `--cpus`, is refused on a running machine with `invalid vm state: expected stopped, got Running`.
+Any other `machine update` setting, such as `--cpus`, is refused on a running machine with `invalid vm state: expected stopped, got Running`, and so is an update that mixes one of these with anything else, such as `-e` with `--label`.
 
 `machine credentials refresh` rotates the values of a machine's `--credential` bindings. It reads
 each binding's variable from the shell that runs it, and the machine uses the new value from its
@@ -515,10 +516,18 @@ smolvm machine start --name dev
 
 `machine update` changes configuration for the next start, so the machine must be stopped first,
 and it says so rather than guessing: on a running machine the command fails with `invalid vm state:
-expected stopped, got Running`. Labels, the allow list and published TCP ports are the exceptions,
-when an update changes only them, and a host directory can be mounted into a running machine with `machine mount add`, below.
+expected stopped, got Running`. Labels, the allow list, published TCP ports and, from v1.37.0,
+environment variables are the exceptions, when an update changes only them, and a host directory can be mounted into a running machine with `machine mount add`, below.
 
-On a stopped machine it also takes `--remove-env KEY`, `--remove-volume HOST:GUEST`, `--no-gpu`,
+```bash
+smolvm machine update --name dev -e LOG_LEVEL=debug
+smolvm machine update --name dev --remove-env LOG_LEVEL
+```
+
+On a running machine each prints `running; new commands get it now, processes already running keep
+theirs until restarted`, and the change is kept for later starts.
+
+On a stopped machine it also takes `--remove-volume HOST:GUEST`, `--no-gpu`,
 `--no-rosetta` and `--no-egress-interceptor` to take a setting back out, and `--storage` and
 `--overlay` to grow the disks of a machine that has started at least once; on one that never
 started they fail with `open disk: No such file or directory`.
