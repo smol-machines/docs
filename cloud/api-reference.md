@@ -352,6 +352,8 @@ The [cloud-usage](/docs/guides/skills/cloud-usage) skill packet reads these tota
 
 `cpuMillis` and `egressBytes` count from the VM's start and begin again at 0 when it restarts; CPU utilization over an interval is the change in `cpuMillis` divided by the elapsed milliseconds times `vcpus`. `memoryMb` splits pages shared with branches among them, the figure memory is billed on, and `rssMb` counts them in full. Each `pressure` reading gives `someAvg10`, `someAvg60`, `fullAvg10` and `fullAvg60`, the percent of recent time some or all guest tasks waited. `cpuLimitMillicpus` is a CPU limit in force at that moment, in thousandths of a CPU. While the machine is not `started` the readings are `null`, apart from `vcpus`, `memoryLimitMb` and `diskGb`, which give its size. For a started machine, the request answers `502` when its node cannot be read and `504` when the node does not answer in time.
 
+From smol v1.37.3 the SDKs read it with `metrics()` in Node, Python and Rust and `Metrics` in Go, on cloud machines only; on a local machine they fail with a not-supported error.
+
 ### Metrics export
 
 smol cloud can push every running machine's metrics to an OpenTelemetry collector you name, as OTLP over HTTP with JSON encoding, every 30 seconds. `PUT /v1/account/telemetry` sets the destination:
