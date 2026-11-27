@@ -160,6 +160,7 @@ page.
 | `integrations/pydantic-ai-harness.md` | Pydantic AI Harness's `SmolSandbox`, an agent's shell and file tools in a local machine |
 | `integrations/sweeper.md` | The Paper Compute Company's sweeper with its smol backend, lint-fixing agents in a local machine |
 | `integrations/hermes-agent.md` | Nous Research's Hermes Agent with the `smolmachines` terminal backend, its tools in a local machine |
+| `integrations/traceroot.md` | traceroot's AI agent with its `smol` sandbox provider, on smol cloud or the local engine |
 | `integrations/agentid.md` | Agents signing in to smol cloud with AgentID, AgentMail's sign-in for agents |
 
 ## Searching
